@@ -12,6 +12,7 @@ import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, rende
 import { primaryPrefixForVlan, upsertPrefix, removePrefix, prefixKey, migrateIpam, prefixesForVlan, prefixesWithoutVlan, prefixesOf, findPrefix, parseNetworkList } from '../lib/ipam-model.js';   // la subnet è un prefisso, non un campo della VLAN
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { forgetFromRead } from '../lib/field-provenance.js';   // la regola: scrivere a mano toglie la provenienza «copiato dalla lettura»
 import { showConfirm } from './app-core.js';   // modale di conferma dell'app (non il confirm() nativo)
 import { TYPES, isVlanAware, bridgesOwnPorts, _ensureNodeSpec } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _isLeafEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
@@ -1148,6 +1149,7 @@ export function setLinkTrunkVlans(id, raw){
         if(!store.state.ports[anchor]) store.state.ports[anchor] = {};
         store.state.ports[anchor].mode = 'trunk';
         if(next) store.state.ports[anchor].trunkVlans = next; else delete store.state.ports[anchor].trunkVlans;
+        forgetFromRead(store.state.ports[anchor], 'trunkVlans');   // lo ha scritto una persona
         if(l.trunkVlans) delete l.trunkVlans;     // pulizia override legacy
         if(typeof propagateVlans==='function') propagateVlans();
         markDirty(); renderAll(); renderProps();
@@ -1218,6 +1220,7 @@ function setPortTrunkVlans(pid, raw){
     const next = String(raw||'').trim();
     store.state.ports[pid].mode = 'trunk';
     if(next) store.state.ports[pid].trunkVlans = next; else delete store.state.ports[pid].trunkVlans;
+    forgetFromRead(store.state.ports[pid], 'trunkVlans');   // lo ha scritto una persona
     if(typeof propagateVlans==='function') propagateVlans();
     markDirty(); renderAll(); renderProps();
 }

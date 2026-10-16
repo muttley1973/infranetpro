@@ -1,7 +1,7 @@
 import { win, expose } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { normalizeMacAddress } from './app-util.js';
-import { fillFromRead } from '../lib/field-provenance.js';   // la regola: chi scrive per conto di una lettura ne registra la provenienza
+import { fillFromRead, confirmFromRead } from '../lib/field-provenance.js';   // la regola: chi scrive per conto di una lettura ne registra la provenienza
 import { getNodeByPortId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _discExistingNode } from './app-discovery.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
@@ -330,7 +330,10 @@ export function _discTouchNodeIdentity(node, row, _matchedBy='', idx=null){
     // Non adottare come identità un MAC di next-hop (gateway/proxy-ARP/VRRP): sarebbe
     // il MAC dell'apparato di transito, non del device (DISC-A1). Con idx guardato,
     // _discMacIsNextHop lo riconosce; senza idx il comportamento resta invariato.
-    if(seenMac && !_discMacIsNextHop(seenMac, idx)) fillFromRead(node, 'mac', seenMac);   // solo un MAC vuoto; registra che l'ha visto la rete
+    if(seenMac && !_discMacIsNextHop(seenMac, idx)){
+        fillFromRead(node, 'mac', seenMac);      // solo un MAC vuoto; registra che l'ha visto la rete
+        confirmFromRead(node, 'mac', seenMac);   // gia' presente e visto uguale dalla rete: confermato
+    }
 
     if(seenIp){
         if(!Array.isArray(node.ipHistory)) node.ipHistory = [];

@@ -8,6 +8,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { uid, portAnchorEl } from './app-util.js';   // portAnchorEl: evidenzia il LED della tappa, non un controllo del pannello
 import { markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, _showToast, _invalidateIdx, switchRightTab, getWallPortLabel, getPortMaxConnections, _isLinearPassThroughPort, _getPassThroughMode } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { seedPortActive, releasePortActive } from '../lib/port-state.js';   // il cavo semina «attiva», mai sopra a una misura
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
@@ -31,7 +32,7 @@ function _routeNodeLabel(n){
 function _markPortActive(pid){
     if(!pid) return;
     if(!store.state.ports[pid]) store.state.ports[pid] = {};
-    store.state.ports[pid].status = 'active';
+    seedPortActive(store.state.ports[pid]);   // un seme, non una lettura: NON scavalca uno stato misurato (lib/port-state.js)
 }
 // Porta rimasta senza alcun link → torna 'inactive' (grigio). Usata dopo il
 // merge per la tappa liberata. Non tocca le porte attive con altri cavi.
@@ -39,7 +40,7 @@ function _refreshPortActiveState(pid){
     if(!pid || !store.state.ports[pid]) return;
     const stillLinked = (store.state.links || []).some(l =>
         l && (String(l.src) === pid || String(l.dst) === pid));
-    if(!stillLinked) delete store.state.ports[pid].status;
+    if(!stillLinked) releasePortActive(store.state.ports[pid]);   // se ne va lo stato seminato dal cavo, non quello misurato
 }
 
 // Una tappa pass-through midPid puo' essere inserita nel segmento A↔B solo

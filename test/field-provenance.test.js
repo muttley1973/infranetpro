@@ -26,7 +26,7 @@ const SRC = path.join(ROOT, 'src');
 // ── 1. le primitive ──────────────────────────────────────────────────────────
 
 test('markFromRead / isFromRead / forgetFromRead: per campo, e senza lasciare oggetti vuoti', () => {
-  const r = {};
+  const r = { desc: 'x', ip: '10.0.0.1' };
   FP.markFromRead(r, 'desc'); FP.markFromRead(r, 'ip');
   assert.deepEqual(r.copiedFromRead, { desc: true, ip: true });
   assert.equal(FP.isFromRead(r, 'desc'), true);
@@ -77,7 +77,7 @@ test('i nomi d\'identità di identity-reconcile sono le STESSE primitive, non co
 
 // ── 2. il registro ───────────────────────────────────────────────────────────
 
-const MECCANISMI = ['mark', 'lock', 'override', 'shadow', 'flag', 'debt'];
+const MECCANISMI = ['mark', 'lock', 'override', 'shadow', 'flag', 'measure', 'idPrefix', 'slot', 'debt'];
 
 test('registro: ogni campo ha almeno un meccanismo, e solo meccanismi conosciuti', () => {
   for (const [scope, campi] of Object.entries(FP.FIELD_PROVENANCE)) {
@@ -112,7 +112,7 @@ test('registro: il segno stesso è una misura, su nodo e su porta (non esce nell
 test('registro: il DEBITO si può solo ridurre', () => {
   // Campi che una lettura riscrive a ogni giro e che una persona può seminare (cavo, import), a cui
   // nessun meccanismo è stato ancora dato. Se ne togli uno, ABBASSA questo tetto: non si alza mai.
-  const DEBITO_MAX = { node: 0, port: 11 };
+  const DEBITO_MAX = { node: 0, port: 0 };
   for (const scope of Object.keys(FP.FIELD_PROVENANCE)) {
     const debito = FP.provenanceDebt(scope);
     assert.ok(debito.length <= (DEBITO_MAX[scope] ?? 0),
@@ -183,6 +183,7 @@ test('guardiano: nessun nuovo scrittore RAW di un campo marcato, salvo quelli di
     'app-device-types.js': 'l\'utente sceglie un modello dal catalogo: è una sua decisione (dichiarato)',
     'app-pointer.js': 'alla posa di un pannello vuoto/passacavo la marca si azzera: creazione, nessuna lettura',
     'app-shared-segment.js': 'l\'utente assegna un dispositivo/ruolo a un segmento condiviso: l\'etichetta della porta è scelta da lui',
+    'app-vlan-autopoll.js': 'l\'editor del trunk: le VLAN le scrive una persona e la riga dopo toglie la provenienza (verificato qui sotto)',
   };
   const campi = { node: FP.provenanceFields('node'), port: FP.provenanceFields('port') };
   const trovati = [];
@@ -195,7 +196,7 @@ test('guardiano: nessun nuovo scrittore RAW di un campo marcato, salvo quelli di
           : String.raw`(?:p|pp|pi|port|store\.state\.ports\[[^\]]+\]|state\.ports\[[^\]]+\]|ports\[[^\]]+\])`;
         for (const campo of campi[scope]) {
           if (new RegExp(String.raw`\b` + recv + String.raw`\.` + campo + String.raw`\s*=[^=]`).test(riga)
-              && !/markFromRead\(|fillFromRead\(|markCopiedFromRead\(/.test(riga)) {
+              && !/markFromRead\(|fillFromRead\(|writeFromRead\(|markCopiedFromRead\(/.test(riga)) {
             trovati.push({ f, dove: `${f}:${i + 1}`, scope, campo });
           }
         }
@@ -289,11 +290,17 @@ function chiamateAlSegno() {
   for (const f of fs.readdirSync(SRC).filter(x => x.endsWith('.js'))) {
     fs.readFileSync(path.join(SRC, f), 'utf8').split('\n').forEach((riga, i) => {
       if (/^\s*(\/\/|\*)/.test(riga)) return;
-      const rx = /\b(?:fillFromRead|markFromRead)\(\s*([^,()]+?)\s*,\s*'([A-Za-z0-9_]+)'/g;
+      const rx = /\b(?:fillFromRead|markFromRead|confirmFromRead)\(\s*([^,()]+?)\s*,\s*'([A-Za-z0-9_]+)'/g;
       let m;
       while ((m = rx.exec(riga))) {
         const scope = /^(?:p|pp|pi|port)$|ports\[/.test(m[1]) ? 'port' : 'node';
         out.push({ scope, campo: m[2], dove: `${f}:${i + 1}` });
+      }
+      // la forma a ELENCO dei nodi nati da una lettura: markFilledFromRead(n, ['mac', 'brand'])
+      const rl = /\bmarkFilledFromRead\(\s*([^,()]+?)\s*,\s*\[([^\]]*)\]/g;
+      while ((m = rl.exec(riga))) {
+        const scope = /^(?:p|pp|pi|port)$|ports\[/.test(m[1]) ? 'port' : 'node';
+        for (const c of m[2].matchAll(/'([A-Za-z0-9_]+)'/g)) out.push({ scope, campo: c[1], dove: `${f}:${i + 1}` });
       }
     });
   }
@@ -356,4 +363,110 @@ test('porta: svuotato e rimportato, il campo si ripopola e torna a risultare cop
   assert.deepEqual(JSON.parse(r.vuoto), { ip: 'assente', c: { desc: true } });
   assert.equal(r.ip, '10.0.0.2', 'rimportato: il campo si ripopola');
   assert.deepEqual(r.c, { desc: true, ip: true }, 'e torna a risultare copiato dalla lettura');
+});
+
+// ── il debito delle porte, uscito uno per uno con un meccanismo che si può verificare ─────────────────
+
+/** I file di src/ che scrivono GREZZO (`ricevente.campo = …`) un campo di porta. */
+function scrittoriGrezziDiPorta(campo) {
+  const recv = String.raw`(?:p|pp|pi|port|ports\[[^\]]+\]|store\.state\.ports\[[^\]]+\]|state\.ports\[[^\]]+\])`;
+  const rx = new RegExp(String.raw`\b` + recv + String.raw`\.` + campo + String.raw`\s*=[^=]`);
+  const out = new Set();
+  for (const f of fs.readdirSync(SRC).filter(x => x.endsWith('.js'))) {
+    fs.readFileSync(path.join(SRC, f), 'utf8').split('\n').forEach((riga) => {
+      if (!/^\s*(\/\/|\*)/.test(riga) && rx.test(riga)) out.add(f);
+    });
+  }
+  return [...out];
+}
+
+test('slot: i soli file che scrivono un campo «della lettura» sono quelli elencati nel registro', () => {
+  // Il campo è della lettura: nessuna mano lo scrive. Se domani un gesto della persona (o un seme) comincia a
+  // scriverlo, il registro non è più vero — e questo lo vede, invece di lasciarlo diventare un altro `status`.
+  let verificati = 0;
+  for (const [campo, e] of Object.entries(FP.FIELD_PROVENANCE.port)) {
+    if (!e.slot) continue;
+    const scrittori = scrittoriGrezziDiPorta(campo);
+    const extra = scrittori.filter(f => !e.slot.includes(f));
+    assert.deepEqual(extra, [], `port.${campo}: scritto grezzo da file che il registro non elenca (${extra.join(', ')}) — usa l'helper giusto o aggiorna il registro dopo averlo deciso`);
+    verificati++;
+  }
+  assert.ok(verificati >= 8, 'campi slot verificati: ' + verificati);
+});
+
+test('slot: nessun campo che il pannello offre a una persona è dichiarato «della lettura»', () => {
+  // I campi che una persona può scrivere dal pannello porta si derivano dai template (`data-change="port-field"`).
+  const offerti = new Set();
+  for (const f of fs.readdirSync(SRC).filter(x => x.endsWith('.js'))) {
+    const src = fs.readFileSync(path.join(SRC, f), 'utf8');
+    for (const m of src.matchAll(/data-change="port-field"[^>]*?data-pfield="([A-Za-z0-9_]+)"/g)) offerti.add(m[1]);
+  }
+  assert.ok(offerti.size >= 4 && offerti.has('desc') && offerti.has('ip'), 'letti i campi offerti: ' + [...offerti].join(','));
+  const incoerenti = [...offerti].filter(c => (FP.FIELD_PROVENANCE.port[c] || {}).slot);
+  assert.deepEqual(incoerenti, [], 'campi offerti a una persona ma dichiarati «della lettura»: ' + incoerenti.join(', '));
+  // …e ognuno di quelli offerti, se la lettura lo scrive, ha un meccanismo suo
+  for (const c of offerti) {
+    const e = FP.FIELD_PROVENANCE.port[c];
+    if (e) assert.ok(e.mark || e.override || e.measure, `port.${c}: offerto alla persona e scritto da una lettura, senza meccanismo`);
+  }
+});
+
+test('idPrefix: i gruppi LAG dicono chi li ha scritti nel prefisso, e quello manuale non ne usa uno macchina', () => {
+  const prefissi = FP.FIELD_PROVENANCE.port.lagGroup.idPrefix;
+  const letto = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+  // ogni prefisso esiste davvero nel codice che scrive i gruppi
+  const corpus = letto('src/app-snmp.js') + letto('src/app-ports.js') + letto('src/app-autolink.js') + letto('lib/dcim-map.js');
+  for (const p of prefissi) assert.ok(corpus.includes(`'${p}`) || corpus.includes('`' + p) || corpus.includes(p), `prefisso ${p} non si trova nel codice`);
+  // il gruppo creato a mano nasce da uid('lg'), che non comincia per nessuno dei prefissi macchina
+  const manuale = letto('src/app-ports.js').match(/uid\('([a-z-]+)'\)/g) || [];
+  assert.ok(manuale.some(m => m === "uid('lg')"), 'il LAG manuale nasce da uid(\'lg\')');
+  for (const p of prefissi) assert.ok(!'lg'.startsWith(p) && !p.startsWith('lg'), `il prefisso ${p} collide con quello manuale`);
+});
+
+test('trunkVlans: le due scritture della persona nell\'editor del trunk tolgono la provenienza', () => {
+  const src = fs.readFileSync(path.join(SRC, 'app-vlan-autopoll.js'), 'utf8');
+  const raw = src.split('\n').filter(r => /ports\[[^\]]+\]\.trunkVlans = next/.test(r));   // la porta; `l.trunkVlans` e' del cavo
+  const forget = src.split('\n').filter(r => /forgetFromRead\([^)]*'trunkVlans'\)/.test(r));
+  assert.equal(raw.length, 2);
+  assert.equal(forget.length, raw.length, 'ogni scrittura a mano di trunkVlans ha la sua cancellazione');
+});
+
+test('trunkVlans: la lettura lo scrive con il segno, ma solo se c\'è qualcosa; l\'inferenza lo riempie solo se vuoto', () => {
+  const r = J(`
+    state = _buildDefaultState(); state.ports = state.ports || {};
+    state.nodes.push({ id:'zp7', type:'switch', name:'ZP', ports:2, ip:'10.0.0.1' });
+    if(typeof _invalidateIdx==='function') _invalidateIdx();
+    applyPollResult('zp7', { ok:true, lags:[], vlans:[], interfaces:[
+      { name:'Gi1', operStatus:1, isTrunk:true, trunkVlans:[10,20] },
+      { name:'Gi2', operStatus:1, isTrunk:false, trunkVlans:[] } ] }, { noHistory:true });
+    return JSON.stringify({ ok:true, p1:state.ports['zp7-1'], p2:state.ports['zp7-2'] });`);
+  assert.ok(r.ok, r.err);
+  assert.deepEqual(r.p1.trunkVlans, [10, 20]);
+  assert.equal(r.p1.copiedFromRead && r.p1.copiedFromRead.trunkVlans, true, 'la trunk letta porta il segno');
+  assert.deepEqual(r.p2.trunkVlans, []);
+  assert.ok(!(r.p2.copiedFromRead && r.p2.copiedFromRead.trunkVlans), 'un elenco vuoto non e\' una lettura da segnare');
+});
+
+test('isFromRead: la marca di un campo CANCELLATO non conta (chi toglie un valore non deve ricordarsi della marca)', () => {
+  const r = { desc: 'x' };
+  FP.markFromRead(r, 'desc');
+  assert.equal(FP.isFromRead(r, 'desc'), true);
+  delete r.desc;
+  assert.equal(FP.isFromRead(r, 'desc'), false, 'marca rimasta su un campo ormai vuoto');
+  r.desc = '   ';
+  assert.equal(FP.isFromRead(r, 'desc'), false, 'degli spazi non sono un valore letto');
+  r.desc = 'di nuovo';                                              // un'altra mano lo riempie e nessuno toglie la marca…
+  assert.equal(FP.isFromRead(r, 'desc'), true, '…e qui la marca vecchia tornerebbe valida: per questo ogni scrittura di una persona la cancella');
+});
+
+test('writeFromRead: sovrascrive con la lettura e marca; un valore vuoto toglie la marca', () => {
+  const r = { vlans: 'vecchio' };
+  FP.writeFromRead(r, 'vlans', [10, 20]);
+  assert.deepEqual(r.vlans, [10, 20]);
+  assert.equal(FP.isFromRead(r, 'vlans'), true);
+  FP.writeFromRead(r, 'vlans', []);
+  assert.deepEqual(r.vlans, []);
+  assert.equal(FP.isFromRead(r, 'vlans'), false);
+  assert.ok(!('copiedFromRead' in r));
+  FP.writeFromRead(null, 'x', 1);                                 // nessun errore
 });

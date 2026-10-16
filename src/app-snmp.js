@@ -21,7 +21,7 @@ import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi 
 import { reconcilePortCount } from '../lib/ports-reconcile.js';   // P5: conteggio porte dichiarato vs misura (manual-first, lib pura)
 import { persistAuditEntries } from './app-history.js';   // la riga del giro va subito su disco (non aspetta il Salva)
 import { describeSnmpSync } from '../lib/snmp-sync-audit.js';   // la riga di Storia dopo un Sync: cosa e' stato LETTO e cosa no (lib pura)
-import { markFromRead, fillFromRead } from '../lib/field-provenance.js';   // la regola: chi scrive per conto di una lettura ne registra la provenienza
+import { markFromRead, fillFromRead, writeFromRead, confirmFromRead } from '../lib/field-provenance.js';   // la regola: chi scrive per conto di una lettura ne registra la provenienza
 import { reconcileInventory, fillIdentityFromRead } from '../lib/identity-reconcile.js'; // identità hardware misurata: riconferma o «ultimo noto», e la copia nei campi vuoti con la sua provenienza (lib pura)
 import { adoptedDescription } from '../lib/port-descriptions.js';   // l'ifAlias letto diventa la Descrizione della porta (adozione AUTOMATICA, mai sopra a una persona)
 import { forgetPortMeasure } from '../lib/port-state.js';   // scadenza delle misure di porta (lib pura): una lettura che questo giro non c'è stata non vale più
@@ -698,13 +698,14 @@ function _applySnmpBasePortFields(pid, iface){
     // `ifName` e' gia' aggiornato qui sopra: un alias uguale al NOME dell'interfaccia non e' una descrizione.
     const adopted = adoptedDescription(p, prevAlias, alias);
     if(adopted !== undefined){ p.desc = adopted; markFromRead(p, 'desc'); }   // copia del dispositivo: registra da dove viene
+    else confirmFromRead(p, 'desc', alias);   // gia' uguale a quello che dice l'apparato: confermata, quindi misurata
     p.lagId  = _snmpLagToUi(iface.lagId, p.lagId);
     p.lagIfIndex = _snmpLagToUi(iface.lagIfIndex, p.lagIfIndex);
     const mac = _snmpMacToUi(iface.mac, p.mac);
     if(mac) p.mac = mac;
     if(iface.isTrunk !== undefined){
         p.isTrunk = iface.isTrunk;
-        p.trunkVlans = iface.trunkVlans || [];
+        writeFromRead(p, 'trunkVlans', iface.trunkVlans || []);   // la lettura riscrive; il segno solo se c'e' qualcosa
     }
     // Due MISURE, ognuna col nome di ciò che misura — e nessuna delle due è la
     // conclusione. `ownsIp`: l'interfaccia possiede un indirizzo IP proprio.
@@ -720,6 +721,7 @@ function _applySnmpBasePortFields(pid, iface){
     // applyPollResult: non sovrascrive un IP scritto a mano. Un IP misurato che
     // CAMBIA e' un affinamento futuro (shadow, come ip6Real), non questo giro.
     fillFromRead(p, 'ip', iface.ip);   // riempie solo un vuoto e ne registra la provenienza
+    confirmFromRead(p, 'ip', iface.ip);   // gia' presente e uguale a quello che dice l'apparato: confermato
 }
 
 export function applyPollResult(nodeId, data, opts={}){
@@ -866,7 +868,7 @@ export function applyPollResult(nodeId, data, opts={}){
         // invece di restare sulla nativa.
         if(parentPid && sub.vlan >= 1){
             const pp = store.state.ports[parentPid] || (store.state.ports[parentPid] = {});
-            pp.trunkVlans = [...new Set([...(pp.trunkVlans||[]), sub.vlan])].sort((a,b)=>a-b);
+            writeFromRead(pp, 'trunkVlans', [...new Set([...(pp.trunkVlans||[]), sub.vlan])].sort((a,b)=>a-b));
             pp.isTrunk = true;
         }
     });

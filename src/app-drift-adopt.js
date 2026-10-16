@@ -14,6 +14,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeMacAddress } from './app-util.js';
+import { markFilledFromRead } from '../lib/field-provenance.js';   // la regola: un nodo nato da una lettura marca i campi che questa ha scritto
 import { markDirty, pushHistory, renderCables, _showToast, _invalidateIdx, _nextNodeId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
@@ -219,6 +220,7 @@ function _adoptCreateNodes(picks, autoLink){
                 rackId, rackU, sizeU: sU, ports: def.ports || 0,
             };
         }
+        markFilledFromRead(n, ['mac', 'brand']);   // nato da una lettura: MAC e marca li ha scritti la lettura, non una persona
         store.state.nodes.push(n);
         if(existingIdx && typeof _discIndexNode === 'function') _discIndexNode(existingIdx, n);
         if(typeof _isLeafEndpoint === 'function' && _isLeafEndpoint(type, n)) newEndpoints.push(n);

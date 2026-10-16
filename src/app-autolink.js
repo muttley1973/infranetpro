@@ -8,6 +8,7 @@
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { uid } from './app-util.js';
+import { fillFromRead } from '../lib/field-provenance.js';   // la regola: chi scrive per conto di una lettura ne registra la provenienza
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, renderCables, _showToast, _invalidateIdx, _linksForPort, canAddConnection, _createLinkRecord, _validateWallPortConnection } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
@@ -1448,14 +1449,9 @@ async function _autoDiscoverLinks(nodeIds){
 
                 if(!dedupVlans.length) continue;
                 for(const p of pairs){
-                    if(_portNodeId(p.src) === nid && !(store.state.ports[p.src].trunkVlans || []).length){
-                        store.state.ports[p.src].trunkVlans = dedupVlans;
-                        changed++;
-                    }
-                    if(_portNodeId(p.dst) === nid && !(store.state.ports[p.dst].trunkVlans || []).length){
-                        store.state.ports[p.dst].trunkVlans = dedupVlans;
-                        changed++;
-                    }
+                    // solo dove non c'e' gia' un elenco (manual-first); fillFromRead registra che l'ha scritto un'inferenza
+                    if(_portNodeId(p.src) === nid && fillFromRead(store.state.ports[p.src], 'trunkVlans', dedupVlans)) changed++;
+                    if(_portNodeId(p.dst) === nid && fillFromRead(store.state.ports[p.dst], 'trunkVlans', dedupVlans)) changed++;
                 }
             }
 

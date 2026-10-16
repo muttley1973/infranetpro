@@ -16,6 +16,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML, uid } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _showToast, _invalidateIdx, _linksForPort, _nextNodeId, getRackById, _promoteLinkToManual, canAddConnection, _createLinkRecord, getPortMaxConnections, _activatePropsTab, getNodePortCount, getPortConnectionCount } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderProps, _propsSectionIsOpen, setPropsSectionState } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
+import { seedPortActive } from '../lib/port-state.js';   // il cavo semina «attiva», mai sopra a una misura
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { focusNode, renderRackTabs } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
@@ -656,8 +657,8 @@ function _connectPortsSafe(src, dst, meta={}){
         : { id:uid('l'), src, dst, ...meta });
     if(!store.state.ports[src]) store.state.ports[src] = {};
     if(!store.state.ports[dst]) store.state.ports[dst] = {};
-    store.state.ports[src].status = store.state.ports[src].status || 'active';
-    store.state.ports[dst].status = store.state.ports[dst].status || 'active';
+    seedPortActive(store.state.ports[src], true);   // solo dove non c'e' gia' uno stato, e mai sopra a una misura
+    seedPortActive(store.state.ports[dst], true);
     return true;
 }
 

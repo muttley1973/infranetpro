@@ -15,14 +15,15 @@
 import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizePortStatus, hasPortStatus, hasPortVlan } from './app-util.js';
-import { DOWN_STREAK_N, portShade } from '../lib/port-state.js';   // lib pura importata ESM: la stessa misura che colora il LED
+import { DOWN_STREAK_N, portShade, portStatusSource } from '../lib/port-state.js';   // lib pura importata ESM: la stessa misura che colora il LED
 import { nodeById, getNodeByPortId, getPortNodeId, _isRadioPid, _enableManualValueInProps } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor, _voipVoiceVlan, _portEffTrunk,
          setPortMode, setPortTrunkVlans, setPortRoutedNet, setNodeVoiceVlan } from './app-vlan-autopoll.js';   // ritiro ponte + ASSE B: funzioni foglia UI/vlan + azioni porta (ex win.*)
 import { prefixesOf, prefixesWithoutVlan } from '../lib/ipam-model.js';   // l'autorità sui prefissi, e su che cosa vuol dire «senza VLAN»
 import { CABLE_NEUTRAL } from './app-link-color.js';   // il colore del cavo che non sta in nessuna VLAN: una definizione sola, non una copia dell'hex
-import { renderProps, _buildPropsHeader, _propsSectionIsOpen } from './app-properties.js';   // ritiro ponte + ASSE B: dispatcher + builder header (ex win.*)
+import { fieldSource } from '../lib/field-provenance.js';   // descrizione e indirizzo copiati da una lettura: il segno li dice «Misurato»
+import { renderProps, _buildPropsHeader, _propsSectionIsOpen, _ctyMark, _ctyLegendHtml } from './app-properties.js';   // ritiro ponte + ASSE B: dispatcher + builder header (ex win.*)
 import { _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*) — carica anche le azioni CONDIVISE port-field/port-speed
 import { _floorAccessVlanRow } from './app-properties-node-devices.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { getPassivePortLagInfo, clearPortField, removePortFromLag, togglePortVlanLock } from './app-ports.js';   // ritiro ponte + ASSE B: fn del dominio porta (ex win.*)
@@ -311,7 +312,7 @@ export function _renderPortProps(panel){
             const looksIp = !val || (typeof _parseIpv4Int === 'function' ? _parseIpv4Int(val) !== null : true);
             const warn = looksIp ? '' :
                 `<div class="prop-hint warn">${t('port.ipNotAnAddress')}</div>`;
-            return `<div class="prop-group"><label>${t('port.ifaceIp')}</label>
+            return `<div class="prop-group"><label>${t('port.ifaceIp')}${_ctyMark(val, val, fieldSource(pi, 'ip') === 'measured')}</label>
               <input value="${escapeHTML(val)}" placeholder="${escapeHTML(t('port.ifaceIpPh'))}" inputmode="numeric"
                      data-change="port-field" data-pid="${pid}" data-pfield="ip">
               <div class="prop-hint" data-tip="${escapeHTML(t('port.ifaceIpHintTip'))}" data-tip-wrap>${t('port.ifaceIpHint')}</div>
@@ -351,12 +352,13 @@ export function _renderPortProps(panel){
             ${_lagHead}
             <div class="prop-group"><label>Port ID</label><input disabled value="${escapeHTML(pid)}"></div>
             ${snmpBar}
-            <div class="prop-group"><label>${t('common.description')}</label>
+            ${_ctyLegendHtml([[pi.desc, ''], [pi.ip, ''], [effStatus, '']])}
+            <div class="prop-group"><label>${t('common.description')}${_ctyMark(pi.desc||'', pi.desc||'', fieldSource(pi, 'desc', pi.alias) === 'measured')}</label>
               <input value="${escapeHTML(pi.desc||'')}" placeholder="${escapeHTML(pi.alias||pi.ifName||t('pnl.dev.phDescEg'))}"
                      data-change="port-field" data-pid="${pid}" data-pfield="desc">
             </div>
             ${_ifaceAddrGroup}
-            ${_passiveConduit ? `<div class="prop-group"><label>${t('common.status')}</label>
+            ${_passiveConduit ? `<div class="prop-group"><label>${t('common.status')}${_ctyMark(effStatus, effStatus, portStatusSource(pi) === 'measured')}</label>
               ${_statusSelect()}
               <div class="prop-hint">${t('port.passiveStatusHint')}</div>
             </div>` : (_floorLeaf ? `<div class="prop-group"><label>${t('common.status')}</label>
@@ -364,7 +366,7 @@ export function _renderPortProps(panel){
             </div>
             <div class="prop-group"><label>${t('port.speed')}</label>
               ${_roBox(_leafSpd ? escapeHTML(_leafSpd) : '—')}
-            </div>` : `<div class="prop-group"><label>${t('common.status')}</label>
+            </div>` : `<div class="prop-group"><label>${t('common.status')}${_ctyMark(effStatus, effStatus, portStatusSource(pi) === 'measured')}</label>
               ${_statusSelect()}
             </div>
             <div class="prop-group"><label>${t('port.speed')}</label>

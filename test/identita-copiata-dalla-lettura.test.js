@@ -108,9 +108,10 @@ test('certaintyForField: un copiato ancora uguale alla lettura è «Misurato»; 
   assert.equal(certaintyForField('GS1900-24', 'GS1900-24').grade, 'declared');
   assert.equal(certaintyForField('GS1900-24', 'GS1900-24', { copiedFromRead: false }).grade, 'declared');
   assert.equal(certaintyForField('GS1900-24', 'GS1900-24', {}).grade, 'declared');
-  // il verdetto non inventa una lettura che non c'è
-  assert.equal(certaintyForField('GS1900-24', '', { copiedFromRead: true }).grade, 'declared');
-  assert.equal(certaintyForField('GS1900-24', undefined, { copiedFromRead: true }).grade, 'declared');
+  // il verdetto «una lettura l'ha scritto o lo conferma» NON richiede una lettura di adesso: l'apparato ha detto
+  // quel valore, e un apparato che tace (o la cui lettura e' stantia) non lo smentisce
+  assert.equal(certaintyForField('GS1900-24', '', { copiedFromRead: true }).grade, 'measured');
+  assert.equal(certaintyForField('GS1900-24', undefined, { copiedFromRead: true }).grade, 'measured');
   // campo vuoto: invariato, il verdetto non conta
   assert.equal(certaintyForField('', 'GS1900-24', { copiedFromRead: true }).grade, 'measured');
   assert.equal(certaintyForField('', '', { copiedFromRead: true }).grade, 'undeclared');
@@ -200,9 +201,31 @@ test('pannello: copiato e ancora uguale alla lettura → «Misurato»', () => {
   assert.equal(segnoPannello(nodo, 'model'), 'measured');
 });
 
-test('pannello: lo stesso valore scritto da una persona resta «Dichiarato»', () => {
+test("pannello: uguale a ciò che dice l'apparato → «Misurato» anche se nessuno l'aveva marcato (i dati copiati prima delle marche guariscono)", () => {
+  // Una lettura che trova nel campo lo stesso valore lo CONFERMA. Vale per un valore copiato da una versione dell'app
+  // che non teneva ancora la provenienza — i progetti salvati ne sono pieni — e vale, per forza, anche per uno scritto
+  // a mano che per caso coincide: l'apparato lo dice, e questo e' cio' che il punto afferma.
   const nodo = { model: 'GS1900-24', integration: { inventory: { model: 'GS1900-24' } } };
+  assert.equal(segnoPannello(nodo, 'model'), 'measured');
+});
+
+test("pannello: scritto a mano e DIVERSO da ciò che dice l'apparato → «Dichiarato»", () => {
+  const nodo = { model: 'GS1900-24', integration: { inventory: { model: 'GS1900-48' } } };
   assert.equal(segnoPannello(nodo, 'model'), 'declared');
+});
+
+test("pannello: marcato e l'apparato adesso tace (nessun inventory) → resta «Misurato»", () => {
+  const nodo = { model: 'GS1900-24', copiedFromRead: { model: true } };
+  assert.equal(segnoPannello(nodo, 'model'), 'measured', "letto da un apparato: se poi tace non è stato scritto da una persona");
+});
+
+test("pannello: la marca, scritta dall'OUI, non è smentita da un altro nome dell'ENTITY-MIB", () => {
+  // La Discovery scrive «Cisco» dall'OUI, l'ENTITY-MIB dice «Cisco Systems Inc»: due fonti, due ortografie, nessuna
+  // contraddizione. (Per modello/matricola/firmware, che hanno UNA fonte, una lettura diversa invece declassa.)
+  const nodo = { brand: 'Cisco', copiedFromRead: { brand: true }, integration: { inventory: { brand: 'Cisco Systems Inc' } } };
+  assert.equal(segnoPannello(nodo, 'brand'), 'measured');
+  const modello = { model: 'A', copiedFromRead: { model: true }, integration: { inventory: { model: 'B' } } };
+  assert.equal(segnoPannello(modello, 'model'), 'declared', "il modello letto da due apparati diversi nel tempo: l'apparato è cambiato");
 });
 
 test('pannello: copiato ma l\'apparato adesso dice altro → torna «Dichiarato» (non si finge una conferma)', () => {
@@ -212,7 +235,7 @@ test('pannello: copiato ma l\'apparato adesso dice altro → torna «Dichiarato�
 
 test('pannello: la marca è per campo — il seriale copiato non promuove il modello digitato', () => {
   const nodo = { model: 'MIO', serialNumber: 'S1', copiedFromRead: { serialNumber: true },
-    integration: { inventory: { model: 'MIO', serialNumber: 'S1' } } };
+    integration: { inventory: { model: 'ALTRO', serialNumber: 'S1' } } };
   assert.equal(segnoPannello(nodo, 'serialNumber'), 'measured');
   assert.equal(segnoPannello(nodo, 'model'), 'declared');
 });

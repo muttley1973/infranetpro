@@ -16,7 +16,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { sourceRows } from '../lib/dcim-source-view.js';   // cosa DICHIARA il DCIM importato: sola lettura, `node.source` non è roba dell'utente
-import { copiedStillRead } from '../lib/identity-reconcile.js';   // il pieno e' una copia della lettura corrente? Allora il segno dice «Misurato»
+import { fieldSource } from '../lib/field-provenance.js';   // da dove viene il valore che il campo mostra: marcato da una lettura, o confermato da quella di adesso
 import { STATUSES, normalizeStatus, statusFinding } from '../lib/device-status.js';   // stato operativo dichiarato: cambia la LETTURA del silenzio, mai la misura
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _isLeafEndpoint, _autoLinkEndpointUI } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*) + (ASSE B coda) bottone auto-link
@@ -203,10 +203,10 @@ function _lockBtn(field, locked, decl){
  *  suggerimento e non una misura — segnarlo «Misurato» sarebbe una bugia.
  *  ⚠️ Nessun segno se la libreria non c'e': meglio niente che un grigio che
  *  afferma «non risulta» su una cosa che non abbiamo guardato. */
-function _ctyMark(declared, read, copied){
+export function _ctyMark(declared, read, copied){
     if (typeof certaintyForField !== 'function') return '';
-    // `copied`: il pieno e' una COPIA della lettura corrente (copiedStillRead) e non una frase scritta
-    // da una persona — il Sync riempie i campi vuoti, e senza questo il punto direbbe «Dichiarato».
+    // `copied`: il valore l'ha scritto o confermato una LETTURA (fieldSource) e non una persona — il Sync
+    // riempie i campi vuoti, e senza questo il punto direbbe «Dichiarato».
     const c = certaintyForField(declared, read, { copiedFromRead: !!copied });
     // ⭐ NESSUN SEGNO SU UN CAMPO VUOTO (deciso il 04/09, guardando il risultato).
     //    La regola che ne esce è più pulita di quella che avevo scritto: il segno
@@ -238,7 +238,7 @@ function _ctyLegendItemHtml(g){
  *  tutti i campi che portano il segno. ⚠️ Mostra i tre gradi che in questo blocco
  *  possono davvero capitare — elencarne cinque prometterebbe distinzioni che qui
  *  non si fanno (una contraddizione la dichiara chi ha la misura confermata). */
-function _ctyLegendHtml(coppie){
+export function _ctyLegendHtml(coppie){
     if (typeof certaintyForField !== 'function') return '';
     // ⚠️ La legenda si mostra solo se sotto c'e' almeno un segno da spiegare. Su un
     // apparato ancora vuoto spiegherebbe simboli che non compaiono — la stessa
@@ -276,7 +276,9 @@ export function _buildInventoryFieldsHtml(n, d){
         `<option value="${escapeHTML(s)}"${s === curStatus ? ' selected' : ''}>${escapeHTML(t(s ? 'status.' + s : 'status.undeclared'))}</option>`
     ).join('');
     // Il pieno e' una COPIA della lettura corrente (scritta dal Sync, non toccata da allora)? Allora e' misurato.
-    const _copiato = (f) => copiedStillRead(n, f, inventory[f]);
+    // Misurato se il campo e' marcato O se l'apparato lo conferma adesso (fieldSource). Per la marca, che puo' venire
+    // dall'OUI e non dall'ENTITY-MIB, una lettura che scrive il nome in un altro modo non la smentisce (lenient).
+    const _copiato = (f) => fieldSource(n, f, inventory[f], { lenient: f === 'brand' }) === 'measured';
     const _ctyCoppie = [[n.brand, inventory.brand], [n.model, inventory.model],
         [n.serialNumber, inventory.serialNumber], [n.firmwareVer, inventory.firmwareVer]];
     return _ctyLegendHtml(_ctyCoppie) + `<div class="prop-row2">
@@ -492,7 +494,7 @@ export function _buildNetAccessHtml(n, d, opts){
         <div class="prop-group"><label>${t('net.ip')}</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.ip||'')}" placeholder="${escapeHTML(ipPlaceholder)}" ${_ro} data-change="node-field-manual" data-field="ip">${_ro?'':_lockBtn('ip',!!n.ipManual)}</div></div>
         <div class="prop-group"><label>${t('net.ip6')}</label><div style="display:flex;gap:5px;align-items:center"><input style="flex:1" value="${escapeHTML(n.ip6||'')}" placeholder="2001:db8::1" ${_ro} data-change="node-ip6">${_ro?'':_lockBtn('ip6',!!n.ip6Manual)}</div>${n.ip6Real?`<div style="font-size:0.78rem;color:#e3b341;margin-top:3px" data-tip="${escapeHTML(t('net.ip6.driftTip'))}"><i class="fas fa-triangle-exclamation"></i> ${escapeHTML(t('net.ip6.drift'))}: <span style="font-family:monospace">${escapeHTML(n.ip6Real)}</span></div>`:''}</div>
         ${_mgmtRow(n.mgmtUrl||'', n.ip||'', n.id)}
-        ${showMac ? `<div class="prop-group"><label>${escapeHTML(macLabel)}</label><input value="${escapeHTML(macVal)}"${macDerived?` title="${escapeHTML(t('mac.fromPort'))}"`:''} placeholder="${escapeHTML(macPlaceholder)}" ${_ro} data-change="node-field" data-field="mac"></div>` : ''}
+        ${showMac ? `<div class="prop-group"><label>${escapeHTML(macLabel)}${_ctyMark(n.mac||'', n.mac||'', fieldSource(n, 'mac') === 'measured')}</label><input value="${escapeHTML(macVal)}"${macDerived?` title="${escapeHTML(t('mac.fromPort'))}"`:''} placeholder="${escapeHTML(macPlaceholder)}" ${_ro} data-change="node-field" data-field="mac"></div>` : ''}
         ${_autoLinkBtn}
         ${_wifiToggle}
     </div></details>${_wirelessAccordion}`;

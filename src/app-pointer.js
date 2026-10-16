@@ -11,6 +11,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _invalidateIdx, switchRightTab, _showToast, _linksForPort, _nextNodeId, _isRadioPid, logAudit, _renderModeIndicator, _promoteLinkToManual, canAddConnection, _createLinkRecord, getPortMaxConnections, getNodeRackSize, getRackSize, _validateWallPortConnection, _cableAutoLabel } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans, setVlanFilter } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { seedPortActive } from '../lib/port-state.js';   // il cavo semina «attiva», mai sopra a una misura
 import { showAlert } from './app-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { registerDragstartActions } from './app-delegation.js';   // ASSE B: palette drag via event delegation
@@ -834,8 +835,8 @@ function _tryFinishLink(tgt){
     if(typeof logAudit==='function') logAudit('cable-add', { target:_newLink.label||_cableAutoLabel(_newLink) });
     if(!store.state.ports[store.linkStart]) store.state.ports[store.linkStart]={};
     if(!store.state.ports[tgt])      store.state.ports[tgt]={};
-    store.state.ports[store.linkStart].status='active';
-    store.state.ports[tgt].status='active';
+    seedPortActive(store.state.ports[store.linkStart]);   // un seme, non una lettura: NON scavalca uno stato misurato
+    seedPortActive(store.state.ports[tgt]);
     // Associazione wireless: scegli il BSS (SSID) servito (auto se 1, menu se >1).
     if(_connKind==='wireless' && typeof _assignWirelessBss==='function'){
         _assignWirelessBss(_newLink);

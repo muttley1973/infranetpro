@@ -19,6 +19,7 @@ import { store } from './store.js';
 import { nodeById, getPortNodeId, getNodeByPortId, _invalidateIdx, _createLinkRecord, _nextNodeId } from './app.js';
 import { _findPortByIfName } from './app-topology-discover.js';
 import { uid } from './app-util.js';
+import { markFilledFromRead } from '../lib/field-provenance.js';   // la regola: un nodo nato da una lettura marca i campi che questa ha scritto
 import { t, expose } from './_bridge.js';
 
 const _norm = (m) => (typeof _normMacKey === 'function') ? _normMacKey(m) : String(m || '').trim().toLowerCase();
@@ -66,6 +67,7 @@ function _createNeighborNode(nn) {
     mac: nn.mac || '', ip: nn.ip || '', hostname: nn.hostname || '',
     inferred: true, identitySource: 'lldp', identityConfidence: 'high',
   };
+  markFilledFromRead(n, ['mac']);   // nato da un vicino LLDP: il MAC lo ha scritto la lettura, non una persona
   store.state.nodes.push(n);
   return n;
 }

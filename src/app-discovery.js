@@ -5,7 +5,7 @@ import { recognizeModel } from './app-device-types.js';   // riconoscimento mode
 import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId, _vlanIpam, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { _ensureVlanColor, updateVlanIpam } from './app-vlan-autopoll.js';   // associazione VLAN↔subnet dallo scan (declare-first)
 import { prefixesOf } from '../lib/ipam-model.js';   // le VLAN note includono quelle citate da un prefisso
-import { markFromRead, fillFromRead } from '../lib/field-provenance.js';   // la regola: chi scrive per conto di una lettura ne registra la provenienza
+import { markFromRead, fillFromRead, confirmFromRead, markFilledFromRead } from '../lib/field-provenance.js';   // la regola: chi scrive per conto di una lettura ne registra la provenienza
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName, typeShort } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { nodeLabelParts } from '../lib/node-label.js';   // etichetta leggibile quando il nome sarebbe l'IP (che ha già la sua colonna)
@@ -1384,6 +1384,7 @@ async function importDiscovered(){
                 // IPv6 proposto dall'ND: riempi se vuoto (manual-first, non sovrascrive).
                 if(!foundExisting.ip6 && d.ip6) foundExisting.ip6 = d.ip6;
                 fillFromRead(foundExisting, 'mac', safeMac);   // riempie solo un MAC vuoto, e registra che l'ha visto la rete
+                confirmFromRead(foundExisting, 'mac', safeMac);   // gia' presente e visto uguale dalla rete: confermato
                 // Brand fill-if-empty (o se e' ancora il brand di default del tipo) come il
                 // Sync (app-snmp.js:457-458): il vendor OUI/SNMP non clobbera mai un brand
                 // scritto a mano. L'eventuale cambio vendor su identita' forte resta
@@ -1392,6 +1393,7 @@ async function importDiscovered(){
                     const _defBrand = TYPES[foundExisting.type]?.brand || '';
                     const _brandNow = String(foundExisting.brand || '').trim();
                     if(!foundExisting.brandManual && (!_brandNow || _brandNow === _defBrand)){ foundExisting.brand = d.vendor; markFromRead(foundExisting, 'brand'); }
+                    else confirmFromRead(foundExisting, 'brand', d.vendor);   // gia' quella marca, e la scansione dice la stessa: confermata
                 }
                 foundExisting.netbiosName = foundExisting.netbiosName || d.netbiosName || '';
                 foundExisting.netbiosGroup = foundExisting.netbiosGroup || d.netbiosGroup || '';
@@ -1490,6 +1492,7 @@ async function importDiscovered(){
                     rackId, rackU, sizeU: sU, ports: def.ports||0, integration,
                 };
             }
+            markFilledFromRead(n, ['mac', 'brand']);   // nato da una scansione: MAC e marca li ha scritti la lettura, non una persona
             if(d._typeManual) n.typeManual = true;   // tipo scelto a mano nel dialogo = pinnato
             // MODELLO RICONOSCIUTO (misurato, exact): PROPOSTA sul nodo, NON scrive
             // il campo `model` (resta dichiarazione) e NON applica porte. Il pannello
