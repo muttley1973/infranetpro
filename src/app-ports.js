@@ -20,6 +20,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML, uid, normalizePortStatus, hasPortStatus, hasPortVlan, portAnchorEl } from './app-util.js';   // portAnchorEl: il LED della porta, non il primo controllo del pannello con lo stesso data-pid
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _patchPanelOffset } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { radioLabelForPid } from '../lib/radio.js';   // il nome di una radio sta sul modello, non nel pid
+import { forgetFromRead } from '../lib/field-provenance.js';   // la regola: scrivere/ripristinare a mano toglie la provenienza «copiato dalla lettura»
 import { propagateVlans, _effPortVlan, _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -423,6 +424,7 @@ function clearAllPortOverrides(pid){
     delete state.ports[pid].speedOvr;
     delete state.ports[pid].vlanOvr;
     delete state.ports[pid].desc;
+    forgetFromRead(state.ports[pid], 'desc');   // la descrizione ripristinata non e' piu' «copiata dalla lettura»
     const el = portAnchorEl(pid);
     if(el){
         const pi = state.ports[pid] || {};
@@ -549,6 +551,7 @@ function setPortField(pid, field, val){
     if(field === 'ip') val = String(val == null ? '' : val).trim();
     if(val===null || val===undefined || val==='') delete state.ports[pid][field];
     else state.ports[pid][field] = val;
+    forgetFromRead(state.ports[pid], field);   // scritto (o svuotato) da una persona: non e' piu' «copiato dalla lettura»
     if(field==='vlanOvr'){
         const vid = parseInt(val, 10) || 1;
         if(vid>1) _ensureVlanColor(vid);
@@ -582,6 +585,7 @@ function setPortField(pid, field, val){
 function clearPortField(pid, field){
     const state = store.state;
     if(state.ports[pid]) delete state.ports[pid][field];
+    forgetFromRead(state.ports[pid], field);   // ripristinato da una persona: nessuna provenienza residua
     if(field==='vlanOvr'){
         propagateVlans();
         store.highPath.clear();

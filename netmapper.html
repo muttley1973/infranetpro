@@ -1197,6 +1197,9 @@
 <script src="/lib/wifi-vlan-check.js"></script>
 <script src="/lib/panel-skin.js"></script>
 <script src="/lib/power-mib.js"></script>
+<!-- field-provenance PRIMA di identity-reconcile: la provenienza di un valore copiato da una
+     lettura (markFromRead…) la usa anche lui, e il registro dei campi a doppia natura sta qui. -->
+<script src="/lib/field-provenance.js"></script>
 <!-- identity-reconcile PRIMA di chi giudica l'identità hardware: la Verifica, la
      Panoramica e il dossier PDF devono chiedere alla STESSA regola se una misura
      è riconfermata o è solo l'ultimo noto. -->

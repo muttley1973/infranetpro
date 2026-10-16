@@ -15,7 +15,7 @@ import { escapeHTML, uid, normalizeNumber, normalizePortStatus, normalizeMacAddr
 import { TYPES, typeName, typeShort } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (prima letto dal global implicito) + nome localizzato
 import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM: come si LEGGE il nome di un device
 import { addrFamily } from '../lib/cidr.js';   // cos'e' un indirizzo: una definizione sola (campo IP del device)
-import { IDENTITY_FIELDS, forgetCopiedFromRead } from '../lib/identity-reconcile.js';   // marca/modello/matricola/firmware: scrivere a mano toglie la provenienza «copiato dalla lettura»
+import { forgetFromRead } from '../lib/field-provenance.js';   // la regola: scrivere a mano toglie la provenienza «copiato dalla lettura»
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: chiamate prima bare-global
 import { renderProps } from './app-properties.js';   // idem
 import { showAlert, saveProject } from './app-core.js';   // saveProject: ASSE B, scorciatoia Ctrl+S (ex win.saveProject)
@@ -1753,7 +1753,8 @@ function updateN(k,v){
         n[k]=v;
     }
     // Una persona ci ha scritto sopra (o l'ha svuotato): il valore non e' piu' «copiato dalla lettura».
-    if(IDENTITY_FIELDS.includes(k)) forgetCopiedFromRead(n, k);
+    // Per QUALUNQUE campo, senza elenco: togliere la marca a un campo che non l'aveva non fa niente.
+    forgetFromRead(n, k);
     if(n.type==='pdu' && (k==='pduMgmtMode' || k==='pduEthernetPorts')) _cleanupPduNetworkPorts(n);
     // Tipo scelto a mano = pinnato (manual-first): Discovery/Verifica non lo ricambiano.
     if(k==='type') n.typeManual = true;
@@ -2009,6 +2010,7 @@ function updateP(k,v){
     if(k==='speed'&&!['10M','100M','1G','10G'].includes(v))v='1G';
     const _auditOldVlan=(k==='vlan')?state.ports[selId].vlan:null;
     state.ports[selId][k]=v;
+    forgetFromRead(state.ports[selId], k);   // scritto da una persona: non e' piu' «copiato dalla lettura»
     if(k==='vlan'){
         const vid=parseInt(v);
         if(!state.vlanColors[vid]){const cols=['#00d4ff','#ff00d4','#39d353','#f1e05a','#f85149','#a371f7'];state.vlanColors[vid]=cols[vid%cols.length]||'#fff';}

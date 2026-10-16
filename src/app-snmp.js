@@ -21,6 +21,7 @@ import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi 
 import { reconcilePortCount } from '../lib/ports-reconcile.js';   // P5: conteggio porte dichiarato vs misura (manual-first, lib pura)
 import { persistAuditEntries } from './app-history.js';   // la riga del giro va subito su disco (non aspetta il Salva)
 import { describeSnmpSync } from '../lib/snmp-sync-audit.js';   // la riga di Storia dopo un Sync: cosa e' stato LETTO e cosa no (lib pura)
+import { markFromRead, fillFromRead } from '../lib/field-provenance.js';   // la regola: chi scrive per conto di una lettura ne registra la provenienza
 import { reconcileInventory, fillIdentityFromRead } from '../lib/identity-reconcile.js'; // identità hardware misurata: riconferma o «ultimo noto», e la copia nei campi vuoti con la sua provenienza (lib pura)
 import { adoptedDescription } from '../lib/port-descriptions.js';   // l'ifAlias letto diventa la Descrizione della porta (adozione AUTOMATICA, mai sopra a una persona)
 import { forgetPortMeasure } from '../lib/port-state.js';   // scadenza delle misure di porta (lib pura): una lettura che questo giro non c'è stata non vale più
@@ -696,7 +697,7 @@ function _applySnmpBasePortFields(pid, iface){
     // ADOZIONE AUTOMATICA: il testo che l'apparato dice diventa la Descrizione della porta (v. in testa).
     // `ifName` e' gia' aggiornato qui sopra: un alias uguale al NOME dell'interfaccia non e' una descrizione.
     const adopted = adoptedDescription(p, prevAlias, alias);
-    if(adopted !== undefined) p.desc = adopted;
+    if(adopted !== undefined){ p.desc = adopted; markFromRead(p, 'desc'); }   // copia del dispositivo: registra da dove viene
     p.lagId  = _snmpLagToUi(iface.lagId, p.lagId);
     p.lagIfIndex = _snmpLagToUi(iface.lagIfIndex, p.lagIfIndex);
     const mac = _snmpMacToUi(iface.mac, p.mac);
@@ -718,7 +719,7 @@ function _applySnmpBasePortFields(pid, iface){
     // della porta SOLO se vuoto — manual-first, come i campi inventory in
     // applyPollResult: non sovrascrive un IP scritto a mano. Un IP misurato che
     // CAMBIA e' un affinamento futuro (shadow, come ip6Real), non questo giro.
-    if(iface.ip && !String(p.ip || '').trim()) p.ip = iface.ip;
+    fillFromRead(p, 'ip', iface.ip);   // riempie solo un vuoto e ne registra la provenienza
 }
 
 export function applyPollResult(nodeId, data, opts={}){
