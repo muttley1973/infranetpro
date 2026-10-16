@@ -439,15 +439,11 @@ function _tileValue(r) {
         case 'poe':          return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
         case 'uplink':       return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), 'Mbps'];
         case 'ipFree':       return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), ''];
-        // DOPPIO contatore: quanti rispondono fra quelli che interroghi, e — a
-        // fianco, in ambra — quanti non li interroghi affatto. Sono due popolazioni
-        // diverse, non un rapporto: sommarle o metterle nello stesso «di N» le
-        // farebbe leggere come una lacuna, che non sono.
-        case 'verifiable': {
-            const nv = (r.extra || {}).unverifiable > 0
-                ? { num: String(r.extra.unverifiable), sub: t('ov.st.unverifiableShort') } : null;
-            return r.prov === 'none' ? [t('ov.none'), '', nv] : [_n(r.value), t('ov.of', { n: r.total }), nv];
-        }
+        // Quanti rispondono fra quelli che interroghi, e basta. Fino al 16/10 a fianco
+        // stava un secondo contatore ambra («15 non verificabili») per chi non ha un
+        // accesso SNMP: l'utente l'ha trovato inutile — non c'e' nulla da fare da qui
+        // per un apparato che non si interroga — e la riga non li conta piu'.
+        case 'verifiable':   return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
         case 'drRedundancy': return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
         case 'drLifecycle':  return r.prov === 'none' ? [t('ov.none'), ''] : [_n(r.value), t('ov.of', { n: r.total })];
         // ⑥ Salute live — «quanti stanno bene su quanti ne hanno parlato». Il
@@ -556,9 +552,8 @@ function _tileStatus(r) {
         // Con più rack, sfogliare le pagine per scoprire cosa non va è il lavoro che
         // questa riga deve togliere: quindi qui escono i NOMI, non i conteggi.
         // Chi non risponde per primo, in rosso — è un guasto. Quando tutto quello
-        // che si interroga risponde il verdetto è VERDE: chi non è verificabile lo
-        // dice il SECONDO CONTATORE accanto al numero, e i nomi stanno nell'elenco
-        // che si apre. Una riga di testo in più sotto il verdetto era rumore.
+        // che si interroga risponde il verdetto è VERDE. Chi non ha un accesso SNMP
+        // non e' di questa riga (16/10): ne' un secondo contatore ne' un elenco.
         case 'verifiable': {
             // Due assenze DIVERSE: nessun accesso configurato, e accessi configurati
             // che nessuno ha ancora interrogato. Dirle con la stessa frase
@@ -775,7 +770,7 @@ function _rowEl(secKey, r) {
     v.appendChild(_el('span', 'ov-num', val));
     if (sub) v.appendChild(_el('span', 'ov-sub', sub));
     // Numero e parola del secondo contatore stanno in UN solo elemento: sono una
-    // cosa sola («20 non verificabili»), e da elementi flex separati il numero
+    // cosa sola («+20 non switch»), e da elementi flex separati il numero
     // restava in riga mentre la parola scendeva sotto — un 20 orfano che sembrava
     // parte del rapporto grande. Ora, se lo spazio manca, scendono insieme.
     if (alt && alt.num) {
@@ -784,7 +779,7 @@ function _rowEl(secKey, r) {
         if (alt.sub) a.appendChild(_el('span', 'ov-sub-alt', alt.sub));
         v.appendChild(a);
         // Il riquadro con DUE contatori chiede il doppio di spazio: dentro un terzo
-        // di schermo diviso in tre, «13 di 13» + «20 non verificabili» sono ~176px
+        // di schermo diviso in tre, «13 di 13» + «+20 non switch» sono ~176px
         // contro i ~158 disponibili, e la seconda coppia scendeva sotto. Occupa due
         // celle della griglia invece di rimpicciolire il testo fino a non leggerlo.
         el.classList.add('has-alt');
@@ -874,7 +869,7 @@ function _itemLi(it) {
     //    funzione vecchia; questa non la chiamava — diceva l'alfabeto per conto suo.
     // ⚠️ Il confine lo decide il MOTORE, non un elenco scritto qui: `certaintyOf`
     //    rende un `grade` solo per le chiavi che rispondono alla domanda della
-    //    certezza. Gli altri tag (senza gateway, non verificabile, fuori garanzia,
+    //    certezza. Gli altri tag (senza gateway, fuori garanzia,
     //    critico…) rispondono a un'ALTRA domanda: prendono la stessa geometria —
     //    è quello che li rende una lista sola — ma mai il nome di un grado.
     if (it.tag) {

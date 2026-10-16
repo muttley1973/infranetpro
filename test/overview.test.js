@@ -335,8 +335,8 @@ test('② VERO: verificabili, porte sospette ordinate per gravita, chi non ha ma
   const t = o.truth;
   assert.equal(rowOf(t, 'verifiable').value, 2, 'sw1 e sw2 hanno driver+host/ip');
   assert.equal(rowOf(t, 'verifiable').total, 2, 'il denominatore e\' la popolazione GESTIBILE, non i PC');
-  assert.equal(rowOf(t, 'verifiable').extra.unverifiable, 2, 'i due PC non si interrogano: non verificabili');
-  assert.deepEqual(rowOf(t, 'verifiable').items.map((i) => i.tag), ['unverifiable', 'unverifiable']);
+  assert.ok(!('unverifiable' in rowOf(t, 'verifiable').extra), 'i due PC non si interrogano: la riga parla di chi si interroga, non li conta');
+  assert.deepEqual(rowOf(t, 'verifiable').items, [], '…e non li elenca: per loro, qui, non c\'e\' niente da fare');
   assert.equal(rowOf(t, 'lastSync').extra.ageMs, 3000, 'eta\' del dato, non un timestamp crudo');
   assert.deepEqual(rowOf(t, 'suspectPorts').items, [{ id: 'sw2', meta: 3 }, { id: 'sw1', meta: 2 }],
     'peggiore in cima: si ordina per cio\' su cui si agisce');
@@ -556,18 +556,20 @@ test('② VERO: chi si interroga lo dice IL DRIVER — non il tipo di apparato',
   const v = rowOf(o.truth, 'verifiable');
   assert.equal(v.total, 2, 'la stampante interrogata entra nel conto quanto lo switch');
   assert.equal(v.value, 2);
-  assert.deepEqual(v.items.map((i) => i.id), ['pc1'], 'resta il solo PC, che non si interroga');
-  assert.equal(v.extra.unverifiable, 1, 'non e\' verificabile via SNMP, e si conta a parte');
+  assert.deepEqual(v.items, [], 'il PC non si interroga: non e\' di questa riga');
+  assert.ok(!('unverifiable' in v.extra), 'e non si conta nemmeno a parte');
   assert.equal(o.truth.health.level, 'ok', 'VERDE raggiungibile: era tutto il punto');
 });
 
-test('② VERO: senza driver l\'apparato esce dal conto e va nella lista «a mano»', () => {
+test('② VERO: senza driver l\'apparato esce dal conto e dall\'elenco — la riga parla solo di chi si interroga', () => {
   // Nessun driver E' gia' una dichiarazione: non lo interrogo, quindi non e'
-  // VERIFICABILE via SNMP. Non e' una lacuna da rimproverare — non blocca il verde
-  // — ma non sparisce: resta in elenco e nella nota accanto al verdetto, altrimenti
-  // sarebbe bastato non configurare nulla per comprarsi un verde. La lista copre
-  // TUTTI quelli che un accesso potrebbero averlo (isActive || hasIP), non la sola
-  // infrastruttura: e' lo stesso confine con cui il pannello offre l'Integrazione.
+  // VERIFICABILE via SNMP. Fino al 16/10 finiva in un secondo contatore ambra e in
+  // un elenco «a mano», perche' senza quello sarebbe bastato non configurare nulla
+  // per comprarsi un verde. L'utente, guardando la scheda con «18 di 18» e «15 non
+  // verificabili»: «inutile inserire quelli che non hanno SNMP configurato, bisogna
+  // toglierli dalla lista». Non sono ne' contati ne' elencati: non c'e' niente che
+  // si possa fare per loro da questa riga, e il numero grande resta «N di N» sui
+  // soli apparati che hanno un accesso.
   const o = buildOverview({
     types: TYPES, now: 5000, lastSyncAt: 2000, lastSyncResult: { ok: 1, total: 1, at: 2000 },
     spare: { totals: { free: 10, suspect: 0, ports: 24 } },
@@ -581,9 +583,8 @@ test('② VERO: senza driver l\'apparato esce dal conto e va nella lista «a man
   const v = rowOf(o.truth, 'verifiable');
   assert.equal(v.total, 1, 'si conta solo cio\' che si interroga');
   assert.equal(v.value, 1);
-  assert.equal(v.extra.unverifiable, 3, 'switch, stampante e PC non interrogati: nessuno e\' verificabile via SNMP');
-  assert.deepEqual(v.items.map((i) => i.tag), ['unverifiable', 'unverifiable', 'unverifiable']);
-  assert.deepEqual(v.items.map((i) => i.id), ['dumb', 'prn1', 'pc1'], '…e ognuno ha un nome, subito');
+  assert.ok(!('unverifiable' in v.extra), 'switch, stampante e PC non interrogati: nessuno e\' contato');
+  assert.deepEqual(v.items, [], '…e nessuno e\' elencato');
   assert.equal(o.truth.health.level, 'ok', 'una scelta non e\' un problema: non blocca il verde');
   assert.equal(o.truth.health.issues, 0);
 });
@@ -600,7 +601,8 @@ test('② VERO: senza NESSUN accesso configurato la riga e\' tratteggiata, mai v
   assert.equal(v.prov, 'none');
   assert.equal(v.value, null);
   assert.equal(v.total, null);
-  assert.equal(v.extra.unverifiable, 2, 'switch e PC: nessuno dei due e\' verificabile');
+  assert.ok(!('unverifiable' in v.extra), 'switch e PC: nessuno dei due si interroga, e non si contano');
+  assert.deepEqual(v.items, []);
 });
 
 
@@ -711,8 +713,8 @@ test('② VERO: un apparato configurato che NON risponde non diventa verde', () 
   assert.deepEqual(v.items.map((i) => [i.id, i.tag]), [['sw2', 'snmpErr']], 'col NOME, senza cliccare');
   assert.equal(o.truth.health.level, 'warn', 'nessun verde su una misura fallita');
   assert.equal(o.truth.health.issues, 1);
-  // Smettere di interrogarlo e' la terza via per sanare: esce dal conto e va
-  // nella lista «a mano» — che resta visibile, quindi non e' una scorciatoia.
+  // Smettere di interrogarlo e' la terza via per sanare: esce dal conto, e con
+  // lui dall'elenco (16/10: la riga non elenca piu' chi non si interroga).
   const nonPiuInterrogato = buildOverview({
     types: TYPES, now: 5000, lastSyncAt: 2000, lastSyncResult: { ok: 1, total: 1, at: 2000 },
     spare: { totals: { free: 10, suspect: 0, ports: 24 } },
@@ -723,7 +725,8 @@ test('② VERO: un apparato configurato che NON risponde non diventa verde', () 
   });
   const v2 = rowOf(nonPiuInterrogato.truth, 'verifiable');
   assert.equal(v2.extra.errors, 0);
-  assert.equal(v2.extra.unverifiable, 1, 'non sparisce: passa fra i non verificabili');
+  assert.ok(!('unverifiable' in v2.extra), 'esce dal conto e non finisce in un\'altra lista');
+  assert.deepEqual(v2.items, [], 'nessun elenco: chi non si interroga non e\' di questa riga');
   assert.equal(nonPiuInterrogato.truth.health.level, 'ok');
 });
 

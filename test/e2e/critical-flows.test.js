@@ -6418,9 +6418,17 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           subnetsProv: provOf(row('complete', 'subnets')),
           subnetsTxt: row('complete', 'subnets')?.querySelector('.ov-val')?.textContent.trim().charAt(0),
           nameClickable: rowsOf('complete').find((r) => r.dataset.key === 'name')?.tagName,
+          // «Rispondono a SNMP» parla solo di chi si interroga: i due dispositivi senza accesso SNMP di
+          // questo progetto non compaiono in un secondo contatore («N non verificabili»).
+          // Le righe senza dettaglio non hanno `data-key`: la scheda si riconosce dall'etichetta.
+          snmpRows: rowsOf('truth').filter((r) => /SNMP/i.test(r.querySelector('.ov-t')?.textContent || '')).length,
+          verifiableAlt: rowsOf('truth').filter((r) => /SNMP/i.test(r.querySelector('.ov-t')?.textContent || ''))
+            .some((r) => !!r.querySelector('.ov-alt')),
           rowsPerSection: ['complete', 'truth', 'margin'].map((s) => rowsOf(s).length),
         };
       });
+      assert.equal(v.snmpRows, 1, 'la scheda «Rispondono a SNMP» e\' nella colonna Vero (senza questa prova l\'asserzione sotto passerebbe a vuoto)');
+      assert.equal(v.verifiableAlt, false, '«Rispondono a SNMP» non ha un secondo contatore per chi non ha SNMP');
       assert.deepEqual(v.sections, ['complete', 'truth', 'margin'], 'le tre domande, in ordine');
       // Colonna 2: «Ultima lettura» e «Verifica completa» non sono risultati ma
       // la DATA del capitolo → stanno nella striscia in cima, non fra i riquadri.
