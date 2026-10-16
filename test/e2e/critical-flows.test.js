@@ -4670,8 +4670,19 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         // costruisce l'URL primario protocollo+IP (https di default).
         const firstNode = (state.nodes || [])[0];
         const mgmtHtml = firstNode ? _mgmtRow('', '10.0.0.9', firstNode.id) : '';
+        // ⭐ XSS memorizzato: `t()` non escapa i parametri, e `n.ip` finiva dentro data-tip="…"
+        // cosi' com'era. Si PARSA l'HTML prodotto (non si cerca una sottostringa): un `"`
+        // nell'IP deve restare TESTO dentro l'attributo, non aprire un elemento.
+        const hostileIp = '"><img src=x onerror="window.__mgmtPwn=1">';
+        const hostileDoc = new DOMParser().parseFromString('<div>' + _mgmtRow('', hostileIp, firstNode.id) + '</div>', 'text/html');
+        const hostileTip = (hostileDoc.querySelector('.mgmt-open-btn') || { getAttribute: () => '' }).getAttribute('data-tip') || '';
+        const hostile = {
+          imgs: hostileDoc.querySelectorAll('img').length,
+          onerror: hostileDoc.querySelectorAll('[onerror]').length,
+          tipKeepsText: hostileTip.indexOf(hostileIp) >= 0,
+        };
         return {
-          exposed,
+          exposed, hostile,
           auditVisible: !!av && av.style.display === 'flex',
           auditRow: av ? (av.querySelector('.audit-row') || {}).textContent || '' : '',
           spareVisible: !!sv && sv.style.display === 'flex',
@@ -4691,6 +4702,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.spareHasRows, 'il report porte legge state+TYPES via il ponte e calcola le righe');
       assert.match(r.mgmtHtml, /mgmt-block/, '_mgmtRow rende il blocco Management');
       assert.match(r.mgmtHtml, /https:\/\/10\.0\.0\.9/, '_mgmtRow costruisce l’URL primario protocollo+IP via il ponte');
+      assert.equal(r.hostile.imgs, 0, 'XSS: un IP ostile NON apre un elemento (era: <img> iniettato fuori da data-tip)');
+      assert.equal(r.hostile.onerror, 0, 'XSS: nessun attributo di evento nato dall’IP');
+      assert.ok(r.hostile.tipKeepsText, 'l’IP ostile resta TESTO nel tooltip: si vede, non si esegue');
     });
 
     await t.test('app-stack-ha migrato: setNodeHaPair propaga la simmetria nel browser reale', async () => {

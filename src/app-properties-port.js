@@ -275,7 +275,7 @@ export function _renderPortProps(panel){
             return `${sep}<span data-tip="${escapeHTML(t('port.operWaitTip'))}" style="background:rgba(110,118,129,.12);border:1px solid var(--panel-border);color:var(--text-muted);border-radius:3px;padding:1px 6px">${escapeHTML(w)}</span>`;
         };
         const snmpBar=(snmpParts.length||portShade(pi,DOWN_STREAK_N)||pi.operWait)?`<div class="snmp-bar" style="margin:0 0 10px"><span class="sb">SNMP</span>${escapeHTML(snmpParts.join(' · '))}${_shadeChip()}${_operWaitChip()}</div>`:'';
-        const rst=(f,lbl)=>pi[f]!=null?`<button class="toolbar-btn" style="padding:2px 6px;margin:0;font-size:var(--fs-2xs)" data-tip="${t('pnl.dev.restoreField',{field:lbl})}" data-act="port-clear-render" data-pid="${pid}" data-pfield="${f}">↺</button>`:'';
+        const rst=(f,lbl)=>pi[f]!=null?`<button class="toolbar-btn" style="padding:2px 6px;margin:0;font-size:var(--fs-2xs)" data-tip="${escapeHTML(t('pnl.dev.restoreField',{field:lbl}))}" data-act="port-clear-render" data-pid="${pid}" data-pfield="${f}">↺</button>`:'';
         // Select dello STATO dichiarabile. Una sola definizione, usata sia dallo
         // switchport sia dalla tappa passiva: due copie delle stesse cinque voci
         // divergono al primo che ne aggiunge una.

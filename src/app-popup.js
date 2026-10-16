@@ -268,7 +268,7 @@ export function showPop(e,pid){
     const spdDisplay=effSpeed!=null?(effSpeed>=1000?`${(effSpeed/1000).toFixed(effSpeed%1000?1:0)}G`:`${effSpeed}M`):'';
     const spdPlaceholder=pi.speed!=null?(pi.speed>=1000?`${(pi.speed/1000).toFixed(pi.speed%1000?1:0)}G`:`${pi.speed}M`):'es. 1G';
 
-    const rst=(f,lbl)=>pi[f]!==undefined&&pi[f]!==null?`<button class="prst" data-tip="${t('pnl.misc.restore',{label:lbl})}" data-act="port-clear" data-pid="${pid}" data-pfield="${f}">↺</button>`:'<span></span>';
+    const rst=(f,lbl)=>pi[f]!==undefined&&pi[f]!==null?`<button class="prst" data-tip="${escapeHTML(t('pnl.misc.restore',{label:lbl}))}" data-act="port-clear" data-pid="${pid}" data-pfield="${f}">↺</button>`:'<span></span>';
 
     const pop=document.getElementById('popup');
     pop.innerHTML=`

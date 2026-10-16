@@ -70,8 +70,9 @@ function _mgmtSchemes(){
 // perderebbe le personalizzazioni fatte nell'editor «Protocolli di management».
 export { _mgmtBuildUrl, _mgmtProtoDef };
 export function _mgmtProtoOptionsHtml(selectedId){
+    // id e label vengono dal localStorage (lista personalizzabile): sono testo, non HTML.
     return MGMT_PROTOCOLS.map(p =>
-        `<option value="${p.id}" ${p.id === selectedId ? 'selected' : ''}>${p.label}</option>`).join('');
+        `<option value="${escapeHTML(p.id)}" ${p.id === selectedId ? 'selected' : ''}>${escapeHTML(p.label)}</option>`).join('');
 }
 
 /** Apre un URL di management. Strategia per protocollo:
@@ -123,8 +124,11 @@ export function _mgmtRow(url, autoIp, nodeId){
     // finisce in un href: resta nel campo, così chi legge il documento lo vede.
     const canOpen  = !!primary && isSafeMgmtUrl(primary, _mgmtSchemes());
     const primDef  = _mgmtProtoDef(proto);
-    const protoOpts = MGMT_PROTOCOLS.map(p =>
-        `<option value="${p.id}" ${p.id===proto?'selected':''}>${p.label}</option>`).join('');
+    const protoOpts = _mgmtProtoOptionsHtml(proto);
+    // `t()` NON escapa i parametri: `autoIp` (n.ip) e `label` finiscono nel testo cosi' come
+    // sono, e dentro un attributo un `"` lo chiude. Si escapa la frase INTERA, una volta.
+    const openTip  = escapeHTML(t('pnl.misc.openOn', { label: primDef.label, ip: autoIp || '?' }));
+    const openText = escapeHTML(t('pnl.misc.open', { label: primDef.label }));
     return `<div class="prop-group mgmt-block">
       <label style="display:flex;align-items:center;justify-content:space-between">
         <span>Management</span>
@@ -133,8 +137,8 @@ export function _mgmtRow(url, autoIp, nodeId){
            id="mgmt-open-${nodeId}"
            class="mgmt-open-btn"
            style="${canOpen?'':'opacity:.35;pointer-events:none'}"
-           data-tip="${t('pnl.misc.openOn',{label:primDef.label,ip:autoIp||'?'})}">
-          <i class="fas fa-external-link-alt" style="font-size:0.65rem;margin-right:3px"></i>${t('pnl.misc.open',{label:primDef.label})}
+           data-tip="${openTip}">
+          <i class="fas fa-external-link-alt" style="font-size:0.65rem;margin-right:3px"></i>${openText}
         </a>
       </label>
       <div class="mgmt-row-main">

@@ -124,7 +124,7 @@ function _mgmtRowVm(vm, ref){
         <span>Management</span>
         <a href="${_esc(primary)}" ${ref} data-act="vm-mgmt-open" class="mgmt-open-btn" style="${off}"
            data-tip="${_esc(t('pnl.misc.openOn', { label: def.label, ip: vmIp || '?' }))}">
-          <i class="fas fa-external-link-alt" style="font-size:0.65rem;margin-right:3px"></i>${t('pnl.misc.open', { label: def.label })}
+          <i class="fas fa-external-link-alt" style="font-size:0.65rem;margin-right:3px"></i>${_esc(t('pnl.misc.open', { label: def.label }))}
         </a>
       </label>
       <div class="mgmt-row-main">
