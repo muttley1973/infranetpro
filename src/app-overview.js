@@ -31,6 +31,7 @@ import { _ipamAuditReport } from './app-l3.js';   // ② «Vero»: igiene IPAM (
 import { wifiVlanCoherence } from './app-wifi.js';   // ⑤ «Sicurezza»: coerenza VLAN wireless (stesso motore del vecchio report, ora assorbito nella Dashboard)
 import { buildOverview, _rackFill } from '../lib/overview.js';
 import { computeHealthAlerts } from '../lib/health-alerts.js';   // ⑥ Salute live: soglie DOCUMENTATE una volta sola (le stesse che legge l'assistente AI)
+import { portActiveFromRead } from '../lib/spare-ports.js';   // «l'SNMP la vede attiva»: una definizione sola, condivisa con l'overlay delle porte libere
 import { numericPortCeiling, findOrphanPortRefs } from '../lib/port-inventory.js';   // ① Completo: capi di cavo su porte che l'apparato non ha (piu')
 import { pduManagementPortCount } from '../lib/pdu-layout.js';   // su una PDU i pid numerici sono le porte di RETE, non le prese
 import { ipamByVidView, prefixesOf, prefixKey } from '../lib/ipam-model.js';   // vista per-VLAN + l'autorità prefix-first
@@ -248,7 +249,7 @@ function _buildModel() {
             // `speed`: l'override a mano vince sulla misura (manual-first), e null
             // resta null — «velocita' non nota» e' un fatto, non uno zero.
             list.push({
-                pid, kind, cabled: !!cabled[i], activeSnmp: responded && pi.status === 'active',
+                pid, kind, cabled: !!cabled[i], activeSnmp: portActiveFromRead(responded, pi),
                 speed: (pi.speedOvr != null) ? pi.speedOvr : (pi.speed != null ? pi.speed : null),
             });
         }

@@ -16,6 +16,7 @@
 //   • legacy (win.*): state, TYPES, _isLeafEndpoint, _frontPanelSfpGroups,
 //                     _linksForPort, getNodeDisplayName, escapeHTML
 import { expose, t, buildSpareReport } from './_bridge.js';
+import { portActiveFromRead } from '../lib/spare-ports.js';   // «l'SNMP la vede attiva»: una definizione sola, condivisa con la Dashboard
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { getNodeDisplayName, _linksForPort } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
@@ -49,7 +50,7 @@ export function _spareBuildDevices(){   // esportata: la usa anche il report «D
             const pi = store.state.ports[pid] || {};
             if(pi.hidden) continue;                                   // porte nascoste: non sono "spare"
             const cabled = _linksForPort(pid).length > 0;
-            const activeSnmp = responded && (pi.status === 'active');  // cross-check realtà↔doc
+            const activeSnmp = portActiveFromRead(responded, pi);   // cross-check realtà↔doc: la MISURA (operUp), non `status`
             // desc/alias/ifName: non servono al report delle porte libere, ma al censimento delle
             // descrizioni (lib/port-descriptions.js), che conta le STESSE porte.
             ports.push({ pid, kind: sfpSet.has(i) ? 'sfp' : 'access', cabled, activeSnmp, desc: pi.desc, alias: pi.alias, ifName: pi.ifName });
