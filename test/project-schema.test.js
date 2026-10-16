@@ -116,7 +116,12 @@ test('CRICCHETTO — la classifica non elenca campi mai visti in nessun progetto
     // Il messaggio dell'ultima lettura SNMP fallita (15/10): compare solo in un progetto SALVATO
     // mentre un apparato non rispondeva, e il censimento del 28/08 non ne aveva nessuno cosi'.
     // Anche questo l'ha trovato l'ALTRO guard, quello sui progetti veri. Campo vero, non finto.
-    'snmpError']);
+    'snmpError',
+    // Quattro scelte a mano su uno switch (16/10): marca e stato (con il lucchetto), livello e ruolo.
+    // Esistono SOLO dopo che una persona li sceglie — senza scelta il campo non c'e` —, quindi il
+    // censimento del 28/08 non poteva contenerli, e li ha trovati il guard sui progetti veri.
+    // Dichiarazioni, non misure: escono nell'export. Campi veri, non finti.
+    'brandManual', 'statusManual', 'swLayer', 'swRole']);
   for (const scope of Object.keys(CENSUS)) {
     const visti = new Set(keysOf(scope));
     const extra = Object.keys(FIELD_CLASS_BY_SCOPE[scope]).filter(k => !visti.has(k) && !attesi.has(k));
@@ -336,4 +341,46 @@ test('ogni scope ha almeno un document e almeno un non-document (o è tutto docu
   const specNonDoc = FIELD_CLASSES.filter(c => c !== 'document')
     .flatMap(c => fieldsOfClass('spec', c));
   assert.deepStrictEqual(specNonDoc, [], 'node.spec è tutto dichiarato, per costruzione');
+});
+
+// ── I quattro campi che una PERSONA scrive e che nessuno aveva classificato ─────────────────
+// `node.brandManual`, `node.statusManual`, `spec.swLayer`, `spec.swRole`: li ha trovati il guard sui
+// progetti veri (16/10), perche' sullo Zyxel di un lab qualcuno aveva scelto marca, stato e ruolo a mano.
+// In CI quel guard passa a vuoto (`projects/` non e' in git), quindi la classe si fissa QUI, dove gira sempre.
+// Sono DICHIARAZIONI: i due `*Manual` sono la memoria del paletto ① (lo ha deciso una persona, la
+// lettura SNMP non lo riscrive: app-snmp.js `canFillBrand`), gli altri due sono caselle a tendina del
+// pannello switch, sorelle di `swMgmt` che una classe l'aveva. Non classificati venivano comunque TENUTI
+// nell'export (il default): classificarli non cambia cosa esce, toglie il dubbio.
+test('brandManual, statusManual, spec.swLayer e spec.swRole sono DOCUMENT (li scrive una persona)', () => {
+  assert.strictEqual(classifyField('node', 'brandManual'), 'document');
+  assert.strictEqual(classifyField('node', 'statusManual'), 'document');
+  assert.strictEqual(classifyField('spec', 'swLayer'), 'document');
+  assert.strictEqual(classifyField('spec', 'swRole'), 'document');
+});
+
+test('i quattro campi dichiarati escono nell\'export, insieme ai loro fratelli', () => {
+  for (const [scope, k] of [['node', 'brandManual'], ['node', 'statusManual'], ['spec', 'swLayer'], ['spec', 'swRole']]) {
+    assert.strictEqual(exportActionFor(classifyField(scope, k)), 'keep', `${scope}.${k}: il lavoro di una persona non si butta`);
+  }
+  const { sanitizePortableState } = require('../lib/project-format.js');
+  const out = sanitizePortableState({
+    nodes: [{ id: 'sw', type: 'switch', name: 'SW', brand: 'Zyxel', brandManual: true, status: 'active', statusManual: true,
+      spec: { swLayer: 'l2', swRole: 'access', swMgmt: 'ssh' } }],
+    links: [], ports: {}, racks: [],
+  });
+  const n = out.nodes[0];
+  assert.strictEqual(n.brandManual, true);
+  assert.strictEqual(n.statusManual, true);
+  assert.deepStrictEqual(n.spec, { swLayer: 'l2', swRole: 'access', swMgmt: 'ssh' }, 'la sorella swMgmt e le due nuove viaggiano insieme');
+});
+
+test('i `*Manual` di un nodo sono tutti classificati: nessuno resta fuori da quella famiglia', () => {
+  // La famiglia è quella del paletto ①: «l'ha deciso una persona». Se ne nasce una nuova (il prossimo
+  // `fooManual`) e nessuno la classifica, il guard sui progetti veri la trova solo dove ci sono progetti.
+  // Qui si legge il CODICE: ogni `n.xxxManual =` scritto dall'interfaccia deve avere una classe.
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8');
+  const scritti = new Set([...src.matchAll(/\bn\.([a-z]+Manual)\s*=/g)].map(m => m[1]));
+  assert.ok(scritti.has('brandManual') && scritti.has('nameManual'), 'letti i flag veri dal codice: ' + [...scritti].join(','));
+  const orfani = [...scritti].filter(k => classifyField('node', k) === null);
+  assert.deepStrictEqual(orfani, [], 'flag «Manual» scritti da app.js e senza classe: ' + orfani.join(', '));
 });
