@@ -250,11 +250,14 @@ function _statsEl(stats) {
     t('subbar.doc'),
     stats.docPct == null ? t('subbar.docNone') : t('subbar.docTip', { withIp: stats.withIp, addr: stats.addressable }),
   ));
-  // Device totali (il tooltip dichiara i passivi quando ci sono: schema ⑤)
-  wrap.appendChild(_statEl('fa-network-wired', String(stats.devices), t('subbar.devices'),
-    stats.passive > 0
-      ? t('subbar.devicesTipMixed', { n: stats.devices, passive: stats.passive })
-      : t('subbar.devicesTip', { n: stats.devices })));
+  // Device = APPARATI: quelli che hanno, o possono avere, un indirizzo IP (la stessa definizione
+  // «indirizzabile» della Documentazione % qui accanto e della Panoramica). Prese a muro, patch panel
+  // e stanze non sono device: fino al 16/10 il numero li contava («36 Device» con 33 apparati) e
+  // il tooltip dichiarava «di cui 3 passivi». Si contano i NODI, mai i MAC: un apparato con piu'
+  // schede di rete ha piu' MAC e resta uno. `stats.devices`/`stats.passive` restano nel modello
+  // (li usa lib/snmp-sync-audit.js), ma non sono piu' cio' che la barra mostra.
+  wrap.appendChild(_statEl('fa-network-wired', String(stats.addressable), t('subbar.devices'),
+    t('subbar.devicesTip', { n: stats.addressable })));
   // Salute SNMP (pallino colorato + ok/totale)
   const snmp = _statEl(
     null,
