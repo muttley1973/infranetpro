@@ -220,6 +220,23 @@ lib/                   Shared browser + test modules (the heart of the app)
                     (what a panel asks to draw "Measured" or "Declared") and the registry
                     of every field that a reading and a person can both write, each with
                     the mechanism that keeps the two apart  (pure)
+  neighbor-type.js  what an LLDP/CDP neighbour IS, from what it announces: the capabilities
+                    (LLDP BITS / CDP mask) and the platform string decide ap · voip · router ·
+                    switch · server · pc …, and `via` says whether the choice was read
+                    (`platform`, `caps`) or guessed (`default` = the historic switch). Also
+                    the usable-IP rule for an announced address and the summary subtraction
+                    of neighbours the Sync has just created  (pure)
+  id-safety.js      an id is a name, not a piece of HTML: `isSafeId`, `findUnsafeIds`, and
+                    `repairUnsafeIds` — rename the bad ids AND rewrite every reference to
+                    them (values and keys equal to the old id; node ids are left to
+                    `_normalizeProjectNodeIds`). The client repairs on load, the project
+                    routes on save  (pure)
+  host-name.js      `isJunkHostName`: a hostname that is a machine blob (UUID, MAC, serial)
+                    versus a name a person chose (`dc-01`); the cut is the length of the hex
+                    run, not its alphabet  (pure)
+  concurrency-gate.js  `createGate({max, queue, waitMs})`: N in flight, M waiting, the rest
+                    refused at once — what keeps a burst of password checks from adding up
+                    CPU in a single process  (Node)
   verify-trend.js   trendVerifiche → reads the per-Verify timeline rows and answers
                     whether this environment is getting better KNOWN or standing
                     still (design principle 3). Three separate ratios, because the
@@ -1260,7 +1277,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,154 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,246 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
@@ -1443,6 +1460,28 @@ by regression tests (`test/ai-context.test.js`,
 `test/ai-route-security.test.js`, `test/auth-api.test.js`, `test/panel-skin.test.js`, `test/security-hardening.test.js`). Do **not** expose the instance to the public
 internet — it is a network scanner with command execution; the right access model
 is VPN/LAN.
+
+**2.11.17 — identifiers, numbers, bursts, files.** Four more boundaries, each with its guard.
+*An id is a name* (`lib/id-safety.js`): the UI interpolates ids as attribute values, so a
+project from a file or the API with `"><img onerror=…>` in a rack or cable id ran script in
+whoever opened it. Ids are letters, digits and `_ . : @ + # -`; `_migrateState` repairs a
+loaded project (and every reference to the renamed id), the project and snapshot routes repair
+what they receive (the save is never refused — one field is not worth the project — and the
+count travels back in `X-InfraNet-Sanitized`, which the client turns into a notice), and the
+numbers of the model (`ports`, `rackU`, `x`, `integration.port`…) come back numbers or vanish.
+The output escapes anyway: `test/e2e/xss-fuzz.test.js` puts a payload in every numeric leaf and
+every id, loads it, then writes it *straight into the live state* (past the loader) and opens
+every panel — both phases must run nothing. *A burst of logins* (`lib/concurrency-gate.js`): a
+password check is ~340 ms of CPU in a one-thread process and the per-IP limit counts an
+address's budget, not how many arrive together, so at most `INFRANET_LOGIN_CONCURRENCY` (2) run
+and `INFRANET_LOGIN_QUEUE` (8) wait; the rest get a 503 with `Retry-After` at once. *The AI
+assistant*: the endpoint is an http(s) URL with no credentials in it, the path is appended
+before the query, the key is a header-safe string and is redacted from any provider error
+before it is quoted, only an admin sees the endpoint, and the conversation and the browser's
+live facts have caps. *Files that hold credentials* — projects (the devices' SNMP credentials),
+their `.bak` and history, `users.json`, `api-tokens.json` — are `0600` (`INFRANET_FILE_MODE`
+widens it to the group, never to others), the `.bak` is tightened separately because it is a
+copy of the file *before*, and existing files are tightened at startup.
 
 ---
 

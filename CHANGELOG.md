@@ -1,5 +1,35 @@
 # Changelog
 
+## [2.11.17] — 2026-10-16
+
+A neighbour is created as what it says it is, a hostile id can no longer run code, and the discovery tells you when it could not look.
+
+### Added
+
+- **A neighbour seen over LLDP or CDP is created as what it announces.** The poll now reads the platform and the capabilities each neighbour advertises; an access point or a phone lands on the floor plan, a server or a router in the rack, and only a neighbour that says nothing stays a switch (still a guess you confirm). The same device seen over LLDP on one side and CDP on the other is one node, not two with the same IP, and the Sync summary no longer lists as "not in the document" the neighbours it has just created.
+- **The discovery says when it could not look.** Without `ping` on the server every host looked dead and "0 found" read as an empty network; the scan now returns the missing tool (`ping`, ARP table) and the page writes it in red. The ARP table is also read without `arp` (from `/proc/net/arp`, then `ip neigh`).
+- **You are told what the server corrected.** An IP that was not an address or an id that was not a name, repaired on save, is reported in a notice instead of being found out at the next reload.
+
+### Fixed
+
+- **A device with SNMP shows its name, not its model.** Twelve "Catalyst 2960" in a column did not say which was which; the name the administrator gave it (sysName or DNS) wins when it is readable, the model stays first where the hostname is a generic default. `dc-01`, `db-01` or `ad-02` are names, not hexadecimal blobs: only an identifier-sized run of hex digits (a UUID, a MAC) is dropped for the IP.
+- **An old Catalyst is a switch.** The description of a Catalyst 2950 says "C2950 Software", with L2+L3 services, and it was classified as a router; the 29xx/35xx/38xx/45xx/9200-9600 model codes and the 2950 object id are now recognised (not the 36xx/37xx routers, not the 9800 controller).
+- **Exports carry the project name.** Titles and file names said "InfraNet Pro" and "infranet" whatever project was open.
+- **No "aggregate removed" notice for an aggregate that was not there.** An empty member list on a passive port counted as one removed, so the notice came back at every open.
+- **A name read over SNMP is no longer labelled "resolved by DNS".**
+
+### Security
+
+- **An identifier or a number can no longer run code.** `rack.id`, `link.id`, `integration.port`/`timeout`, a port count, a cable length and a VLAN override were written into the pages without escaping: a project from a file, an editor or the API could run script in the browser of whoever opened it, viewers and the admin included. Ids are names now (letters, digits and `_ . : @ + # -`): the client repairs a loaded project and its references, the server repairs what it is sent, and the numbers of the model come back numbers on load. A real-browser fuzz puts a payload in every numeric field and every id, and checks both the load and the output.
+- **A burst of logins can no longer add up CPU.** A password check is ~340 ms of CPU in a single process; a hundred at once stalled everything for half a minute, and the per-IP limit does not see them. At most two run at once and eight wait (`INFRANET_LOGIN_CONCURRENCY`, `INFRANET_LOGIN_QUEUE`); beyond that login answers 503 with `Retry-After` at once.
+- **The AI assistant checks what it is given.** The endpoint must be an http(s) address with no user or password in it (the key has its own field); the path is appended before the query (Azure OpenAI); the key is a valid header and an error from the provider that echoes it is redacted before it is shown; only the admin sees the endpoint; a chat forwards at most 40 turns and 60,000 characters, and the facts sent from the browser have a cap.
+- **Files with credentials are readable by their owner only.** Projects (they hold the devices' SNMP credentials), their backups and history, `users.json` and `api-tokens.json` were `0644`. They are `0600` now, existing files are tightened at startup, and `INFRANET_FILE_MODE` widens it to the group for a backup job (never to others).
+
+### Changed
+
+- **The README no longer promises a forced password change on first login.** The server prints the random `admin` password once and never asked for a change; the text now says where to change it (user menu, **Change password**).
+- **Behind a reverse proxy, set `INFRANET_TRUST_PROXY=1`:** without it every user arrives from the proxy's address and the per-IP login limit counts everyone together. The README now says so, and documents `INFRANET_LOGIN_IP_MAX`.
+
 ## [2.11.16] — 2026-10-16
 
 A value says where it comes from, and a model you typed is no longer called a swapped device.
