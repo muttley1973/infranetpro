@@ -6424,11 +6424,16 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           snmpRows: rowsOf('truth').filter((r) => /SNMP/i.test(r.querySelector('.ov-t')?.textContent || '')).length,
           verifiableAlt: rowsOf('truth').filter((r) => /SNMP/i.test(r.querySelector('.ov-t')?.textContent || ''))
             .some((r) => !!r.querySelector('.ov-alt')),
+          // Senza NESSUN accesso SNMP la scheda non ha un numero grande e il verdetto lo dice a parole:
+          // il segnale «N non osservati» non si aggiunge a una riga tratteggiata.
+          snmpNote: rowsOf('truth').filter((r) => /SNMP/i.test(r.querySelector('.ov-t')?.textContent || ''))
+            .some((r) => !!r.querySelector('.ov-note')),
           rowsPerSection: ['complete', 'truth', 'margin'].map((s) => rowsOf(s).length),
         };
       });
       assert.equal(v.snmpRows, 1, 'la scheda «Rispondono a SNMP» e\' nella colonna Vero (senza questa prova l\'asserzione sotto passerebbe a vuoto)');
       assert.equal(v.verifiableAlt, false, '«Rispondono a SNMP» non ha un secondo contatore per chi non ha SNMP');
+      assert.equal(v.snmpNote, false, 'senza nessun accesso SNMP la riga e\' tratteggiata e non aggiunge il segnale «non osservati»');
       assert.deepEqual(v.sections, ['complete', 'truth', 'margin'], 'le tre domande, in ordine');
       // Colonna 2: «Ultima lettura» e «Verifica completa» non sono risultati ma
       // la DATA del capitolo → stanno nella striscia in cima, non fra i riquadri.
@@ -6490,6 +6495,64 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(after.tab, 'props', 'e il pannello si apre dove il dato si corregge');
       assert.equal(await dirty(), false, 'nemmeno il salto al dispositivo sporca il documento');
 
+      await page.evaluate(() => { localStorage.removeItem('infranet.view'); });
+      const errs = pageErrors.slice(errBefore);
+      assert.equal(errs.length, 0, 'nessun errore JS: ' + errs.join(' | '));
+    });
+
+    await t.test('Panoramica: «Rispondono a SNMP» dice, in discreto, quanti apparati non osserva — senza contatore ambra né elenco', async () => {
+      const errBefore = pageErrors.length;
+      await page.evaluate(() => {
+        state = _buildDefaultState();
+        if (typeof _migrateState === 'function') _migrateState(state);
+        // Lo stato di default porta gia' dei dispositivi (senza SNMP): si parte da zero, o il conto non e' quello della prova.
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        const sw = (id, ip) => ({ id, type: 'switch', name: id.toUpperCase(), ip, ports: 8, snmpStatus: 'ok',
+          integration: { driver: 'snmp-v2c', host: ip, community: 'public' } });
+        state.nodes.push(sw('nsw1', '10.8.0.1'), sw('nsw2', '10.8.0.2'),
+          { id: 'npc1', type: 'pc', name: 'PC-N1', ip: '10.8.0.50', x: 80, y: 80 },
+          { id: 'npc2', type: 'pc', name: 'PC-N2', ip: '10.8.0.51', x: 80, y: 160 },
+          { id: 'npc3', type: 'pc', name: 'PC-N3', ip: '10.8.0.52', x: 80, y: 240 });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        if (typeof _clearDirty === 'function') _clearDirty();
+        renderAll();
+      });
+      await page.click('#btn-overview');
+      await page.waitForSelector('#overview .ov-col', { timeout: 8000 });
+      const c = await page.evaluate(() => {
+        const rows = [...document.querySelectorAll('#overview .ov-col[data-sec="truth"] .ov-r')]
+          .filter((r) => /SNMP/i.test(r.querySelector('.ov-t')?.textContent || ''));
+        const r = rows[0];
+        const note = r && r.querySelector('.ov-note');
+        return {
+          rows: rows.length,
+          big: (r?.querySelector('.ov-num')?.textContent || '').trim(),
+          note: note ? note.textContent.trim() : null,
+          noteTitle: note ? note.title : '',
+          alt: !!(r && r.querySelector('.ov-alt')),
+          hasAlt: !!(r && r.classList.contains('has-alt')),
+          clickable: !!(r && r.tagName === 'BUTTON'),
+        };
+      });
+      assert.equal(c.rows, 1, 'la scheda «Rispondono a SNMP» e\' una sola');
+      assert.equal(c.big, '2', 'il numero grande resta quello degli interrogati');
+      assert.ok(c.note && /3/.test(c.note), 'il segnale discreto dice QUANTI non si osservano (3 PC): ' + c.note);
+      assert.ok(c.noteTitle && c.noteTitle.length > 20, 'e il suo suggerimento spiega cosa sono');
+      assert.equal(c.alt, false, 'niente contatore ambra');
+      assert.equal(c.hasAlt, false, 'e la scheda non si allarga a due celle');
+      assert.equal(c.clickable, false, 'non apre nessun elenco: per loro, da qui, non c\'e\' niente da fare');
+      // Il dossier consegnato dice lo stesso numero: un «2 di 2» verde non deve tacere i tre non osservati.
+      const doss = await page.evaluate(() => {
+        const rep = buildOverviewReport(); let row = null;
+        const walk = (o) => { if (!o || typeof o !== 'object' || row) return; if (Array.isArray(o)) { o.forEach(walk); return; }
+          if (typeof o.label === 'string' && /SNMP/i.test(o.label) && 'sub' in o) row = o; Object.values(o).forEach(walk); };
+        walk(rep);
+        return row ? { value: row.value, sub: row.sub } : null;
+      });
+      assert.ok(doss, 'la riga «Rispondono a SNMP» e\' nel dossier');
+      assert.ok(/3/.test(doss.sub) && !/verificabil/i.test(doss.sub), 'il dossier dice i non osservati e non il vecchio «non verificabili»: ' + doss.sub);
+      // Torna alla vista di prima: la Panoramica e' una preferenza locale, non una modifica.
+      await page.click('#btn-overview');
       await page.evaluate(() => { localStorage.removeItem('infranet.view'); });
       const errs = pageErrors.slice(errBefore);
       assert.equal(errs.length, 0, 'nessun errore JS: ' + errs.join(' | '));

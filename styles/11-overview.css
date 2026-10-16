@@ -195,6 +195,9 @@ button.ov-r:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
    sembrava farne parte. Se lo spazio manca, a scendere di riga e' il secondo. */
 .ov-val .ov-sub { font-size: var(--fs-sm); color: var(--text-muted); flex: 0 0 auto; white-space: nowrap; }
 .ov-r.is-missing .ov-val .ov-num { color: var(--inactive-color); font-size: 1.3rem; }
+/* Il segnale DISCRETO accanto al rapporto («15 non osservati»): una riga piccola e grigia, senza il colore
+   di un allarme e senza allargare il riquadro. Se lo spazio manca scende sotto il numero, intera. */
+.ov-val .ov-note { font-size: var(--fs-sm); color: var(--text-muted); opacity: .85; flex: 0 0 auto; white-space: nowrap; margin-left: 6px; }
 
 /* il VERDETTO: colore + PAROLA, mai il colore da solo (deuteranopia) */
 .ov-foot-row { display: flex; align-items: center; gap: 8px; }

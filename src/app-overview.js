@@ -410,6 +410,17 @@ function _age(ms, at) {
 //
 // _tileValue → [numero grande, spalla piccola]. Quando il dato NON c'e' il
 // numero e' un trattino: mai uno zero al posto di "non lo sappiamo".
+/** Il segnale DISCRETO di una scheda: una riga piccola e grigia accanto al rapporto, senza colore di allarme,
+ *  senza elenco e senza allargare il riquadro. Oggi solo «Rispondono a SNMP»: quanti apparati non si osservano
+ *  perche' non hanno un accesso SNMP. Non c'e' dove la scheda non ha un dato (riga tratteggiata: il verdetto
+ *  dice gia' «nessun accesso SNMP configurato», e il numero sarebbe lo stesso fatto detto due volte). */
+function _tileNote(r) {
+    if (r.key !== 'verifiable' || r.prov === 'none') return null;
+    const n = Number((r.extra || {}).unobserved) || 0;
+    if (n <= 0) return null;
+    return { text: t(n === 1 ? 'ov.st.unobservedOne' : 'ov.st.unobserved', { n }), tip: t('ov.st.unobservedTip') };
+}
+
 function _tileValue(r) {
     switch (r.key) {
         case 'cables':       return [_n(r.value), ''];
@@ -769,6 +780,8 @@ function _rowEl(secKey, r) {
     const v = _el('div', 'ov-val');
     v.appendChild(_el('span', 'ov-num', val));
     if (sub) v.appendChild(_el('span', 'ov-sub', sub));
+    const note = _tileNote(r);
+    if (note) { const nEl = _el('span', 'ov-note', note.text); nEl.title = note.tip; v.appendChild(nEl); }
     // Numero e parola del secondo contatore stanno in UN solo elemento: sono una
     // cosa sola («+20 non switch»), e da elementi flex separati il numero
     // restava in riga mentre la parola scendeva sotto — un 20 orfano che sembrava
@@ -1398,9 +1411,12 @@ export function buildOverviewReport() {
                 const [val, sub, alt] = _tileValue(r);
                 const st = _tileStatus(r);
                 // Nel PDF non c'è una seconda cifra grande: il contatore in più si
-                // accoda al testo, così il fatto non si perde nella carta.
+                // accoda al testo, così il fatto non si perde nella carta. Lo stesso per il
+                // segnale discreto («N non osservati»): su un documento consegnato un «1 di 1»
+                // verde non deve tacere quanti apparati non sono osservati.
+                const note = _tileNote(r);
                 return { label: t('ov.row.' + r.key), value: val,
-                    sub: (sub || '') + (alt && alt.num ? ' · ' + alt.num + ' ' + (alt.sub || '') : ''),
+                    sub: (sub || '') + (alt && alt.num ? ' · ' + alt.num + ' ' + (alt.sub || '') : '') + (note ? ' · ' + note.text : ''),
                     status: st.w || '', tone: st.tone, prov: r.prov };
             }),
         };
