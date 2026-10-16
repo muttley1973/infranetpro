@@ -15,6 +15,7 @@ import { escapeHTML, uid, normalizeNumber, normalizePortStatus, normalizeMacAddr
 import { TYPES, typeName, typeShort } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (prima letto dal global implicito) + nome localizzato
 import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM: come si LEGGE il nome di un device
 import { addrFamily } from '../lib/cidr.js';   // cos'e' un indirizzo: una definizione sola (campo IP del device)
+import { IDENTITY_FIELDS, forgetCopiedFromRead } from '../lib/identity-reconcile.js';   // marca/modello/matricola/firmware: scrivere a mano toglie la provenienza «copiato dalla lettura»
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: chiamate prima bare-global
 import { renderProps } from './app-properties.js';   // idem
 import { showAlert, saveProject } from './app-core.js';   // saveProject: ASSE B, scorciatoia Ctrl+S (ex win.saveProject)
@@ -1751,6 +1752,8 @@ function updateN(k,v){
     } else {
         n[k]=v;
     }
+    // Una persona ci ha scritto sopra (o l'ha svuotato): il valore non e' piu' «copiato dalla lettura».
+    if(IDENTITY_FIELDS.includes(k)) forgetCopiedFromRead(n, k);
     if(n.type==='pdu' && (k==='pduMgmtMode' || k==='pduEthernetPorts')) _cleanupPduNetworkPorts(n);
     // Tipo scelto a mano = pinnato (manual-first): Discovery/Verifica non lo ricambiano.
     if(k==='type') n.typeManual = true;

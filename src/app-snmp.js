@@ -21,7 +21,7 @@ import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi 
 import { reconcilePortCount } from '../lib/ports-reconcile.js';   // P5: conteggio porte dichiarato vs misura (manual-first, lib pura)
 import { persistAuditEntries } from './app-history.js';   // la riga del giro va subito su disco (non aspetta il Salva)
 import { describeSnmpSync } from '../lib/snmp-sync-audit.js';   // la riga di Storia dopo un Sync: cosa e' stato LETTO e cosa no (lib pura)
-import { reconcileInventory } from '../lib/identity-reconcile.js'; // identità hardware misurata: riconferma o «ultimo noto» (lib pura)
+import { reconcileInventory, fillIdentityFromRead } from '../lib/identity-reconcile.js'; // identità hardware misurata: riconferma o «ultimo noto», e la copia nei campi vuoti con la sua provenienza (lib pura)
 import { adoptedDescription } from '../lib/port-descriptions.js';   // l'ifAlias letto diventa la Descrizione della porta (adozione AUTOMATICA, mai sopra a una persona)
 import { forgetPortMeasure } from '../lib/port-state.js';   // scadenza delle misure di porta (lib pura): una lettura che questo giro non c'è stata non vale più
 import { _driftBuildDocSnapshot, _driftComputeFromDoc } from './app-drift.js';   // presenza→grigio: ricalcolo Drift dopo il Sync
@@ -738,12 +738,9 @@ export function applyPollResult(nodeId, data, opts={}){
     }
     const inv = data.inventory || null;
     if(inv && typeof inv === 'object'){
-        const defBrand = TYPES[n.type]?.brand || '';
-        const canFillBrand = !n.brandManual && (!String(n.brand || '').trim() || String(n.brand || '').trim() === defBrand);
-        if(inv.brand && canFillBrand) n.brand = inv.brand;
-        if(inv.model && !String(n.model || '').trim()) n.model = inv.model;
-        if(inv.serialNumber && !String(n.serialNumber || '').trim()) n.serialNumber = inv.serialNumber;
-        if(inv.firmwareVer && !String(n.firmwareVer || '').trim()) n.firmwareVer = inv.firmwareVer;
+        // Manual-first (campo gia' pieno = non si tocca; marca: v. `brandManual`) e la COPIA registra
+        // da dove viene (`node.copiedFromRead`): senza, il segno del pannello la direbbe scritta da una persona.
+        fillIdentityFromRead(n, inv, TYPES[n.type]?.brand || '');
     }
     // --- Mappatura interfaccia SNMP -> porta del nodo (MANUAL-FIRST) -----------
     // Storicamente POSIZIONALE (idx -> `${nodeId}-${idx+1}`). Se il layout delle

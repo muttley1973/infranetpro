@@ -121,7 +121,11 @@ test('CRICCHETTO — la classifica non elenca campi mai visti in nessun progetto
     // Esistono SOLO dopo che una persona li sceglie — senza scelta il campo non c'e` —, quindi il
     // censimento del 28/08 non poteva contenerli, e li ha trovati il guard sui progetti veri.
     // Dichiarazioni, non misure: escono nell'export. Campi veri, non finti.
-    'brandManual', 'statusManual', 'swLayer', 'swRole']);
+    'brandManual', 'statusManual', 'swLayer', 'swRole',
+    // Da dove viene il valore di marca/modello/matricola/firmware (16/10): lo scrive il Sync quando copia la
+    // lettura in un campo vuoto, quindi esiste solo su un progetto sincronizzato con uno switch che pubblica
+    // l'ENTITY-MIB — il censimento del 28/08 non poteva contenerlo. Misura, non dichiarazione.
+    'copiedFromRead']);
   for (const scope of Object.keys(CENSUS)) {
     const visti = new Set(keysOf(scope));
     const extra = Object.keys(FIELD_CLASS_BY_SCOPE[scope]).filter(k => !visti.has(k) && !attesi.has(k));
@@ -383,4 +387,23 @@ test('i `*Manual` di un nodo sono tutti classificati: nessuno resta fuori da que
   assert.ok(scritti.has('brandManual') && scritti.has('nameManual'), 'letti i flag veri dal codice: ' + [...scritti].join(','));
   const orfani = [...scritti].filter(k => classifyField('node', k) === null);
   assert.deepStrictEqual(orfani, [], 'flag «Manual» scritti da app.js e senza classe: ' + orfani.join(', '));
+});
+
+// ── La traccia «copiato dalla lettura» (16/10) ────────────────────────────────
+// `node.copiedFromRead` dice che il valore di marca/modello/matricola/firmware e' stato copiato dal Sync. Il
+// VALORE resta documento (lo scrive e lo tiene una persona); la TRACCIA e' una misura, perche' rimanda a una
+// lettura che nell'export portabile non c'e' piu'.
+test('copiedFromRead e\' MISURA: il valore esce nell\'export, la traccia no', () => {
+  assert.strictEqual(classifyField('node', 'copiedFromRead'), 'measure');
+  assert.strictEqual(exportActionFor('node', 'copiedFromRead'), 'drop');
+  const { sanitizePortableState } = require('../lib/project-format.js');
+  const out = sanitizePortableState({
+    nodes: [{ id: 'sw', type: 'switch', name: 'SW', model: 'GS1900-24', serialNumber: 'S1',
+      copiedFromRead: { model: true, serialNumber: true } }],
+    links: [], ports: {}, racks: [],
+  });
+  const n = out.nodes[0];
+  assert.strictEqual(n.model, 'GS1900-24', 'il valore e\' il lavoro (anche copiato) e viaggia');
+  assert.strictEqual(n.serialNumber, 'S1');
+  assert.ok(!('copiedFromRead' in n), 'la traccia rimanda a una lettura che nel documento portabile non c\'e\'');
 });

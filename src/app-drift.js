@@ -26,6 +26,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { renderAutomationMenu, _updateAutoPollBadge } from './app-vlan-autopoll.js';   // popover Automazioni + badge del monitoraggio (ciclo benigno: solo a runtime)
 import { effAutoConfig, clampMonitorInterval, createMonitorScheduler, reachabilityBudgetMs } from '../lib/auto-monitor.js';   // config PURA del monitoraggio unificato (schema nuovo + migrazione legacy) + la macchina dello scheduler
 import { prefixesOf } from '../lib/ipam-model.js';   // l'autorità sulle reti dichiarate (prefix-first)
+import { adoptIdentityFromRead } from '../lib/identity-reconcile.js';   // «Adotta» l'identità misurata: copia + provenienza
 import { radioLabelForPid } from '../lib/radio.js';   // il nome di una radio sta sul modello, non nel pid
 import { ensureNodeRackVisible, focusNode, selectAndFocusNode } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
@@ -581,10 +582,7 @@ function driftApplyIdentity(key){
     const n = row.nodeId ? nodeById(row.nodeId) : null;
     if(!n) return;
     pushHistory();
-    const p = row.patch;
-    if(p.serialNumber != null) n.serialNumber = p.serialNumber;
-    if(p.model       != null) n.model        = p.model;
-    if(p.firmwareVer != null) n.firmwareVer  = p.firmwareVer;
+    adoptIdentityFromRead(n, row.patch);   // copia dalla misura E registra la provenienza (il segno dice «Misurato»)
     if(typeof logAudit === 'function') logAudit('drift-identity', { target: row.label || n.name || n.id, summary: (row.diffs || []).map(d => `${d.field}→${d.real}`).join(', ') });
     markDirty(); renderAll();
     _driftDropRow(key);

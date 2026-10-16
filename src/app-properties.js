@@ -16,6 +16,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { sourceRows } from '../lib/dcim-source-view.js';   // cosa DICHIARA il DCIM importato: sola lettura, `node.source` non è roba dell'utente
+import { copiedStillRead } from '../lib/identity-reconcile.js';   // il pieno e' una copia della lettura corrente? Allora il segno dice «Misurato»
 import { STATUSES, normalizeStatus, statusFinding } from '../lib/device-status.js';   // stato operativo dichiarato: cambia la LETTURA del silenzio, mai la misura
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _isLeafEndpoint, _autoLinkEndpointUI } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*) + (ASSE B coda) bottone auto-link
@@ -202,9 +203,11 @@ function _lockBtn(field, locked, decl){
  *  suggerimento e non una misura — segnarlo «Misurato» sarebbe una bugia.
  *  ⚠️ Nessun segno se la libreria non c'e': meglio niente che un grigio che
  *  afferma «non risulta» su una cosa che non abbiamo guardato. */
-function _ctyMark(declared, read){
+function _ctyMark(declared, read, copied){
     if (typeof certaintyForField !== 'function') return '';
-    const c = certaintyForField(declared, read);
+    // `copied`: il pieno e' una COPIA della lettura corrente (copiedStillRead) e non una frase scritta
+    // da una persona — il Sync riempie i campi vuoti, e senza questo il punto direbbe «Dichiarato».
+    const c = certaintyForField(declared, read, { copiedFromRead: !!copied });
     // ⭐ NESSUN SEGNO SU UN CAMPO VUOTO (deciso il 04/09, guardando il risultato).
     //    La regola che ne esce è più pulita di quella che avevo scritto: il segno
     //    dice DA DOVE VIENE un valore — se il valore non c'è, la domanda non si
@@ -272,15 +275,17 @@ export function _buildInventoryFieldsHtml(n, d){
     const statusOpts = [''].concat(STATUSES).map(s =>
         `<option value="${escapeHTML(s)}"${s === curStatus ? ' selected' : ''}>${escapeHTML(t(s ? 'status.' + s : 'status.undeclared'))}</option>`
     ).join('');
+    // Il pieno e' una COPIA della lettura corrente (scritta dal Sync, non toccata da allora)? Allora e' misurato.
+    const _copiato = (f) => copiedStillRead(n, f, inventory[f]);
     const _ctyCoppie = [[n.brand, inventory.brand], [n.model, inventory.model],
         [n.serialNumber, inventory.serialNumber], [n.firmwareVer, inventory.firmwareVer]];
     return _ctyLegendHtml(_ctyCoppie) + `<div class="prop-row2">
-        <div class="prop-group"><label>${t('field.brand')}${_ctyMark(n.brand, inventory.brand)}</label><input value="${escapeHTML(n.brand||'')}" placeholder="${placeholders.brand}" data-change="node-field" data-field="brand"></div>
-        <div class="prop-group"><label>${t('field.model')}${_ctyMark(n.model, inventory.model)}</label><input value="${escapeHTML(n.model||'')}" placeholder="${placeholders.model}" data-change="node-field" data-field="model"></div>
+        <div class="prop-group"><label>${t('field.brand')}${_ctyMark(n.brand, inventory.brand, _copiato('brand'))}</label><input value="${escapeHTML(n.brand||'')}" placeholder="${placeholders.brand}" data-change="node-field" data-field="brand"></div>
+        <div class="prop-group"><label>${t('field.model')}${_ctyMark(n.model, inventory.model, _copiato('model'))}</label><input value="${escapeHTML(n.model||'')}" placeholder="${placeholders.model}" data-change="node-field" data-field="model"></div>
     </div>
     <div class="prop-row2">
-        <div class="prop-group"><label>${t('field.serial')}${_ctyMark(n.serialNumber, inventory.serialNumber)}</label><input value="${escapeHTML(n.serialNumber||'')}" placeholder="${placeholders.serialNumber}" data-change="node-field" data-field="serialNumber"></div>
-        <div class="prop-group"><label>Firmware / OS${_ctyMark(n.firmwareVer, inventory.firmwareVer)}</label><input value="${escapeHTML(n.firmwareVer||'')}" placeholder="${placeholders.firmwareVer}" data-change="node-field" data-field="firmwareVer"></div>
+        <div class="prop-group"><label>${t('field.serial')}${_ctyMark(n.serialNumber, inventory.serialNumber, _copiato('serialNumber'))}</label><input value="${escapeHTML(n.serialNumber||'')}" placeholder="${placeholders.serialNumber}" data-change="node-field" data-field="serialNumber"></div>
+        <div class="prop-group"><label>Firmware / OS${_ctyMark(n.firmwareVer, inventory.firmwareVer, _copiato('firmwareVer'))}</label><input value="${escapeHTML(n.firmwareVer||'')}" placeholder="${placeholders.firmwareVer}" data-change="node-field" data-field="firmwareVer"></div>
     </div>
     <div class="prop-group"><label>${t('field.status')}</label><div style="display:flex;gap:5px;align-items:center"><select style="flex:1" data-tip="${t('field.statusTip')}" data-change="node-field-manual" data-field="status">${statusOpts}</select>${_lockBtn('status',!!n.statusManual,true)}</div></div>
     <div class="prop-row2">
