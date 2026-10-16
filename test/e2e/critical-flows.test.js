@@ -6558,6 +6558,51 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(errs.length, 0, 'nessun errore JS: ' + errs.join(' | '));
     });
 
+    await t.test('barra: le statistiche (Doc, Device, SNMP) sono ingrandite al 120% e ci stanno, anche alla larghezza minima con le etichette', async () => {
+      // 16/10, a richiesta («ingrandisci del 120%»): testo 12 → 14,4 px, numeri 12,5 → 15, pallino 8 → 10.
+      // Si misura a schermo in un Chrome vero — il CSS letto a occhio non dice se ci sta — a 1920 e a 1210 px,
+      // cioe' appena sopra il punto (1200) sotto cui le etichette-parola si nascondono: e' il caso piu' stretto
+      // in cui le tre voci hanno testo, numero e pallino insieme.
+      for (const width of [1920, 1210]) {
+        const p = await browser.newPage({ viewport: { width, height: 900 } });
+        try {
+          await p.goto(srv.baseURL, { waitUntil: 'load' });
+          await p.waitForFunction(() => !!document.querySelector('#modern-subbar .msb-stat'), null, { timeout: 15000 });
+          const m = await p.evaluate(() => {
+            const bar = document.getElementById('modern-subbar');
+            const stats = bar.querySelector('.msb-stats');
+            const items = [...bar.querySelectorAll('.msb-stat')];
+            const px = (el, prop) => parseFloat(getComputedStyle(el)[prop]);
+            const br = bar.getBoundingClientRect(), sr = stats.getBoundingClientRect();
+            return {
+              n: items.length,
+              label: px(bar.querySelector('.msb-stat-l'), 'fontSize'),
+              number: px(bar.querySelector('.msb-stat b'), 'fontSize'),
+              dot: px(bar.querySelector('.msb-dot'), 'width'),
+              tallest: Math.max(...items.map((e) => e.getBoundingClientRect().height)),
+              barH: br.height,
+              rightGap: br.right - sr.right,
+              overflowX: bar.scrollWidth > bar.clientWidth,
+              oneRow: Math.max(...items.map((e) => e.getBoundingClientRect().top)) - Math.min(...items.map((e) => e.getBoundingClientRect().top)) < 3,
+              labelsShown: items.every((e) => getComputedStyle(e.querySelector('.msb-stat-l')).display !== 'none'),
+            };
+          });
+          const at = ' (a ' + width + ' px)';
+          assert.equal(m.n, 3, 'le tre voci ci sono' + at);
+          assert.ok(Math.abs(m.label - 14.4) < 0.3, 'etichette a 14,4 px = 120% di 12: ' + m.label + at);
+          assert.ok(Math.abs(m.number - 15) < 0.3, 'numeri a 15 px: ' + m.number + at);
+          assert.equal(m.dot, 10, 'il pallino SNMP e\' 10 px' + at);
+          assert.ok(m.tallest <= m.barH - 4, 'la voce piu\' alta (' + m.tallest + ' px) sta nella barra (' + m.barH + ' px)' + at);
+          assert.ok(m.rightGap >= 10, 'il gruppo non esce dal bordo destro: ' + m.rightGap + at);
+          assert.equal(m.overflowX, false, 'la barra non scorre in orizzontale' + at);
+          assert.ok(m.oneRow, 'le tre voci restano su una riga' + at);
+          assert.ok(m.labelsShown, 'a ' + width + ' px le etichette-parola ci sono ancora (il caso piu\' largo di testo)');
+        } finally {
+          await p.close();
+        }
+      }
+    });
+
     await t.test('Stage B «Vero»: categorie drill SOLO dopo una Verifica (non un Sync), Investiga esce, mirror non contaminato', async () => {
       const errBefore = pageErrors.length;
       await page.evaluate(() => {

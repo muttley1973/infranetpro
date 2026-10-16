@@ -474,13 +474,15 @@ header {
 /* ZONA CENTRO: solo il chip del filtro VLAN (piu' in basso). Il suggerimento
    "prossimo passo" che stava qui e' stato tolto il 2026-08-28. */
 
-/* ZONA DESTRA: statistiche progetto */
-#modern-subbar .msb-stats { flex:1 1 0; display:flex; align-items:center; justify-content:flex-end; gap:18px; }
-#modern-subbar .msb-stat { display:inline-flex; align-items:center; gap:6px; font-size:var(--fs-xs); color:var(--text-muted); white-space:nowrap; }
-#modern-subbar .msb-stat > i { color:#5b6570; font-size:var(--fs-2xs); }
-#modern-subbar .msb-stat b { color:var(--text-main); font-weight:700; font-size:12.5px; }
+/* ZONA DESTRA: statistiche progetto. Ingrandite al 120% (16/10, a richiesta: «ingrandisci del 120%»):
+   testo 12 → 14,4 px (= --fs-md, esattamente 1,2 × --fs-xs), numeri 12,5 → 15 px, icona 11,2 → ~13 px
+   (--fs-sm), pallino 8 → 10 px, spazi 6 → 7 e 18 → 22 px. La barra e' alta 40 px: ci sta con margine. */
+#modern-subbar .msb-stats { flex:1 1 0; display:flex; align-items:center; justify-content:flex-end; gap:22px; }
+#modern-subbar .msb-stat { display:inline-flex; align-items:center; gap:7px; font-size:var(--fs-md); color:var(--text-muted); white-space:nowrap; }
+#modern-subbar .msb-stat > i { color:#5b6570; font-size:var(--fs-sm); }
+#modern-subbar .msb-stat b { color:var(--text-main); font-weight:700; font-size:15px; }
 #modern-subbar .msb-stat-l { color:var(--text-muted); }
-#modern-subbar .msb-dot { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
+#modern-subbar .msb-dot { width:10px; height:10px; border-radius:50%; display:inline-block; flex-shrink:0; }
 #modern-subbar .msb-dot-ok   { background:#3fb950; box-shadow:0 0 6px rgba(63,185,80,.7); }
 #modern-subbar .msb-dot-warn { background:#f0b429; box-shadow:0 0 6px rgba(240,180,41,.7); }
 #modern-subbar .msb-dot-err  { background:#f85149; box-shadow:0 0 6px rgba(248,81,73,.7); }
