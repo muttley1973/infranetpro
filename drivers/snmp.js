@@ -296,6 +296,9 @@ const OID = {
 };
 
 const BASE_OIDS = Object.values(OID);
+// Le colonne d'IDENTITÀ hardware (ENTITY-MIB). Derivate dal nome, non elencate: una
+// colonna nuova aggiunta alla tabella sopra entra da sola nel passaggio dedicato.
+const ENTITY_BASES = Object.keys(OID).filter(k => k.startsWith('entPhysical')).map(k => OID[k]);
 
 // ---- Printer-MIB (RFC 3805) + stato stampante (HOST-RESOURCES RFC 2790) ------
 // Colonne usate da extractPrinter. DELIBERATAMENTE fuori da BASE_OIDS: gli stack
@@ -741,11 +744,24 @@ async function walkSession(session, opts = {}) {
   if (!hasSysName) {
     throw new Error('Host irraggiungibile o SNMP non risponde (sysName non risponde)');
   }
+  // L'IDENTITÀ (ENTITY-MIB) si legge PRIMA di tutto il resto, in un passaggio suo.
+  // Prima stava in coda alla tabella OID, e la coda è esattamente ciò che il tetto
+  // wall-clock sacrifica: misurato su uno switch Zyxel GS1900, dove le famiglie che
+  // l'agente non implementa (VTP Cisco, LACP IEEE) non rispondono «non esiste» ma
+  // restano MUTE, due timeout ciascuna, e a 25 s le subtree rimaste venivano saltate.
+  // Il poll riusciva senza identità — e marca/modello/matricola/firmware svuotati a
+  // mano non tornavano più a ogni Sync. La stessa tabella, letta da sola, costa pochi
+  // ms. Un sotto-budget (un terzo di quello che resta) impedisce il caso opposto: un
+  // agente muto proprio sull'ENTITY-MIB non deve affamare le interfacce.
+  const entityDeadline = opts.deadline
+    ? Math.min(opts.deadline, Date.now() + Math.ceil((opts.deadline - Date.now()) / 3))
+    : 0;
+  await _runWalks(session, ENTITY_BASES, result, 'SNMP-ENT', WALK_CONCURRENCY, { deadline: entityDeadline });
   // Device raggiungibile: interroga il resto degli OID a concorrenza limitata,
   // così non si sommerge l'agente SNMP (root-cause del troncamento delle walk).
   // Deadline (opzionale): stesso guard-rail della walk vicini per un device che
   // risponde a sysName ma poi va in timeout sulle tabelle — ritorna il parziale.
-  const rest = BASE_OIDS.filter(b => b !== OID.sysName);
+  const rest = BASE_OIDS.filter(b => b !== OID.sysName && !ENTITY_BASES.includes(b));
   await _runWalks(session, rest, result, 'SNMP', WALK_CONCURRENCY, { deadline: opts.deadline });
   return result;
 }
@@ -2491,4 +2507,5 @@ module.exports._internals = {
   extractHostResources, _isPathPrefix, OID, PRT_OID, HR_OID, _oidGt,
   _v3RemoteEngineDiscovered, _runWalks, FDB_RETRY_BASES, _walkDeadline,
   _ownIp4FromVbs, _ipv4FromAddrOid, _isUsableOwnIp4, _createSnmpSession,
+  walkSession, ENTITY_BASES,
 };
