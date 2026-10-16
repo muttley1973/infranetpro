@@ -125,3 +125,17 @@ test('isPrivacyIid: random-looking global => true; EUI-64/basso/multicast => fal
   assert.equal(isPrivacyIid('ff02::1'), false);                        // multicast
   assert.equal(isPrivacyIid('non-valido'), false);
 });
+
+// ── Lo zone-id non è testo libero ───────────────────────────────────────────
+// Il parser tagliava tutto dopo '%' senza guardarlo: `fe80::1%"><img …>` risultava un
+// IPv6 valido, e il validatore di tutto il progetto (addrFamily → campo IP del device,
+// import CSV, import DCIM, sanitizer del server) lo lasciava passare fino all'HTML.
+test('isValidIpv6: lo zone-id è un nome di interfaccia o un numero, non markup', () => {
+  assert.equal(isValidIpv6('fe80::1%eth0'), true);
+  assert.equal(isValidIpv6('fe80::1%12'), true);
+  assert.equal(isValidIpv6('fe80::1%en0.100'), true, 'punto, trattino, underscore e tilde sono «unreserved»');
+  assert.equal(isValidIpv6('fe80::1%"><img src=x onerror=alert(1)>'), false);
+  assert.equal(isValidIpv6('fe80::1%a b'), false, 'uno spazio nello zone-id non è un nome di interfaccia');
+  assert.equal(isValidIpv6('fe80::1%a/b'), false);
+  assert.equal(isValidIpv6('fe80::1%\u0000'), false);
+});

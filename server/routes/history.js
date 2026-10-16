@@ -17,7 +17,7 @@ const { createFsHistoryStore } = require('../history-store-fs');
 const { sanitizePresence } = require('../../lib/presence-store');
 const { foldObservations } = require('../../lib/discovery-history');
 const { foldAudit, sanitizeRunEntries } = require('../../lib/audit-log');
-const { _sanitizeBackupRefs } = require('./projects');   // stessa redazione credenziali del PUT progetto
+const { _sanitizeBackupRefs, _sanitizeNodeAddrs } = require('./projects');   // stesse ripuliture del PUT progetto
 
 const router = express.Router();
 const store  = createFsHistoryStore({ baseDir: path.join(PROJECTS_DIR, 'history') });
@@ -153,6 +153,7 @@ router.post('/api/projects/:id/history/snapshots', auth.requireAdmin, (req, res)
   const state = (b.state && typeof b.state === 'object') ? b.state : null;
   if (!state) return res.status(400).json({ error: 'state richiesto' });
   _sanitizeBackupRefs(state);
+  _sanitizeNodeAddrs(state);   // uno snapshot si ripristina nel client: l'indirizzo non puo' essere markup
   const rec = store.putSnapshot(id, { at: timestamp(), by: _user(req), label: _label(b.label), reason: _reason(b.reason) }, state);
   res.status(201).json({ ok: true, snapshot: rec });
 });

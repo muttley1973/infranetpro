@@ -14,6 +14,7 @@ import { store, resetProjectRuntime } from './store.js';   // ritiro ponte fase 
 import { escapeHTML, uid, normalizeNumber, normalizePortStatus, normalizeMacAddress, _shadeHex, PORT_ANCHOR_SEL } from './app-util.js';   // helper puri estratti dal god-file + ancora visuale delle porte
 import { TYPES, typeName, typeShort } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (prima letto dal global implicito) + nome localizzato
 import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM: come si LEGGE il nome di un device
+import { addrFamily } from '../lib/cidr.js';   // cos'e' un indirizzo: una definizione sola (campo IP del device)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: chiamate prima bare-global
 import { renderProps } from './app-properties.js';   // idem
 import { showAlert, saveProject } from './app-core.js';   // saveProject: ASSE B, scorciatoia Ctrl+S (ex win.saveProject)
@@ -1823,7 +1824,19 @@ registerChangeActions({
     // Campo identità con flag *Manual gemello (ip→ipManual, hostname→hostnameManual):
     // scrive il valore E marca il campo come manual-first (il vecchio inline a doppia
     // updateN dei builder «Rete & Accesso»). Generico come node-field, `data-field` sceglie.
-    'node-field-manual': (el) => { updateN(el.dataset.field, el.value); updateN(el.dataset.field + 'Manual', !!el.value.trim()); },
+    // L'IP e' un INDIRIZZO (o vuoto): cio' che non lo e' non si scrive nel modello — da qui
+    // arriva al pannello Management, all'URL «Apri» e al documento condiviso. Stessa forma
+    // di `setNodeBackup`: avviso, e il campo torna al valore salvato (renderAll).
+    'node-field-manual': (el) => {
+        if(el.dataset.field === 'ip' && el.value.trim() && addrFamily(el.value) == null){
+            showAlert(t('net.ipNotAddress'));
+            const n = nodeById(selId);
+            el.value = (n && n.ip) || '';   // subito: renderAll puo' lasciare in pace il campo che ha il focus
+            renderAll();
+            return;
+        }
+        updateN(el.dataset.field, el.value); updateN(el.dataset.field + 'Manual', !!el.value.trim());
+    },
     // Toggle wireless dei builder condivisi (ex onchange="setDeviceWifi/ApMode(id,checked)").
     'device-wifi':   (el) => setDeviceWifi(el.dataset.nid, el.checked),
     'device-ap-mode':(el) => setDeviceApMode(el.dataset.nid, el.checked),

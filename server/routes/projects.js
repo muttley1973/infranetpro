@@ -16,6 +16,7 @@ const { stripDerivedVlan, redactSecretBag } = require('../../lib/project-format'
 const { mergeAudit, foldAudit, stripAudit } = require('../../lib/audit-log');
 const { runProjectDeleteHooks } = require('../module-registry');
 const { stripRefCreds } = require('../../lib/backup-ref.js');
+const { addrFamily } = require('../../lib/cidr.js');
 
 const router = express.Router();
 const HISTORY_DIR = path.join(PROJECTS_DIR, 'history');
@@ -126,6 +127,34 @@ function _sanitizeBackupRefs(state) {
   return stripped;
 }
 
+// 🔒 `node.ip` e `node.ip6` sono INDIRIZZI: da lì passano al pannello Management, all'URL
+// «Apri», all'inventario Ansible e al DTO REST. Il client li valida mentre l'utente digita
+// (e lo avvisa), ma un PUT costruito a mano, un progetto importato da JSON o un CSV/DCIM
+// vecchio li scavalcava, e il progetto è un documento CONDIVISO: chi lo apre dopo (anche in
+// sola lettura) esegue ciò che c'è scritto. Stessa filosofia di `_sanitizeBackupRefs`: il
+// salvataggio NON si rifiuta — si perderebbe il lavoro dell'intero progetto per un campo —,
+// si azzera il valore che non è un indirizzo (come fa il client svuotando il campo) e si
+// scrive nel log quanti sono stati, perché il silenzio non sia l'unica traccia.
+// La definizione di «indirizzo» è `addrFamily` (lib/cidr.js): non ce n'è una seconda.
+function _sanitizeNodeAddrs(state) {
+  const nodes = state && state.nodes;
+  if (!Array.isArray(nodes)) return 0;
+  let cleared = 0;
+  for (const n of nodes) {
+    if (!n || typeof n !== 'object') continue;
+    for (const k of ['ip', 'ip6']) {
+      const v = n[k];
+      if (v == null || v === '') continue;
+      if (typeof v === 'string' && addrFamily(v) != null) continue;
+      n[k] = '';
+      if (n[k + 'Manual']) n[k + 'Manual'] = false;   // un campo vuoto non e' «scelto a mano»
+      cleared++;
+    }
+  }
+  if (cleared) console.warn('[projects] ' + cleared + ' valore/i di ip/ip6 che non erano un indirizzo: azzerati');
+  return cleared;
+}
+
 // ── Chi ha in mano quale versione ────────────────────────────────────────────
 // L'ETag viaggia nell'INTESTAZIONE, non nel corpo: il corpo di GET/POST/copia è il
 // DTO del progetto, che esce anche dalla REST API v1 e dall'inventario Ansible, e
@@ -153,6 +182,7 @@ router.post('/api/projects', auth.requireAdmin, async (req, res) => {
   }
   const state = req.body?.state ?? {};
   _sanitizeBackupRefs(state);
+  _sanitizeNodeAddrs(state);
   const now   = timestamp();
   // Qui si toglie e basta, senza far confluire niente: una presenza che arriva
   // insieme a un progetto NUOVO (import di un export altrui) è la misura di
@@ -238,6 +268,7 @@ router.put('/api/projects/:id', auth.requireAdmin, async (req, res) => {
   const name  = req.body?.name  ? (req.body.name.toString().trim() || p.name) : p.name;
   const state = req.body?.state !== undefined ? req.body.state : p.state;
   _sanitizeBackupRefs(state);
+  _sanitizeNodeAddrs(state);
   const now   = timestamp();
   _presenceOutOfDocument(id, state);
   _observationsOutOfDocument(id, state);
@@ -319,3 +350,4 @@ module.exports = router;
 // Esposto per i test (SEC-M1): redazione dei segreti SNMP per lettori non-admin.
 module.exports._redactSnmpSecrets = _redactSnmpSecrets;
 module.exports._sanitizeBackupRefs = _sanitizeBackupRefs;
+module.exports._sanitizeNodeAddrs = _sanitizeNodeAddrs;

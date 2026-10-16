@@ -424,3 +424,12 @@ test("⭐ NAT64 local-use (64:ff9b:1::/48) non è un indirizzo pubblico", () => 
   // dichiarare non raggiungibile un blocco che il registro dà per raggiungibile.
   assert.equal(addrScope('64:ff9b::102:304'), 'global');
 });
+
+// Lo zone-id non fa parte dell'indirizzo, ma nemmeno è testo libero: `addrFamily` è la
+// definizione di «indirizzo» che il server, il CSV e l'import DCIM usano per decidere
+// se un valore può stare nel campo IP — e un `%` seguito da markup lo faceva passare.
+test('addrFamily: uno zone-id con markup NON è un indirizzo', () => {
+  assert.equal(addrFamily('fe80::1%eth0'), 6);
+  assert.equal(addrFamily('fe80::1%"><img src=x onerror=alert(1)>'), null);
+  assert.equal(addrFamily('fe80::1%<script>'), null);
+});

@@ -2001,3 +2001,29 @@ test('mappa DCIM: e i nomi NORMALI restano identici', () => {
   assert.equal(n.model, 'Catalyst 9300');
   assert.equal(n.brand, 'Cisco');
 });
+
+// ── Un indirizzo primario che non è un indirizzo ─────────────────────────────
+// Il campo IP del nodo passa al pannello Management e al documento condiviso. NetBox non
+// dovrebbe mandare altro, ma un NetBox rotto o compromesso sì: l'apparato ENTRA, il valore
+// no, e il fatto si dichiara (come ogni cosa dichiarata in NetBox che non arriva).
+test('primary_ip che non è un indirizzo: l\'apparato entra senza IP e la riga lo dice', () => {
+  const nb = fixture();
+  nb.devices[0].primary_ip4 = { address: '"><img src=x onerror=alert(1)>/24' };
+  nb.devices[0].primary_ip6 = { address: 'fe80::1%"><img src=x>/64' };
+  const { state, report } = map.netboxToState(nb);
+  const n = state.nodes.find(x => x.id === 'nb-dev-100');
+  assert.ok(n, 'l\'apparato entra comunque');
+  assert.equal(n.ip, undefined, 'il markup non diventa l\'IP del nodo');
+  assert.equal(n.ip6, undefined);
+  assert.ok(!JSON.stringify(state).includes('onerror'), 'nessun markup nel progetto importato');
+  const iss = report.issues.find(i => i.code === 'ip.invalid');
+  assert.ok(iss, 'cio\' che resta fuori va dichiarato');
+  assert.equal(iss.n, 2);
+  assert.ok(iss.sample.every(s => s.includes('SW-CORE-01')), 'l\'esempio nomina l\'apparato');
+  assert.equal(state.nodes.find(x => x.id === 'nb-dev-101').ip, '10.0.0.3', 'gli altri apparati non cambiano');
+});
+
+test('primary_ip valido: nessuna riga ip.invalid', () => {
+  const { report } = map.netboxToState(fixture());
+  assert.equal(report.issues.some(i => i.code === 'ip.invalid'), false);
+});

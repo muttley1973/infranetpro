@@ -181,3 +181,43 @@ test('SEC-M2: bypass ammesso solo su loopback e fuori produzione', () => {
   assert.equal(off.enabled, false);
   assert.equal(off.requested, false);
 });
+
+// ── L4: `node.ip` / `node.ip6` sono indirizzi, non testo ───────────────────
+// Da quel campo il testo arriva al pannello Management (data-tip), all'URL «Apri» e al
+// documento condiviso. Il client lo valida mentre si digita; un PUT costruito a mano,
+// un progetto importato da JSON o un CSV/DCIM vecchio lo scavalcavano. Stessa
+// filosofia di `_sanitizeBackupRefs`: il salvataggio non si rifiuta, si azzera il valore.
+const { _sanitizeNodeAddrs } = require('../server/routes/projects');
+
+test('L4: _sanitizeNodeAddrs azzera ip/ip6 che non sono indirizzi e TIENE gli altri', () => {
+  const warn = console.warn; console.warn = () => {};
+  try {
+    const state = { nodes: [
+      { id: 'a', ip: '10.0.0.1', ip6: '2001:db8::1' },                               // validi
+      { id: 'b', ip: '"><img src=x onerror=alert(1)>', ipManual: true },            // markup nell'IP
+      { id: 'c', ip: 'fe80::1%"><img src=x onerror=alert(1)>' },                    // markup dietro lo zone-id
+      { id: 'd', ip: 'switch-01', ip6: 'non-un-ipv6' },                             // testo qualunque
+      { id: 'e', ip: 12345 },                                                       // non è nemmeno una stringa
+      { id: 'f', ip: 'fe80::1%eth0' },                                              // zone-id legittimo
+      { id: 'g', ip: '' }, { id: 'h' }, null, 'x',                                  // vuoti e malformati
+    ] };
+    const n = _sanitizeNodeAddrs(state);
+    assert.equal(n, 5, 'b, c, d(ip e ip6) ed e');
+    assert.equal(state.nodes[0].ip, '10.0.0.1', 'il valido non si tocca');
+    assert.equal(state.nodes[0].ip6, '2001:db8::1');
+    assert.equal(state.nodes[1].ip, '', 'il markup non arriva al disco');
+    assert.equal(state.nodes[1].ipManual, false, 'un campo vuoto non è «scelto a mano»');
+    assert.equal(state.nodes[2].ip, '');
+    assert.equal(state.nodes[3].ip, ''); assert.equal(state.nodes[3].ip6, '');
+    assert.equal(state.nodes[4].ip, '');
+    assert.equal(state.nodes[5].ip, 'fe80::1%eth0', 'lo zone-id vero resta');
+    assert.ok(!JSON.stringify(state).includes('onerror'), 'canarino: nessun markup sopravvive nello state');
+  } finally { console.warn = warn; }
+});
+
+test('L4: _sanitizeNodeAddrs non esplode su state malformati', () => {
+  assert.equal(_sanitizeNodeAddrs(null), 0);
+  assert.equal(_sanitizeNodeAddrs({}), 0);
+  assert.equal(_sanitizeNodeAddrs({ nodes: 'nope' }), 0);
+  assert.equal(_sanitizeNodeAddrs({ nodes: [null, undefined, {}] }), 0);
+});

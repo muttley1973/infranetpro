@@ -2449,6 +2449,81 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.overlayClosed, 'importCsvNodes chiude l\'overlay');
     });
 
+    await t.test('app-csv-import: una riga con un ip che NON è un indirizzo resta fuori e si dice', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.racks = [{ id: 'r1', name: 'Rack1', sizeU: 42 }]; state.currentRack = 'r1';
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          openCsvImport();
+          // Il campo ip finisce nel pannello Management e in `integration.host`: un valore che non
+          // e' un indirizzo (qui, markup) non deve entrare. Il CSV non ha virgolette: niente virgole nel valore.
+          document.getElementById('csv-textarea').value = [
+            'name,hostname,ip,type,rack,rackU,sizeU,ports',
+            'sw-ok,,10.0.0.1,switch,Rack1,1,1,24',
+            'sw-bad,,"><img src=x onerror=alert(1)>,switch,Rack1,2,1,24',
+            'sw-v6,,2001:db8::1,switch,Rack1,3,1,24',
+          ].join('\n');
+          document.getElementById('csv-textarea').dispatchEvent(new Event('input', { bubbles: true }));
+          const errors = document.getElementById('csv-errors').textContent || '';
+          importCsvNodes();
+          return { ok: true, errors, names: state.nodes.map(n => n.name), dump: JSON.stringify(state.nodes) };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore nel flusso CSV: ' + r.err);
+      assert.match(r.errors, /3/, 'la riga 3 (l\'ip non valido) è segnalata fra gli errori: ' + r.errors);
+      assert.deepEqual(r.names.sort(), ['sw-ok', 'sw-v6'], 'entrano la riga con IPv4 e quella con IPv6; quella con markup no');
+      assert.ok(!r.dump.includes('onerror'), 'nessun markup nel modello importato');
+    });
+
+    await t.test('campo IP del device: ciò che non è un indirizzo non entra nel modello, e lo dice', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0;
+          state.nodes.push({ id: 'swIp', type: 'switch', name: 'SW-IP', x: 10, y: 10, ports: 24, ip: '10.0.0.5', ipManual: true });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          selType = 'node'; selId = 'swIp'; window._propsExplicit = true; renderProps();
+          const campo = () => document.getElementById('props-panel').querySelector('[data-change="node-field-manual"][data-field="ip"]');
+          const chiudiModale = () => {
+            const ok = document.querySelector('#modal-overlay [data-act="modal-resolve"][data-val="1"]');
+            if (ok) ok.click(); else document.getElementById('modal-overlay').classList.remove('open');
+          };
+          const scrivi = (v) => { const c = campo(); c.value = v; c.dispatchEvent(new Event('change', { bubbles: true })); };
+
+          scrivi('"><img src=x onerror=alert(1)>');
+          const dopoMarkup = { ip: state.nodes[0].ip, manual: state.nodes[0].ipManual,
+            avviso: document.getElementById('modal-overlay').classList.contains('open'),
+            testoAvviso: document.getElementById('modal-msg').textContent,
+            campoTorna: campo() ? campo().value : null };
+          chiudiModale();
+
+          scrivi('switch-01');
+          const dopoTesto = { ip: state.nodes[0].ip };
+          chiudiModale();
+
+          scrivi('10.0.0.6');
+          const dopoValido = { ip: state.nodes[0].ip, manual: state.nodes[0].ipManual,
+            avviso: document.getElementById('modal-overlay').classList.contains('open') };
+
+          scrivi('fe80::1%eth0');   // IPv6 con zone-id: un indirizzo vero, deve passare
+          const dopoV6 = { ip: state.nodes[0].ip };
+          window._propsExplicit = false; selType = null; selId = null;
+          return { ok: true, dopoMarkup, dopoTesto, dopoValido, dopoV6 };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore: ' + r.err);
+      assert.equal(r.dopoMarkup.ip, '10.0.0.5', 'il markup NON entra nel modello: resta il valore di prima');
+      assert.equal(r.dopoMarkup.manual, true, 'e il campo resta «scelto a mano» (non si è azzerato niente)');
+      assert.ok(r.dopoMarkup.avviso, 'chi digita viene avvisato (il client è più severo del server)');
+      assert.match(r.dopoMarkup.testoAvviso, /IP|indirizzo|address/i, 'l\'avviso dice di cosa si tratta: ' + r.dopoMarkup.testoAvviso);
+      assert.equal(r.dopoMarkup.campoTorna, '10.0.0.5', 'il campo torna al valore salvato (renderAll)');
+      assert.equal(r.dopoTesto.ip, '10.0.0.5', 'nemmeno un testo qualunque');
+      assert.equal(r.dopoValido.ip, '10.0.0.6', 'un indirizzo vero passa');
+      assert.equal(r.dopoValido.avviso, false, 'e senza avvisi');
+      assert.equal(r.dopoV6.ip, 'fe80::1%eth0', 'un IPv6 con zone-id è un indirizzo vero');
+    });
+
     await t.test('app-dhcp-import: i lease (file) alimentano il motore Verifica (cambio IP cross-VLAN)', async () => {
       const r = await page.evaluate(() => {
         try {

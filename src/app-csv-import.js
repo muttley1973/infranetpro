@@ -4,6 +4,7 @@ import { escapeHTML, uid } from './app-util.js';
 import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { addrFamily } from '../lib/cidr.js';   // cos'e' un indirizzo: una definizione sola
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 import { closeImpExpMenu } from './app-auth.js';   // ASSE B: la voce «Importa CSV» chiude il menu Import/Export (owner: app-auth) dopo aver aperto il modale
 import { registerClickActions, registerChangeActions, registerInputActions } from './app-delegation.js';   // ASSE B: event delegation (click/change/input)
@@ -81,6 +82,12 @@ function _parseCsvData(raw){
             errors.push(i + 2);
         } else if(r.type && !_CSV_TYPES.includes(r.type)){
             r._err = `tipo "${r.type}" non valido`;
+            errors.push(i + 2);
+        } else if(r.ip && addrFamily(r.ip) == null){
+            // Il campo ip e' un INDIRIZZO: finisce nel pannello Management, nell'URL «Apri» e
+            // in `integration.host`. La riga con un ip che non lo e' resta fuori e si dice
+            // (come il tipo sbagliato), invece di entrare con un testo qualunque.
+            r._err = `ip "${r.ip}" non valido`;
             errors.push(i + 2);
         }
         rows.push(r);
