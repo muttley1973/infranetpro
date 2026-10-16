@@ -231,6 +231,26 @@ const loginLimiter = rateLimit({
   },
 });
 
+// Il limite IP+username sopra non limita NIENTE a chi cambia username a ogni
+// tentativo: ogni coppia ha un budget nuovo di 10, e lo username "sconosciuto" costa
+// al server un confronto bcrypt intero (v. loginApi: si fa SEMPRE, per non rivelare
+// chi esiste). Quindi un secondo limite, per IP SOLO, a soglia molto piu' larga: non
+// sostituisce quello per-utente (che protegge dal blocco reciproco dietro un proxy
+// non dichiarato) — lo affianca, e mette un tetto a quanti tentativi falliti totali
+// un indirizzo puo' far fare al server. 100 in 15' sono ~10 volte quanto sbaglia
+// un ufficio intero in condizioni normali, e ~400/ora per IP: un attacco a
+// dizionario non e' piu' gratuito. INFRANET_LOGIN_IP_MAX lo regola.
+const LOGIN_IP_MAX = Math.max(1, parseInt(process.env.INFRANET_LOGIN_IP_MAX, 10) || 100);
+const loginIpLimiter = rateLimit({
+  windowMs:         15 * 60 * 1000,
+  max:              LOGIN_IP_MAX,
+  standardHeaders:  true,
+  legacyHeaders:    false,
+  message:          { ok: false, error: 'Troppi tentativi. Riprova tra 15 minuti.' },
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => ipKeyGenerator(req.ip),
+});
+
 // ---- Middleware autenticazione ----------------------------------------------
 
 function requireAuth(req, res, next) {
@@ -267,38 +287,50 @@ function loginPage(req, res) {
   res.sendFile(path.join(__dirname, 'login.html'));
 }
 
-function loginApi(req, res) {
-  const { username, password } = req.body ?? {};
-  // Tipo controllato PRIMA di usarli: un body {"username":{}} arrivava a
-  // toLowerCase() e usciva come 500 (smoke 06/09).
-  if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
-    return res.status(400).json({ ok: false, error: 'Username e password obbligatori' });
-  }
+// ⚠️ ASINCRONO, e non per eleganza: bcrypt a costo 12 e' ~340 ms di CPU (misurati), e con
+// `compareSync` il server intero — anche le API del monitoraggio, anche chi e' gia'
+// loggato — restava fermo per tutto quel tempo, a OGNI tentativo (riuscito o no, perche'
+// il confronto si fa sempre). `compare` cede il controllo fra una fetta e l'altra
+// (bcryptjs lavora a fette di <=100 ms): il costo in CPU e' lo stesso, ma il server
+// resta vivo. Express 4 non raccoglie le promesse rifiutate di un handler: l'errore si
+// prende QUI, o la richiesta resta appesa.
+async function loginApi(req, res) {
+  try {
+    const { username, password } = req.body ?? {};
+    // Tipo controllato PRIMA di usarli: un body {"username":{}} arrivava a
+    // toLowerCase() e usciva come 500 (smoke 06/09).
+    if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
+      return res.status(400).json({ ok: false, error: 'Username e password obbligatori' });
+    }
 
-  const users = loadUsers();
-  const user  = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+    const users = loadUsers();
+    const user  = users.find(u => u.username.toLowerCase() === username.toLowerCase());
 
-  // Anti user-enumeration: esegui SEMPRE un compare bcrypt (contro l'hash fittizio
-  // se l'utente non esiste) così il tempo di risposta non distingue "username
-  // sconosciuto" da "password errata".
-  const okPw = bcrypt.compareSync(password, user ? user.passwordHash : _DUMMY_HASH);
-  if (!user || !okPw) {
-    return res.status(401).json({ ok: false, error: 'Credenziali non valide' });
-  }
+    // Anti user-enumeration: esegui SEMPRE un compare bcrypt (contro l'hash fittizio
+    // se l'utente non esiste) così il tempo di risposta non distingue "username
+    // sconosciuto" da "password errata".
+    const okPw = await bcrypt.compare(password, user ? user.passwordHash : _DUMMY_HASH);
+    if (!user || !okPw) {
+      return res.status(401).json({ ok: false, error: 'Credenziali non valide' });
+    }
 
-  // Anti session-fixation: si RIGENERA l'id di sessione al passaggio da anonimo
-  // ad autenticato, così un id piantato prima del login (via cookie preimpostato)
-  // non sopravvive all'accesso. Solo DOPO la rigenerazione si scrive l'utente.
-  req.session.regenerate(regenErr => {
-    if (regenErr) return res.status(500).json({ ok: false, error: 'Errore sessione' });
-    // L'epoca CORRENTE entra nella sessione nuova; quelle già aperte restano
-    // all'epoca in cui sono nate e, se è passata, muoiono alla prossima richiesta.
-    req.session.user = { id: user.id, username: user.username, role: user.role, epoch: _epochOf(user.id) };
-    req.session.save(err => {
-      if (err) return res.status(500).json({ ok: false, error: 'Errore sessione' });
-      res.json({ ok: true, user: _publicUser(req.session.user) });
+    // Anti session-fixation: si RIGENERA l'id di sessione al passaggio da anonimo
+    // ad autenticato, così un id piantato prima del login (via cookie preimpostato)
+    // non sopravvive all'accesso. Solo DOPO la rigenerazione si scrive l'utente.
+    req.session.regenerate(regenErr => {
+      if (regenErr) return res.status(500).json({ ok: false, error: 'Errore sessione' });
+      // L'epoca CORRENTE entra nella sessione nuova; quelle già aperte restano
+      // all'epoca in cui sono nate e, se è passata, muoiono alla prossima richiesta.
+      req.session.user = { id: user.id, username: user.username, role: user.role, epoch: _epochOf(user.id) };
+      req.session.save(err => {
+        if (err) return res.status(500).json({ ok: false, error: 'Errore sessione' });
+        res.json({ ok: true, user: _publicUser(req.session.user) });
+      });
     });
-  });
+  } catch (e) {
+    console.error('[auth] login:', e && e.message);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: 'Errore interno' });
+  }
 }
 
 function logoutApi(req, res) {
@@ -318,32 +350,54 @@ function meApi(req, res) {
 // policy. Le ALTRE sessioni dell'utente muoiono (epoca+1); QUESTA resta viva
 // perché ne riallineiamo l'epoca: cambiare la propria password non deve
 // disconnettere chi la sta cambiando.
-function changeOwnPassword(req, res) {
-  const { currentPassword, newPassword } = req.body ?? {};
-  if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' || !currentPassword || !newPassword) {
-    return res.status(400).json({ ok: false, error: 'Password attuale e nuova obbligatorie' });
+// Asincrono per la stessa ragione del login (v. loginApi) — e qui pesa di piu': la rotta
+// non ha limite di tentativi, quindi anche un viewer poteva fermare il server a
+// ripetizione con password attuali sbagliate.
+// ⚠️ Gli `await` stanno FUORI dalla sezione che legge e riscrive users.json: con l'I/O
+// sincrona di prima nessun'altra richiesta poteva infilarsi fra la lettura e la
+// scrittura, ed e' una garanzia che un await in mezzo butterebbe via (due cambi di
+// password insieme, o un reset dell'admin, si sovrascriverebbero a vicenda). Quindi: si
+// verifica e si calcola l'hash nuovo, POI si rilegge e si scrive senza cedere il
+// controllo, controllando che l'hash verificato sia ancora quello dell'utente.
+async function changeOwnPassword(req, res) {
+  try {
+    const { currentPassword, newPassword } = req.body ?? {};
+    if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' || !currentPassword || !newPassword) {
+      return res.status(400).json({ ok: false, error: 'Password attuale e nuova obbligatorie' });
+    }
+    const pErr = _passwordError(newPassword);
+    if (pErr) return res.status(400).json({ ok: false, error: pErr });
+
+    const uid     = req.session.user.id;
+    const current = loadUsers().find(u => u.id === uid);
+    if (!current) return res.status(404).json({ ok: false, error: 'Utente non trovato' });
+
+    // Il confronto si fa SEMPRE (non un ramo che salta il bcrypt): la password attuale
+    // sbagliata è un 403, non un errore di forma.
+    if (!(await bcrypt.compare(currentPassword, current.passwordHash))) {
+      return res.status(403).json({ ok: false, error: 'Password attuale errata' });
+    }
+    const newHash = await bcrypt.hash(newPassword, BCRYPT_COST);
+
+    // ── sezione critica: SENZA await ──
+    const users = loadUsers();
+    const idx   = users.findIndex(u => u.id === uid);
+    if (idx < 0) return res.status(404).json({ ok: false, error: 'Utente non trovato' });
+    if (users[idx].passwordHash !== current.passwordHash) {
+      return res.status(409).json({ ok: false, error: 'La password è stata modificata nel frattempo: riprova' });
+    }
+    users[idx].passwordHash = newHash;
+    saveUsers(users);
+    _bumpEpoch(uid);                                        // le ALTRE sessioni muoiono
+    req.session.user.epoch = _epochOf(uid);                 // ...ma non questa
+    req.session.save(err => {
+      if (err) return res.status(500).json({ ok: false, error: 'Errore sessione' });
+      res.json({ ok: true });
+    });
+  } catch (e) {
+    console.error('[auth] cambio password:', e && e.message);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: 'Errore interno' });
   }
-  const pErr = _passwordError(newPassword);
-  if (pErr) return res.status(400).json({ ok: false, error: pErr });
-
-  const users = loadUsers();
-  const idx   = users.findIndex(u => u.id === req.session.user.id);
-  if (idx < 0) return res.status(404).json({ ok: false, error: 'Utente non trovato' });
-
-  // compareSync SEMPRE (non un ramo che salta il bcrypt): la password attuale
-  // sbagliata è un 403, non un errore di forma.
-  if (!bcrypt.compareSync(currentPassword, users[idx].passwordHash)) {
-    return res.status(403).json({ ok: false, error: 'Password attuale errata' });
-  }
-
-  users[idx].passwordHash = bcrypt.hashSync(newPassword, BCRYPT_COST);
-  saveUsers(users);
-  _bumpEpoch(req.session.user.id);                        // le ALTRE sessioni muoiono
-  req.session.user.epoch = _epochOf(req.session.user.id);  // ...ma non questa
-  req.session.save(err => {
-    if (err) return res.status(500).json({ ok: false, error: 'Errore sessione' });
-    res.json({ ok: true });
-  });
 }
 
 // ---- User CRUD (admin only) -------------------------------------------------
@@ -466,7 +520,7 @@ function register(app) {
   app.get('/login', loginPage);
 
   // API auth — pubbliche
-  app.post('/api/auth/login',  loginLimiter, loginApi);
+  app.post('/api/auth/login',  loginIpLimiter, loginLimiter, loginApi);
   app.post('/api/auth/logout', logoutApi);
 
   // Tutto il resto richiede autenticazione
