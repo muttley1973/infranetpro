@@ -360,7 +360,7 @@ test('brandManual, statusManual, spec.swLayer e spec.swRole sono DOCUMENT (li sc
 
 test('i quattro campi dichiarati escono nell\'export, insieme ai loro fratelli', () => {
   for (const [scope, k] of [['node', 'brandManual'], ['node', 'statusManual'], ['spec', 'swLayer'], ['spec', 'swRole']]) {
-    assert.strictEqual(exportActionFor(classifyField(scope, k)), 'keep', `${scope}.${k}: il lavoro di una persona non si butta`);
+    assert.strictEqual(exportActionFor(scope, k), 'keep', `${scope}.${k}: il lavoro di una persona non si butta`);
   }
   const { sanitizePortableState } = require('../lib/project-format.js');
   const out = sanitizePortableState({
