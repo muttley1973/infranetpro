@@ -18,6 +18,7 @@
 const fs = require('fs');
 const path = require('path');
 const { atomicWriteFile, readJsonWithBak } = require('./projects-store');   // scrittura atomica (+ mode) e lettura col .bak
+const { KEY_RE } = require('./ai/provider');   // la chiave finisce in un'intestazione HTTP: stessa definizione di «chiave valida» di chi la usa
 
 const CONFIG_FILE = process.env.INFRANET_AI_CONFIG_FILE ||
   path.join(__dirname, '..', 'data', 'ai-config.json');
@@ -51,6 +52,28 @@ function _mergeFlags(cur, patch, keys) {
     for (const k of keys) if (typeof patch[k] === 'boolean') out[k] = patch[k];
   }
   return out;
+}
+
+// Un endpoint e' un URL http(s) SENZA credenziali dentro. Prima qualunque stringa passava: `file:///etc`,
+// `ftp://x`, `javascript:…` si salvavano e fallivano alla prima chat con un errore che non parlava
+// dell'endpoint; e `http://utente:password@host` salvava una credenziale in chiaro nel campo SBAGLIATO
+// (la chiave ha il suo, e il suo mascheramento) — la rimandavamo poi a ogni utente in GET. Si
+// rifiuta con il MOTIVO (`reason`) e si conserva la stringa originale dell'admin, non la forma normalizzata.
+const MAX_ENDPOINT = 2048;
+function validateEndpoint(raw) {
+  const s = typeof raw === 'string' ? raw.trim() : '';
+  if (!s) return { ok: false, reason: 'empty' };
+  if (s.length > MAX_ENDPOINT) return { ok: false, reason: 'too-long' };
+  let u;
+  try { u = new URL(s); } catch (_e) { return { ok: false, reason: 'unparsable' }; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return { ok: false, reason: 'scheme' };
+  if (u.username || u.password) return { ok: false, reason: 'credentials' };
+  if (!u.hostname) return { ok: false, reason: 'host' };
+  return { ok: true, value: s };
+}
+
+function _configError(code, reason) {
+  return Object.assign(new Error('Configurazione AI non valida: ' + code + (reason ? ' (' + reason + ')' : '')), { code, reason });
 }
 
 // Normalizza un oggetto config arbitrario sui soli campi noti (allowlist) e tipi
@@ -119,11 +142,14 @@ function _mask(cfg) {
 // hostname senza punto (.local, nomi LAN). Non è sicurezza, è solo etichetta UI.
 function _isLocalEndpoint(endpoint) {
   const s = String(endpoint || '').trim();
-  const m = s.match(/^https?:\/\/([^/:]+)/i);
-  const host = m ? m[1].toLowerCase() : '';
+  let host;
+  try { host = new URL(s).hostname.toLowerCase(); }
+  catch (_e) { const m = s.match(/^https?:\/\/([^/:]+)/i); host = m ? m[1].toLowerCase() : ''; }
+  host = host.replace(/^\[|\]$/g, '');   // IPv6 tra parentesi quadre: `[::1]`
   if (!host) return false;
-  if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]') return true;
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true;
   if (/^192\.168\./.test(host) || /^10\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true;
+  if (/^f[cd][0-9a-f]{2}:/.test(host) || /^fe80:/.test(host)) return true;   // IPv6 ULA e link-local
   if (host.endsWith('.local') || !host.includes('.')) return true;
   return false;
 }
@@ -161,11 +187,23 @@ function getConfigWithKey() {
 function setConfig(patch) {
   const cur = _readFile();
   const p = (patch && typeof patch === 'object') ? patch : {};
+  // Si valida TUTTO prima di scrivere qualcosa: un campo sbagliato non deve lasciare una config a meta'.
+  let endpoint = cur.endpoint;
+  if (typeof p.endpoint === 'string' && p.endpoint.trim()) {
+    const v = validateEndpoint(p.endpoint);
+    if (!v.ok) throw _configError('endpoint_invalid', v.reason);
+    endpoint = v.value;
+  }
+  let key = cur.key;
+  if (typeof p.key === 'string') {
+    key = p.key.trim();                       // l'a-capo incollato insieme alla chiave non e' parte della chiave
+    if (key && !KEY_RE.test(key)) throw _configError('key_invalid', 'chars');
+  }
   const next = {
     enabled: typeof p.enabled === 'boolean' ? p.enabled : cur.enabled,
-    endpoint: typeof p.endpoint === 'string' && p.endpoint.trim() ? p.endpoint.trim() : cur.endpoint,
-    model: typeof p.model === 'string' ? p.model.trim() : cur.model,
-    key: (p.key === undefined) ? cur.key : (typeof p.key === 'string' ? p.key : cur.key),
+    endpoint,
+    model: typeof p.model === 'string' ? p.model.trim().slice(0, 200) : cur.model,
+    key,
     scope: _mergeFlags(cur.scope, p.scope, SCOPE_KEYS),
     features: _mergeFlags(cur.features, p.features, FEATURE_KEYS),
   };
@@ -194,5 +232,6 @@ module.exports = {
   CONFIG_FILE,
   // esportati per i test puri
   _normalize, _mask, _effectiveKey, _effectiveEndpoint, _isLocalEndpoint, _normFlags, _mergeFlags, _hardenPerms,
+  validateEndpoint,
   DEFAULTS, SCOPE_KEYS, FEATURE_KEYS,
 };

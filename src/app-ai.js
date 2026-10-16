@@ -121,7 +121,12 @@ function aiCfgSave(){
         body: JSON.stringify(body),
     }).then(r => r.json().then(d => ({ ok: r.ok, d })))
       .then(({ ok, d }) => {
-          if(!ok){ _aiCfgMsg(t('ai.cfgSaveErr'), 'err'); return; }
+          if(!ok){
+              // Un campo sbagliato si dice COSA: «endpoint non valido» non e' «errore di salvataggio».
+              const k = d && d.error === 'endpoint_invalid' ? 'ai.cfgEndpointInvalid'
+                      : d && d.error === 'key_invalid' ? 'ai.cfgKeyInvalid' : 'ai.cfgSaveErr';
+              _aiCfgMsg(t(k), 'err'); return;
+          }
           if(key){ key.value = ''; key.placeholder = _aiCfgKeyPlaceholder(d); }
           _aiCfgMsg(t('ai.cfgSaved'), 'ok');
           // Rifletti SUBITO nel pannello Assistente il nuovo stato (enabled →

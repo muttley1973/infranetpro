@@ -14,7 +14,7 @@ const rateLimit = require('express-rate-limit');
 // keyGenerator personalizzata — express-rate-limit v8 lo richiede quando si compone
 // la chiave a partire da req.ip, altrimenti avverte del rischio di bypass IPv6.
 const ipKeyGenerator = rateLimit.ipKeyGenerator;
-const { atomicWriteFile, readJsonWithBak } = require('./server/projects-store');
+const { atomicWriteFile, readJsonWithBak, PRIVATE_MODE, hardenBackup } = require('./server/projects-store');
 const { createGate } = require('./lib/concurrency-gate.js');
 
 // Override via INFRANET_USERS_FILE: tiene gli account su un volume dati persistente
@@ -129,7 +129,8 @@ function loadUsers() {
 function saveUsers(users) {
   // Scrittura atomica (temp + fsync + rename) con .bak, come i progetti: un crash a
   // meta' scrittura lascia intatto il file precedente invece di troncarlo.
-  atomicWriteFile(USERS_FILE, JSON.stringify(users, null, 2));
+  atomicWriteFile(USERS_FILE, JSON.stringify(users, null, 2), PRIVATE_MODE);   // gli hash delle password: solo il proprietario
+  hardenBackup(USERS_FILE);
 }
 
 function nextUserId(users) {
@@ -575,7 +576,7 @@ function register(app) {
 module.exports = {
   register, requireAdmin,
   // esposti per i test (F16): store utenti + inizializzazione admin
-  loadUsers, saveUsers, ensureDefaultAdmin, _readUsersFile,
+  loadUsers, saveUsers, ensureDefaultAdmin, _readUsersFile, USERS_FILE,
   // SEC-M2: guardia pura del bypass auth (loopback + non-produzione)
   _computeDevNoAuth,
   // policy password (pura, testabile a tavolino)
