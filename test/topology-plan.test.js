@@ -572,6 +572,62 @@ test('assemblePlanInputs: vicino LLDP non documentato → neighborNodes (gateway
   assert.ok(inp.neighborNodes[0].confidence >= 0.9, 'T1 alta confidenza');
 });
 
+test('assemblePlanInputs: le prove di TIPO del vicino (modello, capabilities) passano al piano', () => {
+  const ports = { 'gs-23': { ifName: 'GigabitEthernet23' } };
+  const portIndex = buildPortIndex(ports, {});
+  const pollResults = [{ nodeId: 'gs', fdbTable: {}, neighbors: [
+    { localPort: 'GigabitEthernet23', remoteDevice: 'AP-1', remoteMac: 'aa:bb:cc:00:00:07', remoteIP: '10.0.0.7',
+      remotePlatform: 'UniFi AP U6-Lite', remoteCaps: '3000', protocol: 'LLDP' },
+  ] }];
+  const inp = assemblePlanInputs(pollResults, { findPort: (nid, ifn) => findPortByIfName(nid, ifn, portIndex) });
+  assert.equal(inp.neighborNodes[0].platform, 'UniFi AP U6-Lite');
+  assert.equal(inp.neighborNodes[0].caps, '3000');
+});
+
+test('assemblePlanInputs: lo STESSO apparato visto da due lati (LLDP col MAC, CDP senza) è UN nodo, non due con lo stesso IP', () => {
+  const ports = { 'gs-23': { ifName: 'Gi23' }, 'gt-1': { ifName: 'Gi1' } };
+  const portIndex = buildPortIndex(ports, {});
+  const pollResults = [
+    { nodeId: 'gs', fdbTable: {}, neighbors: [
+      { localPort: 'Gi23', remoteDevice: 'GW-EDGE', remoteMac: 'aa:bb:cc:00:00:01', remoteIP: '10.0.0.1', protocol: 'LLDP',
+        remotePlatform: 'Cisco IOS Software, ISR4331', remoteCaps: '2800' } ] },
+    { nodeId: 'gt', fdbTable: {}, neighbors: [
+      { localPort: 'Gi1', remoteDevice: 'gw-edge.lan', remoteMac: '', remoteIP: '10.0.0.1', protocol: 'CDP' } ] },
+  ];
+  const inp = assemblePlanInputs(pollResults, { findPort: (nid, ifn) => findPortByIfName(nid, ifn, portIndex) });
+  assert.equal(inp.neighborNodes.length, 1, 'prima: due nodi con IP 10.0.0.1');
+  assert.equal(inp.neighborNodes[0].mac, 'aa:bb:cc:00:00:01', 'vince il primo, con la sua identità più ricca');
+  assert.equal(inp.neighborNodes[0].onLocalPid, 'gs-23');
+});
+
+test('assemblePlanInputs: la dedup completa le prove mancanti, non sovrascrive quelle presenti', () => {
+  const ports = { 'gs-23': { ifName: 'Gi23' }, 'gt-1': { ifName: 'Gi1' } };
+  const portIndex = buildPortIndex(ports, {});
+  const pollResults = [
+    { nodeId: 'gs', fdbTable: {}, neighbors: [
+      { localPort: 'Gi23', remoteDevice: 'SW-X', remoteIP: '10.0.0.9', protocol: 'CDP' } ] },
+    { nodeId: 'gt', fdbTable: {}, neighbors: [
+      { localPort: 'Gi1', remoteDevice: 'SW-X', remoteIP: '10.0.0.9', remoteMac: 'aa:bb:cc:00:00:09',
+        remotePlatform: 'Catalyst 9200', remoteCaps: '2000', protocol: 'LLDP' } ] },
+  ];
+  const inp = assemblePlanInputs(pollResults, { findPort: (nid, ifn) => findPortByIfName(nid, ifn, portIndex) });
+  assert.equal(inp.neighborNodes.length, 1);
+  assert.equal(inp.neighborNodes[0].protocol, 'CDP', 'identità e porta del primo non cambiano');
+  assert.equal(inp.neighborNodes[0].mac, 'aa:bb:cc:00:00:09', 'il MAC che mancava arriva dal secondo');
+  assert.equal(inp.neighborNodes[0].platform, 'Catalyst 9200');
+});
+
+test('assemblePlanInputs: due apparati DIVERSI restano due (IP e nome diversi, nessun MAC)', () => {
+  const ports = { 'gs-1': { ifName: 'Gi1' }, 'gs-2': { ifName: 'Gi2' } };
+  const portIndex = buildPortIndex(ports, {});
+  const pollResults = [{ nodeId: 'gs', fdbTable: {}, neighbors: [
+    { localPort: 'Gi1', remoteDevice: 'SW-A', remoteIP: '10.0.0.2', protocol: 'CDP' },
+    { localPort: 'Gi2', remoteDevice: 'SW-B', remoteIP: '10.0.0.3', protocol: 'CDP' },
+  ] }];
+  const inp = assemblePlanInputs(pollResults, { findPort: (nid, ifn) => findPortByIfName(nid, ifn, portIndex) });
+  assert.equal(inp.neighborNodes.length, 2);
+});
+
 test('assemblePlanInputs: vicino LLDP GIÀ documentato → nessuna materializzazione (sarà un cavo)', () => {
   const ports = { 'gs-23': { ifName: 'GigabitEthernet23' } };
   const portIndex = buildPortIndex(ports, {});

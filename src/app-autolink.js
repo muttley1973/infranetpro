@@ -9,6 +9,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { uid } from './app-util.js';
 import { fillFromRead } from '../lib/field-provenance.js';   // la regola: chi scrive per conto di una lettura ne registra la provenienza
+import { dropMaterialized } from '../lib/neighbor-type.js';   // i vicini da cui il Sync ha appena creato il nodo non restano «non agganciati» nel riepilogo
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, renderCables, _showToast, _invalidateIdx, _linksForPort, canAddConnection, _createLinkRecord, _validateWallPortConnection } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
@@ -1734,6 +1735,12 @@ async function _autoDiscoverLinks(nodeIds){
                 created += _mat.links;
                 pruned  += _mat.pruned;
                 diag.materializedNodes = (diag.materializedNodes || 0) + _mat.nodes;
+                // I vicini «non nel documento» da cui è appena nato un nodo non sono più non agganciati.
+                if(diag.unresolvedNeighbors && _mat.made && _mat.made.length){
+                    const _rest = dropMaterialized(diag.unresolvedNeighbors, _mat.made);
+                    diag.unresolvedNeighbors = _rest.unresolved;
+                    if(Object.keys(_rest.reasons).length) diag.neighborReasons = _rest.reasons; else delete diag.neighborReasons;
+                }
                 console.log(`[AutoLink] materializzati ${_mat.nodes} nodi (gateway/switch inferiti) + ${_mat.links} cavi`);
             }
         }
