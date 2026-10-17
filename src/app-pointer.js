@@ -689,7 +689,12 @@ function handlePointerMove(e){
         if((_dx*_dx + _dy*_dy) < (_th * _th)) return;
         _floorDblId = null; _floorDblTime = 0;   // un drag NON è la 1ª metà di un doppio click → invalida il timer del doppio click floor
         if(!_holdReady && (store.dragNode || store.dragRack)) _dragBecomesPan();   // dito mosso PRIMA della pressione lunga: scorre la vista (v. sopra)
-        else store._dragArmed = true;
+        else {
+            store._dragArmed = true;
+            // La foto PRIMA di muovere (convenzione di pushHistory): fotografare a fine drag, come si faceva,
+            // salvava lo stato NUOVO e il Ctrl+Z non riportava il pezzo dov'era.
+            if(store.dragNode || store.dragRack || store.resizeNode) pushHistory();
+        }
     }
     if(store.isPanningFloor){
         store.state.floorView.x=e.clientX-store.panStart.x; store.state.floorView.y=e.clientY-store.panStart.y;
@@ -926,12 +931,13 @@ function handlePointerUp(e){
                 // absorbNodeAsVm + toast con hint Ctrl+Z). NIENTE riposizionamento.
                 const _src=store.dragNode;
                 store.dragNode=null;
-                // Rifiutato (e' gia' una VM, non e' idoneo): il tile TORNA dov'era, come per l'area sbagliata. Il toast
-                // del perche' lo da' absorbNodeAsVm; qui si rimette solo il tile al suo posto.
-                if(!absorbNodeAsVm(_src, _drop.host) && _dn && _floorDragOrigin && nodeById(_src)){
-                    _dn.x=_floorDragOrigin.x; _dn.y=_floorDragOrigin.y;
-                    renderAll();
-                }
+                // Il tile torna alla posizione di PARTENZA prima di assorbirlo: lo stato che absorbNodeAsVm fotografa
+                // e' lo stesso del drag appena partito (nessun punto in piu'), e annullare l'assorbimento rimette il
+                // tile dov'era e non dove l'hai lasciato sotto il pannello.
+                if(_dn && _floorDragOrigin){ _dn.x=_floorDragOrigin.x; _dn.y=_floorDragOrigin.y; }
+                // Rifiutato (e' gia' una VM, non e' idoneo): il tile resta dov'era. Il toast del perche' lo da'
+                // absorbNodeAsVm; qui si ridisegna soltanto.
+                if(!absorbNodeAsVm(_src, _drop.host) && nodeById(_src)) renderAll();
             } else if(_isFloorDrag && !_drop.onFloor && _floorDragOrigin){
                 // Device floor rilasciato FUORI dalla planimetria e NON sulla zona import
                 // → torna alla posizione di partenza + avviso (niente tile "perso" sotto
@@ -950,8 +956,7 @@ function handlePointerUp(e){
                 // breve evitiamo history entries vuoti e renderAll() inutili.
                 if(store._dragArmed){
                     if(_wasRackDrag) _resolveRackOverlap(_dn);
-                    if(store.dragNode) pushHistory();
-                    markDirty();
+                    markDirty();   // la foto «prima» l'ha gia' fatta il drag quando e' partito
                 }
                 const wasResize=!!store.resizeNode;
                 store.dragNode=null; store.resizeNode=null;

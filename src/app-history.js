@@ -10,61 +10,92 @@ import { store } from "./store.js";   // currentProjectId per persistAuditEntrie
 import { _invalidateIdx } from "./app.js";   // ciclo benigno: uso solo a runtime
 import { renderAll } from "./app-render-core.js";
 import { saveProject } from "./app-core.js";   // ciclo benigno: solo a runtime (autosave debounced)
+import { record, undo as _undoStep, redo as _redoStep, canUndo, canRedo } from "../lib/undo-history.js";   // il modello di annulla/ripeti (puro, provato a parte)
 // Bare globals (no-undef OFF): _history/_histIdx/state/_isDirty/selId/selType/highPath
 // (proxy store) - renderRackTabs/updateTransforms (window, app-search-zoom-rack) -
 // appendAudit (lib/audit-log.js) - _currentUser (store).
 
-export function pushHistory() {
-    _history = _history.slice(0, _histIdx+1);
-    // bgImage è base64 (spesso >1 MB): escluso dagli snapshot per non saturare la RAM.
-    // Undo/redo riagganciano sempre il bgImage corrente — l'immagine di sfondo
-    // non è un'operazione annullabile (ha il proprio pulsante "Rimuovi mappa").
-    // auditLog è append-only: escluso dagli snapshot così l'undo non lo riscrive
-    // (la storia "chi/quando/cosa" sopravvive a undo/redo).
+// ── LA CONVENZIONE: pushHistory() PRIMA di modificare ────────────────────────────────────────────
+// Chi sta per modificare il progetto chiama pushHistory() — «ricorda com'e' ora» — e POI modifica. La storia
+// contiene quindi gli stati PRIMA delle operazioni, e lo stato di adesso non e' in nessun elenco finche' non
+// serve (alla prima annulla, per il ripeti). Il modello sta in lib/undo-history.js, con i suoi test.
+// ⚠️ Un chiamante che fotografasse DOPO la modifica rompe l'ordine: la foto e' lo stato nuovo, e annullare
+// non toglie niente. (Il trascinamento lo faceva: ora fotografa quando il drag parte, v. app-pointer.js.)
+
+// La foto dello stato com'e' ADESSO.
+// bgImage è base64 (spesso >1 MB): escluso dagli snapshot per non saturare la RAM.
+// Undo/redo riagganciano sempre il bgImage corrente — l'immagine di sfondo
+// non è un'operazione annullabile (ha il proprio pulsante "Rimuovi mappa").
+// auditLog è append-only: escluso dagli snapshot così l'undo non lo riscrive
+// (la storia "chi/quando/cosa" sopravvive a undo/redo).
+function _snapshot() {
     const bg = state.bgImage;
     const audit = state.auditLog;
     state.bgImage = null;
     state.auditLog = undefined;
-    _history.push(JSON.stringify(state));
+    const snap = JSON.stringify(state);
     state.bgImage = bg;
     state.auditLog = audit;
-    if (_history.length > 60) _history.shift(); else _histIdx++;
+    return snap;
+}
+
+// «Dopo l'ultimo punto e' successo qualcosa»: serve SOLO ai pulsanti (a Ctrl+Z decide il confronto vero, in
+// lib/undo-history.js). pushHistory() e markDirty() lo accendono; annulla e ripeti lo spengono.
+let _pending = false;
+let _restoring = false;   // dentro annulla/ripeti: il markDirty() che accende «Salva» non e' una modifica nuova
+
+export function pushHistory() {
+    const r = record(_history, _histIdx, _snapshot());
+    _history = r.points; _histIdx = r.idx;
+    _pending = true;
     _updateHistoryBtns();
+}
+
+// Rimette in piedi uno stato (annulla e ripeti): riaggancia lo sfondo e il giornale, che non stanno nelle foto.
+function _restoreSnapshot(snap) {
+    const bg = state.bgImage;                  // preserva il background corrente
+    const audit = state.auditLog;              // append-only: non si annulla
+    state = JSON.parse(snap);
+    state.bgImage = bg;                        // riaggancia (non è in snapshot)
+    state.auditLog = audit;
+    _invalidateIdx();
+    _resetSelection(); renderRackTabs(); updateTransforms(); renderAll();
 }
 
 export function undo() {
-    if (_histIdx <= 0) return;
-    const bg = state.bgImage;                  // preserva il background corrente
-    const audit = state.auditLog;              // append-only: non si annulla
-    state = JSON.parse(_history[--_histIdx]);
-    state.bgImage = bg;                        // riaggancia (non è in snapshot)
-    state.auditLog = audit;
-    _invalidateIdx();
-    _resetSelection(); renderRackTabs(); updateTransforms(); renderAll();
+    const r = _undoStep(_history, _histIdx, _snapshot());
+    if (!r) { _pending = false; _updateHistoryBtns(); return; }      // niente prima: il pulsante non resta acceso a vuoto
+    _history = r.points; _histIdx = r.idx;
+    _restoring = true;
+    try {
+        _restoreSnapshot(r.restore);
+        // Lo stato ripristinato è DIVERSO da quello salvato: «Salva» si accende e
+        // l'autosave riparte (smoke 06/09: Ctrl+S, Ctrl+Z, il bottone restava pulito).
+        markDirty();
+    } finally { _restoring = false; }
+    _pending = false;
     _updateHistoryBtns();
-    // Lo stato ripristinato è DIVERSO da quello salvato: «Salva» si accende e
-    // l'autosave riparte (smoke 06/09: Ctrl+S, Ctrl+Z, il bottone restava pulito).
-    markDirty();
 }
 
 export function redo() {
-    if (_histIdx >= _history.length-1) return;
-    const bg = state.bgImage;                  // preserva il background corrente
-    const audit = state.auditLog;              // append-only: non si annulla
-    state = JSON.parse(_history[++_histIdx]);
-    state.bgImage = bg;                        // riaggancia (non è in snapshot)
-    state.auditLog = audit;
-    _invalidateIdx();
-    _resetSelection(); renderRackTabs(); updateTransforms(); renderAll();
+    const r = _redoStep(_history, _histIdx);
+    if (!r) return;
+    _histIdx = r.idx;
+    _restoring = true;
+    try {
+        _restoreSnapshot(r.restore);
+        // Lo stato ripristinato è DIVERSO da quello salvato: «Salva» si accende e
+        // l'autosave riparte (smoke 06/09: Ctrl+S, Ctrl+Z, il bottone restava pulito).
+        markDirty();
+    } finally { _restoring = false; }
+    _pending = false;
     _updateHistoryBtns();
-    // Lo stato ripristinato è DIVERSO da quello salvato: «Salva» si accende e
-    // l'autosave riparte (smoke 06/09: Ctrl+S, Ctrl+Z, il bottone restava pulito).
-    markDirty();
 }
 
 export function _updateHistoryBtns() {
-    document.getElementById('btn-undo').disabled = _histIdx <= 0;
-    document.getElementById('btn-redo').disabled = _histIdx >= _history.length-1;
+    const u = document.getElementById('btn-undo'), r = document.getElementById('btn-redo');
+    if (u) u.disabled = !canUndo(_history, _histIdx, _pending);
+    if (r) r.disabled = !canRedo(_history, _histIdx);
 }
 
 export function _resetSelection() { selId=null; selType=null; highPath.clear(); }
@@ -90,6 +121,7 @@ export function isDirty() { return !!_isDirty; }
 
 export function markDirty() {
     _invalidateIdx();
+    if (!_restoring && !_pending) { _pending = true; _updateHistoryBtns(); }   // una modifica dopo l'ultimo punto: ora si puo' annullare
     _isDirty = true;
     _dirtyEpoch++;
     const btn = document.getElementById('btn-save');

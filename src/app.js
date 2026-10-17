@@ -16,6 +16,7 @@ import { TYPES, typeName, typeShort } from './app-types.js';   // ritiro ponte f
 import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM: come si LEGGE il nome di un device
 import { addrFamily } from '../lib/cidr.js';   // cos'e' un indirizzo: una definizione sola (campo IP del device)
 import { forgetFromRead } from '../lib/field-provenance.js';   // la regola: scrivere a mano toglie la provenienza «copiato dalla lettura»
+import { shortcutAction, isTextEditingTarget } from '../lib/undo-history.js';   // quale tasto e' annulla/ripeti, e quando il tasto e' del campo di testo
 import { repairUnsafeIds } from '../lib/id-safety.js';   // un id è un nome, non HTML: lo stato caricato con id strani viene riparato (e i riferimenti con lui)
 import { identityLockFlag } from '../lib/identity-reconcile.js';   // modello/matricola/firmware: scritti a mano, il loro lucchetto si chiude
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: chiamate prima bare-global
@@ -680,8 +681,17 @@ export function bindEventsOnce() {
 
     document.addEventListener('keydown', e => {
         const inInput = ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName);
-        if ((e.ctrlKey||e.metaKey) && e.key==='z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
-        if ((e.ctrlKey||e.metaKey) && (e.key==='y'||(e.shiftKey&&e.key==='z'))) { e.preventDefault(); redo(); return; }
+        // Annulla / ripeti. La lettera si confronta in minuscolo: con Maiusc (Ctrl+Maiusc+Z) o col Bloc Maiusc il
+        // browser dice 'Z', e il confronto con 'z' non scattava — il ripeti con Ctrl+Maiusc+Z non funzionava mai.
+        // In un CAMPO DI TESTO il tasto e' del campo (annulla cio' che hai digitato): intercettarlo lì bloccava
+        // l'annulla del browser e, con passi in storia, annullava il PROGETTO al posto del testo.
+        const _histKey = shortcutAction(e);
+        if (_histKey) {
+            if (isTextEditingTarget(document.activeElement)) return;
+            e.preventDefault();
+            if (_histKey === 'undo') undo(); else redo();
+            return;
+        }
         if ((e.ctrlKey||e.metaKey) && e.key==='s') { e.preventDefault(); saveProject(); return; }
         if (e.key==='Delete' && !inInput && selId && selType==='node') { deleteNode(); return; }
         if (e.key==='Delete' && !inInput && selId && selType==='link') { deleteLink(selId); return; }

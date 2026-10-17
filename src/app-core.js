@@ -6,7 +6,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store, resetProjectRuntime } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { pushHistory, _invalidateIdx, logAudit, _clearDirty, dirtyEpoch, _migrateState, _updateHistoryBtns, _buildDefaultState, bindEventsOnce, _loadDefaultLocal, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { _invalidateIdx, logAudit, _clearDirty, dirtyEpoch, _migrateState, _updateHistoryBtns, _buildDefaultState, bindEventsOnce, _loadDefaultLocal, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderRackTabs, updateTransforms, _updateFloorToolbarVisibility, initPaletteUi } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _restoreTopoSession } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
@@ -359,7 +359,6 @@ async function _initApp() {
     } catch(e) {
         console.warn('Server non disponibile:', e.message);
         _loadDefaultLocal();
-        pushHistory();
         renderRackTabs(); updateTransforms(); renderAll();
     }
 }

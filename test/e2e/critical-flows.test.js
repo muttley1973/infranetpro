@@ -3540,14 +3540,15 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const wiredOk = u && rd && u.getAttribute('data-act') === 'undo' && rd.getAttribute('data-act') === 'redo'
             && !u.getAttribute('onclick') && !rd.getAttribute('onclick')
             && typeof window.undo === 'undefined' && typeof window.redo === 'undefined';
-          // 2) storia undo sintetica a 2 stati (marker _mk) + click DELEGATO
-          const s = window.state;
-          window._history = [JSON.stringify(Object.assign({}, s, { _mk: 'A' })), JSON.stringify(Object.assign({}, s, { _mk: 'B' }))];
-          window._histIdx = 1; window.state._mk = 'B';
+          // 2) una storia costruita come la costruiscono i chiamanti veri — pushHistory() PRIMA, poi la modifica
+          //    (marker _mk) — e click DELEGATO
+          window._history = []; window._histIdx = -1;
+          window.state._mk = 'A'; pushHistory(); window.state._mk = 'B';
           u.disabled = false; u.click();                 // scatta SOLO via delegation
-          const undoOk = window._histIdx === 0 && window.state._mk === 'A';
+          const undoOk = window.state._mk === 'A' && window._histIdx === 0;
           rd.disabled = false; rd.click();
-          const redoOk = window._histIdx === 1 && window.state._mk === 'B';
+          const redoOk = window.state._mk === 'B' && window._histIdx === 1;
+          delete window.state._mk; window._history = []; window._histIdx = -1;
           return { ok: true, wiredOk, undoOk, redoOk };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
@@ -3555,6 +3556,165 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.wiredOk, 'i bottoni undo/redo hanno data-act (no onclick) e window.undo/redo sono ritirati dal ponte');
       assert.ok(r.undoOk, 'click delegato su #btn-undo esegue undo() (import) → _histIdx cala, stato ripristinato');
       assert.ok(r.redoOk, 'click delegato su #btn-redo esegue redo() (import) → _histIdx risale');
+    });
+
+    await t.test('Annulla / Ripeti con la tastiera vera: un\'operazione alla volta, e il ripeti torna all\'ultimo stato', async () => {
+      // Provato su un progetto «appena caricato» (storia vuota, come dopo loadProject): prima la prima operazione non
+      // si annullava mai, il primo Ctrl+Z ne saltava una e il Ctrl+Y non arrivava all'ultimo stato.
+      const J = () => page.evaluate(() => { const b = state.bgImage, a = state.auditLog; state.bgImage = null; state.auditLog = undefined; const x = JSON.stringify(state); state.bgImage = b; state.auditLog = a; return x; });
+      const key = async (k) => { await page.evaluate(() => { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); }); await page.keyboard.press(k); await page.waitForTimeout(60); };
+      const btns = () => page.evaluate(() => ({ undo: !document.getElementById('btn-undo').disabled, redo: !document.getElementById('btn-redo').disabled }));
+      await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push({ id: 'lab', type: 'homelab', name: 'NUC-01', x: 400, y: 150, ports: 1, mac: 'AA:BB:CC:00:00:01' });
+        state.nodes.push({ id: 'pc1', type: 'pc', name: 'PC1', x: 120, y: 120, ports: 1, mac: 'AA:BB:CC:00:00:11', ip: '10.0.0.11' });
+        state.nodes.push({ id: 'pc2', type: 'pc', name: 'PC2', x: 120, y: 260, ports: 1, mac: 'AA:BB:CC:00:00:22', ip: '10.0.0.22' });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        _history = []; _histIdx = -1; selId = null; selType = null;
+        _renderAllNow();
+        _updateHistoryBtns();
+      });
+      const S = [await J()];
+      const b0 = await btns();
+      // 1) una VM sull'host (foto prima)  2) un trascinamento col mouse vero  3) elimina con Canc  4) assorbi un tile come VM
+      await page.evaluate(() => addVm('lab'));                                                  S.push(await J());
+      const el = page.locator('[data-id="pc1"]'); const bb = await el.boundingBox();
+      await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2); await page.mouse.down();
+      await page.mouse.move(bb.x + bb.width / 2 + 90, bb.y + bb.height / 2 + 60, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(80);
+      S.push(await J());
+      await page.evaluate(() => { selType = 'node'; selId = 'pc2'; });
+      await key('Delete');                                                                       S.push(await J());
+      await page.evaluate(() => absorbNodeAsVm('pc1', 'lab'));                                   S.push(await J());
+      const bAfter = await btns();
+      assert.ok(S.every((x, i) => i === 0 || x !== S[i - 1]), 'ogni operazione ha cambiato il progetto (setup della prova)');
+
+      const back = [];
+      for (let i = 0; i < 4; i++) { await key('Control+z'); const j = await J(); back.push(S.indexOf(j)); }
+      await key('Control+z'); const stuck = S.indexOf(await J());
+      const bBack = await btns();
+      const fwd = [];
+      for (let i = 0; i < 4; i++) { await key('Control+Shift+Z'); const j = await J(); fwd.push(S.indexOf(j)); }
+      await key('Control+y'); const stuckFwd = S.indexOf(await J());
+      const bFwd = await btns();
+      // una nuova operazione dopo un annulla butta il «futuro»
+      await key('Control+z'); await key('Control+z');                   // torna allo stato 2
+      await page.evaluate(() => addVm('lab'));                          // operazione nuova
+      const afterNew = await J();
+      await key('Control+Shift+Z'); const redoAfterNew = (await J()) === afterNew;
+      await key('Control+z'); const undoNew = S.indexOf(await J());
+
+      // una modifica NON registrata (come un campo del pannello, o un giro di Sync): si accende «annulla» e Ctrl+Z la toglie,
+      // e il ripeti la ridà — lo stato corrente si tiene da parte prima di tornare indietro
+      await key('Control+z'); await key('Control+z'); await key('Control+z'); await key('Control+z');   // a inizio storia
+      await page.evaluate(() => { nodeById('lab').name = 'RINOMINATO'; markDirty(); });
+      const bUnrec = await btns();
+      await key('Control+z'); const nameBack = await page.evaluate(() => nodeById('lab').name);
+      await key('Control+Shift+Z'); const nameFwd = await page.evaluate(() => nodeById('lab').name);
+
+      assert.deepEqual(b0, { undo: false, redo: false }, 'a progetto appena caricato i due pulsanti sono spenti');
+      assert.equal(bUnrec.undo, true, 'una modifica non registrata accende «annulla» anche a inizio storia');
+      assert.equal(nameBack, 'NUC-01', 'e Ctrl+Z la toglie');
+      assert.equal(nameFwd, 'RINOMINATO', 'e il ripeti la ridà');
+      assert.deepEqual(bAfter, { undo: true, redo: false }, 'dopo le operazioni si puo\' annullare, non ripetere');
+      assert.deepEqual(back, [3, 2, 1, 0], 'quattro Ctrl+Z tolgono UNA operazione alla volta, fino al progetto com\'era (la prima operazione compresa)');
+      assert.equal(stuck, 0, 'oltre l\'inizio non succede niente');
+      assert.deepEqual(bBack, { undo: false, redo: true }, 'a storia esaurita «annulla» e\' spento, «ripeti» acceso');
+      assert.deepEqual(fwd, [1, 2, 3, 4], 'quattro Ctrl+Shift+Z riportano avanti uno stato per volta, fino all\'ULTIMO (che nessuno aveva fotografato)');
+      assert.equal(stuckFwd, 4, 'Ctrl+Y oltre l\'ultimo stato non fa niente');
+      assert.deepEqual(bFwd, { undo: true, redo: false });
+      assert.ok(redoAfterNew, 'dopo un\'operazione nuova il ripeti non resuscita il futuro vecchio');
+      assert.equal(undoNew, 2, 'e annullare l\'operazione nuova torna allo stato di prima, non a quello vecchio');
+    });
+
+    await t.test('Ctrl+Z dentro un campo di testo lo annulla il CAMPO (browser), fuori da un campo annulla il progetto', async () => {
+      // Prima il tasto era intercettato OVUNQUE e bloccato: nel campo non annullava il testo, e con passi in storia
+      // annullava il progetto al posto del testo.
+      const nomi = ['campo testo', 'numero', 'ricerca', 'password', 'area di testo', 'contenteditable', 'casella', 'bottone', 'select'];
+      const tipoTesto = new Set(['campo testo', 'numero', 'ricerca', 'password', 'area di testo', 'contenteditable']);
+      const esiti = [];
+      for (const nome of nomi) {
+        const e = await page.evaluate(({ nome }) => {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'lab', type: 'homelab', name: 'NUC-01', x: 400, y: 150, ports: 1 });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          _history = []; _histIdx = -1; _renderAllNow();
+          addVm('lab'); addVm('lab');                      // due operazioni: annullare il progetto sarebbe possibile
+          const inp = (type) => { const x = document.createElement('input'); x.type = type; return x; };
+          const make = {
+            'campo testo': () => inp('text'),
+            'numero': () => inp('number'),
+            'ricerca': () => inp('search'),
+            'password': () => inp('password'),
+            'area di testo': () => document.createElement('textarea'),
+            'contenteditable': () => { const x = document.createElement('div'); x.contentEditable = 'true'; x.tabIndex = 0; return x; },
+            'casella': () => inp('checkbox'),
+            'bottone': () => document.createElement('button'),
+            'select': () => document.createElement('select'),
+          }[nome]();
+          make.id = '__undo_probe'; document.body.appendChild(make); make.focus();
+          window.__prev = null;
+          window.__spia = (ev) => { if ((ev.ctrlKey || ev.metaKey) && ev.key === 'z') window.__prev = ev.defaultPrevented; };
+          document.addEventListener('keydown', window.__spia);
+          return { focused: document.activeElement === make, vmsPrima: nodeById('lab').vms.length };
+        }, { nome });
+        await page.keyboard.press('Control+z'); await page.waitForTimeout(60);
+        const d = await page.evaluate(() => { document.removeEventListener('keydown', window.__spia); const el = document.getElementById('__undo_probe'); if (el) el.remove(); return { prevented: window.__prev, vmsDopo: ((nodeById('lab') || {}).vms || []).length }; });
+        esiti.push({ nome, ...e, ...d });
+      }
+      for (const x of esiti) {
+        assert.ok(x.focused, x.nome + ': il campo ha il fuoco (setup)');
+        if (tipoTesto.has(x.nome)) {
+          assert.equal(x.prevented, false, x.nome + ': in un campo di testo il tasto NON si blocca (resta il Ctrl+Z del browser)');
+          assert.equal(x.vmsDopo, x.vmsPrima, x.nome + ': e non annulla il progetto al posto del testo');
+        } else {
+          assert.equal(x.prevented, true, x.nome + ': fuori da un campo di testo il tasto e\' dell\'app');
+          assert.equal(x.vmsDopo, x.vmsPrima - 1, x.nome + ': e annulla l\'ultima operazione del progetto');
+        }
+      }
+    });
+
+    await t.test('Annulla dopo un assorbimento col GESTO: il tile torna dov\'era partito, non dove l\'hai lasciato', async () => {
+      // Il tile trascinato sulla zona «importa VM» e' sotto il pannello quando lo si lascia: annullare doveva rimetterlo
+      // dov'era PRIMA del trascinamento, non nel punto del rilascio.
+      const J = () => page.evaluate(() => { const b = state.bgImage, a = state.auditLog; state.bgImage = null; state.auditLog = undefined; const x = JSON.stringify(state); state.bgImage = b; state.auditLog = a; return x; });
+      const key = async (k) => { await page.evaluate(() => { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); }); await page.keyboard.press(k); await page.waitForTimeout(60); };
+      const setup = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push({ id: 'lab', type: 'homelab', name: 'NUC-01', x: 140, y: 140, ports: 1, mac: 'AA:BB:CC:00:00:01' });
+        state.nodes.push({ id: 'pcvm', type: 'pc', name: 'VM-App', x: 60, y: 60, ports: 1, mac: 'AA:BB:CC:00:00:55', ip: '10.0.0.55' });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        _history = []; _histIdx = -1; _renderAllNow();
+        if (typeof switchRightTab === 'function') switchRightTab('props');
+        if (typeof setPropsSectionState === 'function') { setPropsSectionState('device-homelab', true); setPropsSectionState('hv-vms', true); }
+        selType = 'node'; selId = 'lab'; renderProps();
+        return { ok: !!document.querySelector('[data-vm-dropzone][data-host-id="lab"]') };
+      });
+      assert.ok(setup.ok, 'setup: la zona «importa VM» c\'e\'');
+      const S0 = await J();
+      const geo = await page.evaluate(() => {
+        const dz = document.querySelector('[data-vm-dropzone][data-host-id="lab"]').getBoundingClientRect();
+        const pc = document.querySelector('[data-id="pcvm"]').getBoundingClientRect();
+        return { px: pc.left + pc.width / 2, py: pc.top + pc.height / 2, dx: dz.left + dz.width / 2, dy: dz.top + dz.height / 2 };
+      });
+      await page.mouse.move(geo.px, geo.py); await page.mouse.down();
+      await page.mouse.move(geo.dx, geo.dy, { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(100);
+      const after = await page.evaluate(() => ({ vms: ((nodeById('lab') || {}).vms || []).length, tile: !!nodeById('pcvm') }));
+      const S1 = await J();
+      await key('Control+z');
+      const back = await page.evaluate(() => { const p = nodeById('pcvm'); return { vms: ((nodeById('lab') || {}).vms || []).length, tile: !!p, x: p && p.x, y: p && p.y }; });
+      const S1b = await J();
+      await key('Control+z');                              // oltre l'inizio non c'e' altro
+      const SstillB = await J();
+      await key('Control+Shift+Z');
+      const redoJ = await J();
+      assert.deepEqual(after, { vms: 1, tile: false }, 'setup: il gesto ha assorbito il tile come VM');
+      assert.deepEqual(back, { vms: 0, tile: true, x: 60, y: 60 }, 'Ctrl+Z: la VM sparisce e il tile e\' di nuovo dov\'era PARTITO (60,60)');
+      assert.equal(S1b, S0, 'lo stato e\' identico a prima del gesto');
+      assert.equal(SstillB, S0, 'e un secondo Ctrl+Z non cambia niente: il trascinamento e l\'assorbimento sono UN passo solo, non due');
+      assert.equal(redoJ, S1, 'Ctrl+Shift+Z: assorbito di nuovo, identico a dopo il gesto');
     });
 
     await t.test('ASSE B — event delegation: menu utente (toggle/account/lingua/logout) via data-act, non su window', async () => {
