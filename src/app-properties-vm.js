@@ -19,17 +19,25 @@
 //
 // ASSE B: questa superficie nasce SENZA handler inline. Ogni campo scrive via
 // data-change="vm-field" + data-vm-field (registrati in app-hypervisor.js), i
-// bottoni via data-act. Le fisarmoniche restano `open` e non persistono lo stato,
-// per scelta di semplicita' (la scheda VM e' effimera). NB: il pannello proprieta
-// principale invece PERSISTE via data-toggle="props-section" — l'evento `toggle`
-// e' ora delegato in fase di CATTURA (non fa bubbling), vedi app-delegation.js.
+// bottoni via data-act.
+//
+// STESSA GRAMMATICA DEL PANNELLO DELL'HOST: le fisarmoniche ricordano se sono aperte
+// (data-toggle="props-section" + data-section="vm-<nome>": l'evento `toggle` e'
+// delegato in fase di CATTURA, non fa bubbling, vedi app-delegation.js); in testata
+// ci sono le frecce «espandi tutto / comprimi tutto» (le stesse azioni delegate del
+// pannello host, che lavorano su ogni <details> di #props-panel); e a sezione CHIUSA
+// ogni intestazione riassume a destra cosa contiene (.props-collapsible-preview, nascosto
+// a sezione aperta). Prima restavano sempre `open` e non ricordavano niente: chiusa una
+// sezione, al primo campo scritto la scheda si ridisegnava e si riapriva.
+// Il riassunto riflette i soli valori DICHIARATI della sezione, e se non c'e' niente dice
+// «vuoto» in grigio corsivo: mai un valore inventato.
 // ============================================================
 import { t } from './_bridge.js';
 import { V3_AUTH, V3_PRIV, V3_LEVELS, V3_DEFAULTS } from '../lib/snmp-v3.js';   // le scelte SNMPv3 sono quelle del driver: un elenco solo
 import { store } from './store.js';
 import { escapeHTML } from './app-util.js';
 import { nodeById, getNodeDisplayName, _enableManualValueInProps } from './app.js';
-import { _buildPropsHeader } from './app-properties.js';
+import { _buildPropsHeader, _propsSectionIsOpen } from './app-properties.js';
 import { _nodeVms, _vmIntg } from './app-hypervisor.js';
 import { _mgmtBuildUrl, _mgmtProtoDef, _mgmtProtoOptionsHtml } from './app-management.js';
 import { vmNics, vmPrimaryIp } from '../lib/vm-nics.js';   // lib pura importata ESM (come lib/ipv6.js)
@@ -214,7 +222,8 @@ function _snmpSectionHtml(vm, ref){
     // offrire un bottone che fallirebbe.
     if(!String(cfg.host || vmPrimaryIp(vm) || '').trim())
         return _section('fa-plug', t('sec.integration'),
-            `<div class="vm-hint"><i class="fas fa-circle-info"></i> ${t('hv.vmSnmpNoIp')}</div>`);
+            `<div class="vm-hint"><i class="fas fa-circle-info"></i> ${t('hv.vmSnmpNoIp')}</div>`,
+            _preview([], 'hv.vmPrevNoIp'), 'vm-integration');
 
     const seen = vm.snmpSeen;
     const rows = [];
@@ -255,6 +264,12 @@ function _snmpSectionHtml(vm, ref){
         ? `<div class="vm-hint vm-hint-warn"><i class="fas fa-triangle-exclamation"></i> ${t('hv.vmSnmpFail', { err: _esc(vm.snmpError) })}</div>`
         : '';
 
+    // Riassunto: il driver e l'esito dell'ultima lettura, come nel pannello dell'host («SNMPv2c · OK»).
+    // Nessuna lettura ancora = solo il driver: niente «OK» che nessuno ha misurato.
+    const drvLbl = drv === 'snmp-v1' ? 'SNMPv1' : drv === 'snmp-v2c' ? 'SNMPv2c' : 'SNMPv3';
+    const stHtml = vm.snmpError ? `<span style="color:#f85149">${t('common.error')}</span>`
+                 : vm.snmpSeen  ? `<span style="color:#39d353">OK</span>` : '';
+
     return _section('fa-plug', t('sec.integration'),
         `<div class="prop-group"><label>Driver</label>`
         + `<select ${ref} data-vm-field="driver" data-change="vm-intg" data-no-manual="1">`
@@ -279,14 +294,29 @@ function _snmpSectionHtml(vm, ref){
         + `<button type="button" class="toolbar-btn primary" style="width:100%;justify-content:center;margin-top:6px" ${ref} data-act="vm-snmp-read">`
         + `<i class="fas fa-satellite-dish"></i> ${t('hv.vmSnmpRead')}</button>`
         + err + measured
-        + `<div class="vm-hint"><i class="fas fa-circle-info"></i> ${t('hv.vmSnmpHint')}</div>`);
+        + `<div class="vm-hint"><i class="fas fa-circle-info"></i> ${t('hv.vmSnmpHint')}</div>`,
+        _preview([drvLbl, stHtml]), 'vm-integration');
 }
 
-function _section(icon, title, bodyHtml, badgeHtml){
-    return `<details class="props-collapsible props-primary" open><summary class="props-collapsible-head">`
-        + `<span><i class="fas ${_esc(icon)}"></i> ${title}</span>${badgeHtml || ''}`
+// Una fisarmonica della scheda. `key` e' l'id con cui ricorda se e' aperta (stesso archivio
+// del pannello host: setPropsSectionState via data-toggle); `previewHtml` e' il riassunto che
+// si vede a sezione chiusa (v. `_preview`). Default: aperta, come la scheda e' sempre stata.
+function _section(icon, title, bodyHtml, previewHtml, key){
+    return `<details class="props-collapsible props-primary" ${_propsSectionIsOpen(key) ? 'open' : ''} `
+        + `data-toggle="props-section" data-section="${_esc(key)}"><summary class="props-collapsible-head">`
+        + `<span><i class="fas ${_esc(icon)}"></i> ${title}</span>${previewHtml || ''}`
         + `<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>`
         + `<div class="props-collapsible-body">${bodyHtml}</div></details>`;
+}
+
+// Riassunto a sezione CHIUSA, nella stessa forma del pannello dell'host. `parts` sono pezzi di HTML
+// GIA' al sicuro (i dati dell'utente passano da _esc, i testi di i18n sono gia' HTML-safe); quelli
+// vuoti si scartano. Se non resta niente: «vuoto», spento e in corsivo — non un valore inventato.
+function _preview(parts, emptyKey){
+    const bits = parts.filter(Boolean);
+    return bits.length
+        ? `<span class="props-collapsible-preview">${bits.join(' · ')}</span>`
+        : `<span class="props-collapsible-preview muted">${t(emptyKey || 'common.empty')}</span>`;
 }
 
 export function _renderVmProps(panel){
@@ -317,17 +347,24 @@ export function _renderVmProps(panel){
     const back = `<button type="button" class="toolbar-btn" data-act="vm-back" data-tip="${_esc(t('hv.vmBack', { host: hostName }))}" aria-label="${_esc(t('hv.vmBack', { host: hostName }))}"><i class="fas fa-arrow-left"></i></button>`;
     // Accento colorato nell'intestazione: logo OS dal guest-OS dichiarato.
     const osIco = osIconHtmlFor({ vmGuest: vm.guestOs }, { accent: true, size: 20 });
+    // Le frecce «espandi tutto / comprimi tutto» sono quelle del pannello dell'host: stesse azioni delegate,
+    // che lavorano su ogni <details> di #props-panel (qui le sei fisarmoniche della scheda).
+    const _tog = (act, tip, icon) => `<button type="button" class="props-toggle-btn" data-act="${_esc(act)}" data-tip="${_esc(tip)}" aria-label="${_esc(tip)}"><i class="fas ${_esc(icon)}"></i></button>`;
+    const arrows = _tog('props-expand-all', t('props.expandAll'), 'fa-angles-down') + _tog('props-collapse-all', t('props.collapseAll'), 'fa-angles-up');
     const header = _buildPropsHeader(vm.name || t('hv.vmUnnamed'), t('hv.vmOnHost', { host: hostName }), 'fa-display',
-        `<span class="props-toggles vm-head-actions">${stateChip}${back}</span>`, '', osIco);
+        `<span class="props-toggles vm-head-actions">${stateChip}${arrows}${back}</span>`, '', osIco);
 
     // Sistema operativo: la lista copre i casi comuni, ma l'harness
     // «Personalizzato…» del pannello permette di digitarne uno qualsiasi — per
     // questo la select dichiara da dove rileggere il valore (data-mkind vm).
     const osRef = `data-mkind="vm" data-mnode="${_esc(host.id)}:${_esc(vm.id)}" data-mfield="guestOs"`;
+    // Nome del sistema come lo mostra la lista; un valore personalizzato (digitato a mano) resta com'e'.
+    const osLabel = (() => { const g = String(vm.guestOs || ''); const hit = _VM_GUEST_OS.find(([v]) => v === g); return hit ? (hit[1] === '—' ? '' : hit[1]) : g; })();
     const identity = _section('fa-id-card', t('hv.vmSecIdentity'),
         _f(ref, 'name', t('hv.vmName'), vm.name, { ph: t('hv.vmNamePh') })
         + _f(ref, 'role', t('hv.vmRole'), vm.role, { ph: t('hv.vmRolePh') })
-        + _sel(ref, 'guestOs', t('f.os'), vm.guestOs, _VM_GUEST_OS, osRef));
+        + _sel(ref, 'guestOs', t('f.os'), vm.guestOs, _VM_GUEST_OS, osRef),
+        _preview([_esc(vm.role), _esc(osLabel)]), 'vm-identity');
 
     // Rete & accesso: COME si raggiunge la macchina (il nome con cui si presenta
     // e la console di gestione). Gli INDIRIZZI non stanno piu' qui: vivono sulle
@@ -337,7 +374,8 @@ export function _renderVmProps(panel){
     // prima scheda che ne ha uno.
     const network = _section('fa-link', t('sec.netAccess'),
         _f(ref, 'hostname', 'Hostname', vm.hostname, { ph: 'dc01.local' })
-        + _mgmtRowVm(vm, ref));
+        + _mgmtRowVm(vm, ref),
+        _preview([_esc(vm.hostname), vm.mgmtProto ? _esc(String(vm.mgmtProto).toUpperCase()) : '']), 'vm-network');
 
     // Porte vNIC: l'elenco delle interfacce di rete virtuali. Mostra sempre
     // almeno una scheda — digitare nella prima riga E' il gesto che la crea, cosi'
@@ -350,18 +388,27 @@ export function _renderVmProps(panel){
         + `<button type="button" class="toolbar-btn" style="width:100%;justify-content:center;margin-top:4px" `
         + `${ref} data-act="vm-nic-add"><i class="fas fa-plus"></i> ${t('hv.vmNicAdd')}</button>`
         + `<div class="vm-hint"><i class="fas fa-info-circle"></i> ${t('hv.vmNicsHint')}</div>`,
-        shown.length > 1 ? `<span class="props-count-badge">${shown.length}</span>` : '');
+        // Riassunto: con piu' schede si dice QUANTE sono e l'indirizzo della prima; con una sola, indirizzo e MAC.
+        _preview((() => {
+            const first = nics.find(n => n.ip || n.ip6 || n.mac) || {};
+            const addr = _esc(first.ip || first.ip6 || '');
+            return nics.length > 1 ? [_esc(t('hv.vmNicCount', { n: nics.length })), addr] : [addr, _esc(first.mac || '')];
+        })()), 'vm-nics');
 
     const resources = _section('fa-microchip', t('hv.vmSecResources'),
         `<div class="prop-grid3">`
         + _f(ref, 'vcpu', 'vCPU', vm.vcpu, { type: 'number', min: 1, max: 1024, ph: '—' })
         + _f(ref, 'ramGb', 'RAM (GB)', vm.ramGb, { type: 'number', min: 0, max: 65536, step: 0.5, ph: '—' })
         + _f(ref, 'diskGb', t('hv.vmDisk'), vm.diskGb, { type: 'number', min: 0, max: 1000000, step: 1, ph: '—' })
-        + `</div>`);
+        + `</div>`,
+        // Riassunto: solo cio' che e' dichiarato in questi tre campi (le misure SNMP stanno nell'Integrazione).
+        _preview([vm.vcpu ? `${_esc(vm.vcpu)} vCPU` : '', vm.ramGb ? `${_esc(vm.ramGb)} GB RAM` : '',
+            vm.diskGb ? t('hv.vmPrevDisk', { n: _esc(vm.diskGb) }) : '']), 'vm-resources');
 
     // Consegna: i campi che un dossier di consegna deve poter stampare e che
     // nessuna scoperta di rete puo' dedurre — chi la gestisce, com'e' protetta,
     // quanto pesa se si ferma.
+    const critKey = (_VM_CRITICALITY.find(([v]) => v === vm.criticality) || [])[1] || '';   // chiave i18n della criticita' dichiarata (vuota se non c'e')
     const handover = _section('fa-clipboard-check', t('hv.vmSecHandover'),
         `<div class="prop-grid2">`
         + _f(ref, 'owner', t('hv.vmOwner'), vm.owner, { ph: t('hv.vmOwnerPh') })
@@ -369,7 +416,9 @@ export function _renderVmProps(panel){
         + `</div>`
         + _f(ref, 'backup', t('hv.vmBackup'), vm.backup, { ph: t('hv.vmBackupPh') })
         + `<div class="prop-group"><label>${t('common.notes')}</label>`
-        + `<textarea rows="3" placeholder="${_esc(t('hv.vmNotesPh'))}" ${ref} data-vm-field="notes" data-change="vm-field">${_esc(vm.notes || '')}</textarea></div>`);
+        + `<textarea rows="3" placeholder="${_esc(t('hv.vmNotesPh'))}" ${ref} data-vm-field="notes" data-change="vm-field">${_esc(vm.notes || '')}</textarea></div>`,
+        // Riassunto: chi la gestisce e quanto pesa se si ferma — i due fatti che si cercano per primi.
+        _preview([_esc(vm.owner), critKey ? t(critKey) : '']), 'vm-handover');
 
     // Ordine: chi e' (identita') → quanto pesa (risorse) → come la raggiungi
     // (rete, poi le sue porte vNIC, poi l'integrazione) → chi risponde e come si

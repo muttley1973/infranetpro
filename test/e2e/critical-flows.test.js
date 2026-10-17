@@ -4120,6 +4120,111 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.dblOpens, 'con intent esplicito (= doppio click) le proprietà del device floor si aprono (VM-Web)');
     });
 
+    await t.test('Scheda VM: frecce «espandi/comprimi tutto» e riassunto a sezione chiusa, come nel pannello dell\'host', async () => {
+      // Il pannello dell'host ha in testata le frecce che aprono/chiudono tutte le sezioni in un colpo, e ogni
+      // sezione chiusa riassume a destra cosa contiene. La scheda VM aveva solo sezioni sempre aperte, che non
+      // ricordavano nemmeno lo stato: chiusa una sezione, al primo campo scritto si riapriva da sola.
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'lab', type: 'homelab', name: 'MacPro5,1', x: 200, y: 120, ports: 1, mac: 'AA:BB:CC:00:00:01', vms: [
+            { id: 'v1', name: 'UNL', role: 'Lab EVE', guestOs: 'linux', vcpu: 4, ramGb: 16, diskGb: 200, hostname: 'unl.lab',
+              owner: 'Mario Rossi', criticality: 'high',
+              nics: [{ id: 'nic1', ip: '192.168.1.234', mac: '50:23:5F:00:2B:00' }],
+              snmpSeen: { at: new Date().toISOString(), sysName: 'unl' } },
+            { id: 'v2' },
+            { id: 'v3', name: 'x', role: '<img src=x onerror="window.__vmx=1">', hostname: '<b>h</b>' },
+            { id: 'v4', name: 'mai letta', nics: [{ id: 'nic1', ip: '10.0.0.4' }] },
+            { id: 'v5', name: 'in errore', nics: [{ id: 'nic1', ip: '10.0.0.5' }], snmpError: 'timeout' },
+          ] });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          const prev = () => [...document.querySelectorAll('#props-panel details.props-collapsible')].map(d => {
+            const p = d.querySelector(':scope > summary .props-collapsible-preview');
+            return { sec: d.getAttribute('data-section'), toggle: d.getAttribute('data-toggle'), open: d.open,
+              text: p ? p.textContent.replace(/\s+/g, ' ').trim() : null, muted: !!(p && p.classList.contains('muted')),
+              shown: p ? getComputedStyle(p).display !== 'none' : false, imgInside: !!(p && p.querySelector('img')) };
+          });
+          const click = (sel) => { const b = document.querySelector(sel); if (!b) return false; b.click(); return true; };
+          const all = (list, k, v) => list.length > 0 && list.every(x => x[k] === v);
+
+          openVmProps('lab', 'v1');
+          const head = document.querySelector('#props-panel .props-selected-title');
+          const hasExpand = !!(head && head.querySelector('[data-act="props-expand-all"]'));
+          const hasCollapse = !!(head && head.querySelector('[data-act="props-collapse-all"]'));
+          const tips = head ? [...head.querySelectorAll('.props-toggle-btn')].map(b => b.getAttribute('data-tip') || '') : [];
+          const stillChip = !!(head && head.querySelector('.vm-state-chip')), stillBack = !!(head && head.querySelector('[data-act="vm-back"]'));
+          const opened0 = prev();                      // di partenza: tutto aperto, e il riassunto non si vede
+
+          click('#props-panel [data-act="props-collapse-all"]');
+          const closed = prev();
+          click('#props-panel [data-act="props-expand-all"]');
+          const reopened = prev();
+
+          // lo stato RESTA: chiusa ogni sezione, scrivere un campo (che ridisegna la scheda) non le riapre
+          click('#props-panel [data-act="props-collapse-all"]');
+          updateVm('lab', 'v1', 'role', 'Router lab');
+          const afterEdit = prev();
+          click('#props-panel [data-act="props-expand-all"]');
+
+          // VM vuota: ogni riassunto è «vuoto», spento, e dice di non avere un indirizzo dove serve
+          openVmProps('lab', 'v2');
+          click('#props-panel [data-act="props-collapse-all"]');
+          const empty = prev();
+          click('#props-panel [data-act="props-expand-all"]');
+
+          // i dati dell'utente nel riassunto sono testo, non markup
+          openVmProps('lab', 'v3');
+          click('#props-panel [data-act="props-collapse-all"]');
+          const hostile = prev();
+          const hostileFired = window.__vmx === 1;
+          click('#props-panel [data-act="props-expand-all"]');
+
+          // l'esito SNMP del riassunto è quello MISURATO: mai letta = solo il driver, errore = errore
+          openVmProps('lab', 'v4'); click('#props-panel [data-act="props-collapse-all"]'); const neverRead = prev();
+          click('#props-panel [data-act="props-expand-all"]');
+          openVmProps('lab', 'v5'); click('#props-panel [data-act="props-collapse-all"]'); const failed = prev();
+          // l'intestazione non esce dal bordo: nessun elemento oltre il suo lato destro (a capo, non tagliato)
+          const hd = document.querySelector('#props-panel .props-selected-title'); const hr = hd.getBoundingClientRect();
+          const outside = [...hd.querySelectorAll('*')].filter(e => e.getBoundingClientRect().right > hr.right + 0.5).length;
+          click('#props-panel [data-act="props-expand-all"]');
+          return { ok: true, hasExpand, hasCollapse, tips, stillChip, stillBack, opened0, closed, reopened, afterEdit, empty, hostile, hostileFired, neverRead, failed, outside,
+            allOpenAtEnd: all(prev(), 'open', true), n: closed.length, tipsOk: tips.length === 2 && tips.every(Boolean), allClosed: all(closed, 'open', false),
+            allOpened0: all(opened0, 'open', true), allHidden0: all(opened0, 'shown', false), allReopened: all(reopened, 'open', true), allHiddenAgain: all(reopened, 'shown', false),
+            allKeptClosed: all(afterEdit, 'open', false) };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore: ' + r.err);
+      assert.ok(r.hasExpand && r.hasCollapse, 'in testata della scheda VM ci sono le due frecce (espandi tutto / comprimi tutto)');
+      assert.ok(r.tipsOk, 'e portano il loro suggerimento');
+      assert.ok(r.stillChip && r.stillBack, 'lo stato e il ritorno all\'host restano dov\'erano');
+      assert.equal(r.n, 6, 'la scheda ha sei sezioni');
+      assert.ok(r.allOpened0 && r.allHidden0, 'di partenza è tutto aperto e il riassunto non si vede (come nel pannello host)');
+      assert.ok(r.allClosed, '«comprimi tutto» chiude tutte le sezioni in un colpo');
+      assert.ok(r.closed.every(x => x.shown), 'e da chiuse ognuna mostra il suo riassunto a destra');
+      assert.ok(r.allReopened && r.allHiddenAgain, '«espandi tutto» le riapre tutte, e i riassunti spariscono');
+      assert.ok(r.closed.every(x => x.toggle === 'props-section' && /^vm-/.test(x.sec || '')), 'ogni sezione ricorda il suo stato (data-toggle="props-section")');
+      const by = (list, sec) => (list.find(x => x.sec === sec) || {}).text || '';
+      assert.match(by(r.closed, 'vm-identity'), /Lab EVE/, 'Identità: il ruolo');
+      assert.match(by(r.closed, 'vm-identity'), /Linux/, 'Identità: il sistema operativo, col nome dell\'elenco');
+      assert.match(by(r.closed, 'vm-resources'), /4 vCPU.*16 GB RAM.*200 GB/, 'Risorse: solo ciò che è dichiarato');
+      assert.match(by(r.closed, 'vm-network'), /unl\.lab/, 'Rete: l\'hostname');
+      assert.match(by(r.closed, 'vm-nics'), /192\.168\.1\.234.*50:23:5F:00:2B:00/i, 'vNIC: indirizzo e MAC della scheda');
+      assert.match(by(r.closed, 'vm-integration'), /SNMPv2c.*OK/, 'Integrazione: il driver e l\'esito, come nel pannello host');
+      assert.match(by(r.closed, 'vm-handover'), /Mario Rossi.*(Alta|High)/, 'Consegna: il responsabile e la criticità');
+      assert.ok(r.allKeptClosed, 'scrivere un campo NON riapre le sezioni chiuse: lo stato resta');
+      assert.match(by(r.afterEdit, 'vm-identity'), /Router lab/, 'e il riassunto segue il valore appena scritto');
+      assert.equal(r.empty.filter(x => x.muted).length, 6, 'una VM vuota: tutti e sei i riassunti sono spenti (in corsivo), mai un valore inventato');
+      assert.ok(r.empty.every(x => x.shown), 'ma si vedono, perché dicono «vuoto»');
+      assert.match(by(r.empty, 'vm-integration'), /indirizzo|address/i, 'e senza indirizzo l\'integrazione lo dice');
+      assert.ok(!r.hostile.some(x => x.imgInside) && !r.hostileFired, 'un ruolo con markup resta testo nel riassunto: nessun elemento, nessun codice eseguito');
+      assert.match(by(r.hostile, 'vm-identity'), /<img/, 'si legge com\'è stato scritto');
+      assert.equal(by(r.neverRead, 'vm-integration'), 'SNMPv2c', 'mai letta: solo il driver, niente «OK» che nessuno ha misurato');
+      assert.match(by(r.failed, 'vm-integration'), /SNMPv2c.*(errore|error)/i, 'una lettura fallita si vede nel riassunto, come nel pannello host');
+      assert.equal(r.outside, 0, 'l\'intestazione non spinge nessun pulsante fuori dal bordo del pannello');
+      assert.ok(r.allOpenAtEnd, 'a fine prova tutto riaperto (lo stato è persistito: non lo si lascia sporco agli altri test)');
+    });
+
     await t.test('VM: import RIPETUTO (76ª) — la zona resta raggiungibile a ogni giro, non scivola fuori dallo scrollport', async () => {
       // BUG storico: la drop-zone stava in FONDO alla lista VM; ogni import ri-renderizzava
       // il pannello (scroll azzerato) spingendola sotto la piega → dal 2° drop in poi

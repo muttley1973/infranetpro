@@ -742,9 +742,13 @@
            .props-selected-main è condiviso da TUTTI i pannelli (device, porta,
            cavo, progetto), che devono restare invariati. */
         .props-selected-title:has(.vm-head-actions) > span:first-child { flex:0 1 auto; }
-        .vm-head-actions { flex:1 1 auto; align-items:center; gap:6px; }
+        /* Le azioni (stato, frecce, ritorno) non si restringono mai sotto il loro contenuto: prima, su un pannello
+           stretto, si comprimevano e i pulsanti uscivano dal bordo (tagliati, il ritorno all'host irraggiungibile).
+           Se titolo e azioni non stanno insieme, le azioni vanno a capo sotto il titolo invece di sparire. */
+        .props-selected-title:has(.vm-head-actions) { flex-wrap:wrap; row-gap:6px; }
+        .vm-head-actions { flex:1 1 auto; min-width:max-content; align-items:center; gap:6px; }
         .vm-head-actions .vm-state-chip { margin-left:auto; margin-right:auto; flex:none; }
-        .vm-head-actions .toolbar-btn { flex:none; }
+        .vm-head-actions .toolbar-btn, .vm-head-actions .props-toggle-btn { flex:none; }
         /* Nota esplicativa dentro la scheda (stessa grammatica di .wifi-inherited). */
         .vm-hint { font-size:var(--fs-xs); color:var(--text-main); background:var(--accent-soft);
                    border:1px solid color-mix(in srgb, var(--accent) 22%, transparent);

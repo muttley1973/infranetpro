@@ -411,7 +411,13 @@ const CAPS = {
     // app-properties-link.js. Nessuno di questi valori e' testo che arriva da fuori.
     'src/app-properties-node.js': 62,
     'src/app-properties-port.js': 33,
-    'src/app-properties-vm.js': 16,
+    // +1 (2026-10-17, da 16): `bits.join(' · ')` in `_preview`, il riassunto a destra di ogni fisarmonica della
+    // scheda VM. Unisce pezzi GIA' costruiti ai punti di chiamata: il testo che arriva dall'utente (ruolo, hostname,
+    // IP, MAC, responsabile, vCPU/RAM/disco) passa da `_esc`, e il resto sono frasi di t() con parametri numerici
+    // o gia' scappati. Lo scanner non segue un array che arriva da un parametro, quindi non puo' dimostrarlo —
+    // stessa causa e stessa forma di `_summaryBits.join(' · ')` in app-properties-link.js. Il test e2e «Scheda VM:
+    // frecce…» prova il caso peggiore: un ruolo con markup resta testo, nessun elemento, nessun codice eseguito.
+    'src/app-properties-vm.js': 17,
     'src/app-properties.js': 15,
     'src/app-render-core.js': 38,
     'src/app-shared-segment.js': 20,
