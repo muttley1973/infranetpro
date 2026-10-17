@@ -88,6 +88,22 @@ test('il vicino annunciato e muto: badge, «Annunciato» e NON pre-spuntato', ()
     'presenza certa ma identità non misurata: si mostra, non si importa da solo');
 });
 
+test('il badge dice «SNMP» (con l\'icona del silenzio), e la spiegazione sta nel tooltip', () => {
+  // Il nome lungo («muto a questa chiave») non piaceva: sulla riga basta la parola della cosa di cui si parla,
+  // l'icona dell'altoparlante barrato dice che tace, il tooltip dice perché e che fare.
+  const html = render([{
+    ip: '10.0.0.2', _via: 'lldp', viaProtocol: 'LLDP', viaFrom: '10.0.0.1', viaPort: 'Gi1/0/24',
+    announcedName: 'SW-PIANO2', hostname: '', mac: '', vendor: '',
+    snmpReachable: false, alive: false, snmpSilent: true,
+  }]);
+  const m = html.match(/<span class="disc-badge snmp-silent"([^>]*)>(.*?)<\/span>/s);
+  assert.ok(m, 'il badge c\'è');
+  assert.equal(m[2].replace(/<[^>]*>/g, '').trim(), 'SNMP', 'il testo visibile è solo «SNMP»');
+  assert.match(m[2], /fa-volume-xmark/, 'l\'icona del silenzio resta: è lei che distingue questo badge da «ha risposto a SNMP»');
+  assert.match(m[1], /data-tip="[^"]*community/, 'il tooltip spiega la community e cosa fare');
+  assert.doesNotMatch(html, /muto a questa chiave/i, 'il vecchio nome lungo non compare più sulla riga');
+});
+
 test('chi ha risposto NON si prende il badge, e nemmeno un host qualunque senza SNMP', () => {
   const html = render([
     { ip: '10.0.0.3', _via: 'lldp', viaProtocol: 'LLDP', snmpReachable: true, alive: true, hostname: 'SW-OK' },
