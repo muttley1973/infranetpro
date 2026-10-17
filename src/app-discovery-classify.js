@@ -6,6 +6,7 @@ import { getNodeByPortId } from './app.js';   // ritiro ponte: funzioni del nucl
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _discExistingNode } from './app-discovery.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { registerChangeActions } from './app-delegation.js';   // ASSE B: checkbox scansione profonda via data-change
+import { buildVmIdentityIndex, findVmByIdentity } from '../lib/vm-nics.js';   // «è già una VM di un host?»: stessa risposta per Scopri, crawl, adozione e assorbimento
 
 // ============================================================
 // DISCOVERY CLASSIFICATION — OUI vendor map, identity matching,
@@ -195,6 +196,11 @@ export function _discBuildExistingIndexes(){
         const owner = (typeof getNodeByPortId === 'function') ? getNodeByPortId(pid) : null;
         if(owner) idx.byMac.set(pm, owner);
     }
+    // Le VM che hai messo sotto un host: una macchina già documentata lì NON e' «Nuova». Prima l'indice
+    // guardava solo nodi e porte, e l'import le creava un tile accanto alla VM (lo stesso IP su due
+    // apparati). Stanno in un capitolo a parte, non in byMac/byIp: il risultato di un match con un nodo si
+    // AGGIORNA, quello con una VM no (è l'host a ospitarla, non e' lui) — v. `vm` in _discFindExistingDevice.
+    idx.vms = buildVmIdentityIndex(store.state.nodes);
     return idx;
 }
 
@@ -276,6 +282,15 @@ export function _discFindExistingDevice(row, idx = _discExistingIndexes()){
     const mac = _macBlocked ? '' : rawMac;
     if(mac && idx.byMac.has(mac)) return { node:idx.byMac.get(mac), matchedBy:'mac' };
 
+    // Una macchina già documentata come VM di un host: il risultato e' `vm`, MAI `node` — chi riceve un nodo
+    // lo aggiorna (e fonderebbe la VM sull'host che la ospita). Un nodo con lo stesso MAC vince (sopra): il
+    // tile gia' presente resta il riferimento, come prima. Il MAC e' l'identita' piu' forte, quindi si guarda
+    // prima di nome e IP dei nodi; nome e IP delle VM si guardano in fondo, dopo i nodi.
+    const _vmIdx = idx.vms || null;
+    const _asVm = (hit) => ({ node:null, matchedBy:'vm-' + hit.by, vm:{ host:hit.host, vm:hit.vm } });
+    const _vmByMac = (_vmIdx && mac) ? findVmByIdentity(_vmIdx, { mac }) : null;
+    if(_vmByMac) return _asVm(_vmByMac);
+
     if(host && idx.byHost.has(host)){
         const node = idx.byHost.get(host);
         const nodeMacs = _discNodeMacs(node);
@@ -294,6 +309,10 @@ export function _discFindExistingDevice(row, idx = _discExistingIndexes()){
         }
         return { node, matchedBy:'ip' };
     }
+
+    // Nessun nodo: per nome o per IP puo' essere una VM (con la stessa clausola dei nodi: il MAC non la smentisce).
+    const _vmHit = _vmIdx ? findVmByIdentity(_vmIdx, { mac, name:host, ips:[row?.ip, row?.ip6] }) : null;
+    if(_vmHit) return _asVm(_vmHit);
 
     return { node:null, matchedBy:'' };
 }

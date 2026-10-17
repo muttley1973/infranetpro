@@ -926,7 +926,12 @@ function handlePointerUp(e){
                 // absorbNodeAsVm + toast con hint Ctrl+Z). NIENTE riposizionamento.
                 const _src=store.dragNode;
                 store.dragNode=null;
-                absorbNodeAsVm(_src, _drop.host);
+                // Rifiutato (e' gia' una VM, non e' idoneo): il tile TORNA dov'era, come per l'area sbagliata. Il toast
+                // del perche' lo da' absorbNodeAsVm; qui si rimette solo il tile al suo posto.
+                if(!absorbNodeAsVm(_src, _drop.host) && _dn && _floorDragOrigin && nodeById(_src)){
+                    _dn.x=_floorDragOrigin.x; _dn.y=_floorDragOrigin.y;
+                    renderAll();
+                }
             } else if(_isFloorDrag && !_drop.onFloor && _floorDragOrigin){
                 // Device floor rilasciato FUORI dalla planimetria e NON sulla zona import
                 // → torna alla posizione di partenza + avviso (niente tile "perso" sotto

@@ -3841,6 +3841,127 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.macNorm, 'AA:BB:CC:00:99:00', 'updateVm normalizza il MAC della VM');
     });
 
+    await t.test('VM: una macchina, un posto — non si assorbe due volte lo stesso MAC o IP', async () => {
+      // Il caso vero (progetto 24): ESKO-LIC-22 era VM di Sinology e fu assorbita anche su MacPro5,1; l'IPAM
+      // accusava lo stesso IP su due apparati. Ora l'assorbimento rifiuta SENZA toccare niente e dice dove sta l'altra.
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'lab',  type: 'homelab', name: 'NUC-01', x: 200, y: 120, ports: 1, mac: 'AA:BB:CC:00:00:01',
+            vms: [{ id: 'v1', name: 'UNL', nics: [{ id: 'nic1', ip: '192.168.1.234', mac: '50:23:5F:00:2B:00' }] }] });
+          state.nodes.push({ id: 'lab2', type: 'homelab', name: 'NUC-02', x: 400, y: 120, ports: 1, mac: 'AA:BB:CC:00:00:02' });
+          // stessa macchina: stesso MAC (scritto in un altro formato) e stesso IP
+          state.nodes.push({ id: 'pcmac', type: 'pc', name: 'UNL',   x: 60,  y: 60,  ports: 1, mac: '50-23-5f-00-2b-00', ip: '192.168.1.234' });
+          // cross-subnet: solo l'IP, nessun MAC
+          state.nodes.push({ id: 'pcip',  type: 'pc', name: 'senzamac', x: 60, y: 160, ports: 1, ip: '192.168.1.234' });
+          // un'ALTRA macchina che ha preso lo stesso IP: non è la stessa, quindi si può assorbire (e l'IPAM lo accuserà)
+          state.nodes.push({ id: 'pcalt', type: 'pc', name: 'altra', x: 60, y: 260, ports: 1, ip: '192.168.1.234', mac: '00:AA:00:AA:00:99' });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+
+          const nToasts = () => document.querySelectorAll('.toast-msg').length;
+          const t0 = nToasts();
+          const byMac = absorbNodeAsVm('pcmac', 'lab2');
+          const toastText = [...document.querySelectorAll('.toast-msg')].slice(t0).map(e => e.textContent).join(' | ');
+          const afterMac = { tile: !!nodeById('pcmac'), vms2: (nodeById('lab2').vms || []).length };
+          const byIp = absorbNodeAsVm('pcip', 'lab2');
+          const afterIp = { tile: !!nodeById('pcip'), vms2: (nodeById('lab2').vms || []).length };
+          const sameHost = absorbNodeAsVm('pcmac', 'lab');   // anche sullo STESSO host: sarebbe un doppione dentro l'host
+          const alt = absorbNodeAsVm('pcalt', 'lab2');
+          return { byMac, toastText, afterMac, byIp, afterIp, sameHost, alt, altVms: (nodeById('lab2').vms || []).length };
+        } catch (e) { return { err: String(e && e.stack || e) }; }
+      });
+      assert.ok(!r.err, 'nessun errore: ' + r.err);
+      assert.equal(r.byMac, false, 'lo stesso MAC (scritto in un altro formato) di una VM già documentata: rifiutato');
+      assert.ok(r.afterMac.tile, 'il rifiuto NON tocca niente: il tile (col suo cavo) è ancora lì');
+      assert.equal(r.afterMac.vms2, 0, 'e nessuna VM nata sul secondo host');
+      assert.ok(/UNL/.test(r.toastText) && /NUC-01/.test(r.toastText), 'il perché dice quale VM e su quale host: ' + r.toastText);
+      assert.equal(r.byIp, false, 'lo stesso IP senza MAC (cross-subnet) di una VM già documentata: rifiutato');
+      assert.ok(r.afterIp.tile && r.afterIp.vms2 === 0, 'anche qui niente è cambiato');
+      assert.equal(r.sameHost, false, 'nemmeno sullo stesso host che già la ospita');
+      assert.equal(r.alt, true, 'un\'ALTRA macchina (MAC diverso) con lo stesso IP si assorbe: non è la stessa, e il conflitto vero resta all\'IPAM');
+      assert.equal(r.altVms, 1);
+    });
+
+    await t.test('VM: rilascio DENTRO la zona di una macchina GIÀ documentata → rifiutato, il tile TORNA dov\'era (gesto reale)', async () => {
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'lab',  type: 'homelab', name: 'NUC-01', x: 140, y: 140, ports: 1, mac: 'AA:BB:CC:00:00:01' });
+          state.nodes.push({ id: 'lab2', type: 'homelab', name: 'NUC-02', x: 400, y: 140, ports: 1, mac: 'AA:BB:CC:00:00:02',
+            vms: [{ id: 'v1', name: 'ESKO-LIC-22', nics: [{ id: 'nic1', ip: '192.168.1.192', mac: '02:11:32:2D:28:2B' }] }] });
+          state.nodes.push({ id: 'pcdup', type: 'pc', name: 'ESKO-LIC-22', x: 60, y: 60, ports: 1, mac: '02:11:32:2D:28:2B', ip: '192.168.1.192' });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          _renderAllNow();
+          if (typeof switchRightTab === 'function') switchRightTab('props');
+          if (typeof setPropsSectionState === 'function') { setPropsSectionState('device-homelab', true); setPropsSectionState('hv-vms', true); }
+          selType = 'node'; selId = 'lab'; renderProps();
+          const dz = document.querySelector('[data-vm-dropzone][data-host-id="lab"]');
+          const pcEl = document.querySelector('[data-id="pcdup"]');
+          const pcR = pcEl.getBoundingClientRect(), dzR = dz.getBoundingClientRect();
+          const px = pcR.left + pcR.width / 2, py = pcR.top + pcR.height / 2;
+          const dx = dzR.left + dzR.width / 2, dy = dzR.top + dzR.height / 2;
+          const ox = nodeById('pcdup').x, oy = nodeById('pcdup').y;
+          const t0 = document.querySelectorAll('.toast-msg').length;
+          pcEl.dispatchEvent(new PointerEvent('pointerdown', { clientX: px, clientY: py, button: 0, bubbles: true }));
+          window.dispatchEvent(new PointerEvent('pointermove', { clientX: dx, clientY: dy, button: 0, bubbles: true }));
+          window.dispatchEvent(new PointerEvent('pointerup', { clientX: dx, clientY: dy, button: 0, bubbles: true }));
+          const pc = nodeById('pcdup');
+          const toast = [...document.querySelectorAll('.toast-msg')].slice(t0).map(e => e.textContent).join(' | ');
+          return { vmCount: (nodeById('lab').vms || []).length, vmCount2: (nodeById('lab2').vms || []).length,
+            tilePresent: !!pc, x: pc ? pc.x : null, y: pc ? pc.y : null, ox, oy, toast };
+        } catch (e) { return { err: String(e && e.stack || e) }; }
+      });
+      assert.ok(!r.err, 'nessun errore: ' + r.err);
+      assert.equal(r.vmCount, 0, 'nessuna VM nata sull\'host su cui hai rilasciato');
+      assert.equal(r.vmCount2, 1, 'e quella che c\'era resta dov\'era');
+      assert.ok(r.tilePresent, 'il tile resta in vita (col suo cavo)');
+      assert.equal(r.x, r.ox, 'il tile TORNA alla X di partenza (non resta perso sotto il pannello)');
+      assert.equal(r.y, r.oy, 'il tile TORNA alla Y di partenza');
+      assert.ok(/ESKO-LIC-22/.test(r.toast) && /NUC-02/.test(r.toast), 'il toast dice dove sta già: ' + r.toast);
+    });
+
+    await t.test('Scopri: un apparato già documentato come VM è «Già presente» e l\'import NON crea un tile', async () => {
+      // Il caso vero (progetto 24): UNL era una VM di MacPro5,1, Scopri la riproponeva come «Nuovo»,
+      // l'import creava `pc14` con lo stesso IP e lo stesso MAC, e l'IPAM accusava il doppione.
+      const r = await page.evaluate(async () => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'lab', type: 'homelab', name: 'MacPro5,1', x: 200, y: 120, ports: 1, mac: 'E8:06:88:CB:DC:AA', ip: '192.168.1.150',
+            vms: [{ id: 'v1', name: 'UNL', nics: [{ id: 'nic1', ip: '192.168.1.234', mac: '50:23:5F:00:2B:00' }] }] });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          openDiscovery();
+          window._discResults = [
+            { ip: '192.168.1.234', mac: '50:23:5f:00:2b:00', hostname: 'UNL', alive: true, deviceClass: 'pc', vendor: '', sources: [{ id: 'arp', label: 'ARP' }], confidence: { score: 80, level: 'high' } },
+            { ip: '192.168.1.99',  mac: 'EC:71:DB:11:22:33', hostname: 'nuovo-pc', alive: true, deviceClass: 'pc', vendor: '', sources: [{ id: 'arp', label: 'ARP' }], confidence: { score: 80, level: 'high' } },
+          ];
+          _discRenderTable();
+          const recs = [...document.querySelectorAll('#disc-tbody tr')].map(tr => {
+            const b = tr.querySelector('.disc-badge[class*="rec-"]');
+            return { cls: b ? b.className : '', tip: b ? (b.getAttribute('data-tip') || '') : '' };
+          });
+          document.querySelectorAll('#disc-tbody .disc-chk').forEach(c => { c.checked = true; });
+          const t0 = document.querySelectorAll('.toast-msg').length;
+          const before = state.nodes.length;
+          await importDiscovered();
+          const toast = [...document.querySelectorAll('.toast-msg')].slice(t0).map(e => e.textContent).join(' | ');
+          return { recs, before, after: state.nodes.length, ipOwners: state.nodes.filter(n => n.ip === '192.168.1.234').length,
+            newOne: state.nodes.filter(n => n.ip === '192.168.1.99').length, toast };
+        } catch (e) { return { err: String(e && e.stack || e) }; }
+      });
+      assert.ok(!r.err, 'nessun errore: ' + r.err);
+      assert.equal(r.recs.length, 2);
+      assert.ok(r.recs[0].cls.includes('rec-same'), 'la VM già documentata NON è «Nuovo»: ' + r.recs[0].cls);
+      assert.ok(/UNL/.test(r.recs[0].tip) && /MacPro5,1/.test(r.recs[0].tip), 'il tooltip dice quale VM e su quale host: ' + r.recs[0].tip);
+      assert.ok(r.recs[1].cls.includes('rec-new'), 'un apparato che non c\'è resta «Nuovo»');
+      assert.equal(r.ipOwners, 0, 'NESSUN tile con l\'IP della VM: l\'IP sta solo sulla VM');
+      assert.equal(r.newOne, 1, 'l\'apparato davvero nuovo viene importato');
+      assert.equal(r.after, r.before + 1, 'un solo nodo in più: quello nuovo');
+      assert.ok(/VM/.test(r.toast), 'l\'esito lo dice: ' + r.toast);
+    });
+
     await t.test('VM: rilascio DENTRO la drop-zone → import (gesto reale)', async () => {
       const r = await page.evaluate(() => {
         try {
@@ -5020,6 +5141,75 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.delta, 2, 'state.nodes cresce di 2');
       assert.equal(r.dedup, 1, 'dedup: il MAC già adottato viene saltato');
       assert.ok(r.overlayRendered, 'openAdoptModal rende 2 righe nella tabella');
+    });
+
+    await t.test('app-drift-adopt: un MAC che è già una VM di un host non si adotta come nodo', async () => {
+      // La Verifica non lo propone (i MAC delle VM sono deviceSigs), ma chi adotta da una lista di candidati
+      // (lease DHCP, FDB) non passa da lì: l'indice «esiste già?» deve conoscere le VM anche qui.
+      const r = await page.evaluate(() => {
+        try {
+          state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+          state.nodes.length = 0; state.links.length = 0; state.ports = {};
+          state.nodes.push({ id: 'lab', type: 'homelab', name: 'NUC-01', x: 200, y: 120, ports: 1, mac: 'AA:BB:CC:00:00:01',
+            vms: [{ id: 'v1', name: 'UNL', nics: [{ id: 'nic1', ip: '192.168.1.234', mac: '50:23:5F:00:2B:00' }] }] });
+          if (typeof _invalidateIdx === 'function') _invalidateIdx();
+          const res = _adoptCreateNodes([
+            { cand: { mac: '50-23-5f-00-2b-00', ip: '192.168.1.234', hostname: 'UNL' }, type: 'pc' },
+            { cand: { mac: '11:22:33:44:55:66', ip: '192.168.1.88', hostname: 'altro' }, type: 'pc' },
+          ], false);
+          return { ok: true, added: res.added, skipped: res.skipped, nodes: state.nodes.map(n => n.id), tileForVm: state.nodes.filter(n => n.ip === '192.168.1.234').length };
+        } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+      });
+      assert.ok(r.ok, 'nessun errore: ' + r.err);
+      assert.equal(r.skipped, 1, 'il MAC della VM è già documentato: saltato');
+      assert.equal(r.added, 1, 'l\'altro, che non c\'è, viene adottato');
+      assert.equal(r.tileForVm, 0, 'nessun tile accanto alla VM');
+    });
+
+    await t.test('Topologia (crawl): un apparato già documentato come VM non diventa un tile', async () => {
+      const ROTTA = '**/api/discover/topology';
+      await page.route(ROTTA, async (route) => {
+        const ev = [
+          { type: 'found', total: 1, device: { ip: '192.168.1.234', hostname: 'UNL', mac: '50:23:5F:00:2B:00', descr: 'Linux UNL 5.4', depth: 1 } },
+          { type: 'found', total: 2, device: { ip: '192.168.1.88', hostname: 'sw-nuovo', mac: '11:22:33:44:55:66', descr: 'switch', depth: 1 } },
+          { type: 'done', total: 2 },
+        ];
+        await route.fulfill({ status: 200, contentType: 'text/event-stream', body: ev.map(e => 'data: ' + JSON.stringify(e) + '\n\n').join('') });
+      });
+      try {
+        const r = await page.evaluate(async () => {
+          try {
+            state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+            state.nodes.length = 0; state.links.length = 0; state.ports = {};
+            state.nodes.push({ id: 'lab', type: 'homelab', name: 'MacPro5,1', x: 200, y: 120, ports: 1, mac: 'E8:06:88:CB:DC:AA', ip: '192.168.1.150',
+              vms: [{ id: 'v1', name: 'UNL', nics: [{ id: 'nic1', ip: '192.168.1.234', mac: '50:23:5F:00:2B:00' }] }] });
+            if (typeof _invalidateIdx === 'function') _invalidateIdx();
+            openTopoCrawl();
+            document.getElementById('td-seed').value = '192.168.1.1';
+            document.querySelector('[data-act="topo-crawl-run"]').click();
+            let tries = 0;
+            while ((document.querySelectorAll('#td-tbody tr').length < 2 || document.getElementById('td-import-btn').style.display === 'none') && tries++ < 80) {
+              await new Promise(res => setTimeout(res, 50));
+            }
+            const rows = document.querySelectorAll('#td-tbody tr').length;
+            const t0 = document.querySelectorAll('.toast-msg').length;
+            const before = state.nodes.length;
+            document.querySelector('[data-act="topo-crawl-import"]').click();
+            const toast = [...document.querySelectorAll('.toast-msg')].slice(t0).map(e => e.textContent).join(' | ');
+            return { ok: true, rows, before, after: state.nodes.length,
+              tileForVm: state.nodes.filter(n => n.ip === '192.168.1.234').length,
+              newOne: state.nodes.filter(n => n.ip === '192.168.1.88').length, toast };
+          } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
+        });
+        assert.ok(r.ok, 'nessun errore: ' + r.err);
+        assert.equal(r.rows, 2, 'la tabella del crawl ha le due righe');
+        assert.equal(r.tileForVm, 0, 'NESSUN tile con l\'IP della VM');
+        assert.equal(r.newOne, 1, 'l\'apparato davvero nuovo viene importato');
+        assert.equal(r.after, r.before + 1);
+        assert.ok(/VM/.test(r.toast), 'l\'esito lo dice: ' + r.toast);
+      } finally {
+        await page.unroute(ROTTA);
+      }
     });
 
     await t.test('app-drift migrato: snapshot DOC + render pannello + azioni 1-click nel browser reale', async () => {

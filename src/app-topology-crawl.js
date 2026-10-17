@@ -257,6 +257,7 @@ function importTopoCrawl(){
     let updated = 0;
     let floorCount = 0;
     let conflicts = 0;
+    let vmKnown = 0;
     const fvp = store.state.floorView || { x:0, y:0, zoom:1 };
     const fpEl = document.getElementById('floorplan');
     const fpW = fpEl ? fpEl.clientWidth : 800;
@@ -268,6 +269,8 @@ function importTopoCrawl(){
         const def = TYPES[d.type];
         if(!def) return;
         const match = _discFindExistingDevice(d, existingIdx);
+        // Gia' documentato come VM di un host: niente tile accanto alla VM (stessa regola di Scopri).
+        if(!match.node && match.vm){ vmKnown++; return; }
         if(match.conflict?.existing){
             _discMarkIpMacConflict(match.conflict.existing, d);
             conflicts++;
@@ -356,6 +359,7 @@ function importTopoCrawl(){
     if(floorCount > 0) parts.push(`${floorCount} in planimetria`);
     if(updated > 0) parts.push(`${updated} aggiornati`);
     if(conflicts > 0) parts.push(`${conflicts} conflitti IP/MAC`);
+    if(vmKnown > 0) parts.push(t('disc.imp.vmKnown', { n: vmKnown }));
     _showToast(parts.join(' · ') || t('msg.net.noChanges'), imported || updated ? 'ok' : 'warn');
 }
 

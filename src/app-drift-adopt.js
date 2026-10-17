@@ -195,7 +195,8 @@ function _adoptCreateNodes(picks, autoLink){
         // Dedup: se il MAC è già documentato, non duplicare.
         if(existingIdx){
             const match = _discFindExistingDevice({ mac: macN }, existingIdx);
-            if(match && match.node){ skipped++; return; }
+            // Ne' un nodo ne' una VM di un host: lo stesso MAC non si documenta due volte.
+            if(match && (match.node || match.vm)){ skipped++; return; }
         }
         const name = cand.hostname || cand.vendor || macN || def.name;   // il nome dal lease (se c'è) vince
         const nid = (typeof _nextNodeId === 'function') ? _nextNodeId(type, usedNodeIds) : uid(type);

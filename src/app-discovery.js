@@ -2,7 +2,7 @@ import { win, expose } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeMacAddress } from './app-util.js';
 import { recognizeModel } from './app-device-types.js';   // riconoscimento modello a scansione (proposta)
-import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId, _vlanIpam, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId, _vlanIpam, logAudit, getNodeDisplayName } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { _ensureVlanColor, updateVlanIpam } from './app-vlan-autopoll.js';   // associazione VLAN↔subnet dallo scan (declare-first)
 import { prefixesOf } from '../lib/ipam-model.js';   // le VLAN note includono quelle citate da un prefisso
 import { markFromRead, fillFromRead, confirmFromRead, markFilledFromRead } from '../lib/field-provenance.js';   // la regola: chi scrive per conto di una lettura ne registra la provenienza
@@ -857,7 +857,16 @@ export function _discExistingNode(d){
 }
 
 function _discReconcileInfo(d, type){
-    const existing = _discExistingNode(d);
+    const found = _discFindExistingDevice(d);
+    const existing = found.node || null;
+    // Gia' documentato come VM di un host: non e' «Nuovo» (l'import non crea niente) e non si «aggiorna»
+    // (la VM non e' un nodo). Si dice DOVE sta, cosi' chi legge sa dove cercarlo.
+    if(!existing && found.vm){
+        const host = found.vm.host, vm = found.vm.vm;
+        return { label:_dt('disc.rec.same','Già presente'), cls:'same', title:_dt('disc.tip.existsAsVm',
+            'Esiste già come VM «{vm}» sull\'host «{host}»: non verrà creato un nuovo dispositivo.',
+            { vm: vm.name || vm.hostname || vm.id || '', host: getNodeDisplayName(host) || host.name || host.id || '' }) };
+    }
     if(!existing) return { label:_dt('disc.rec.new','Nuovo'), cls:'new', title:_dt('disc.tip.willCreate','Verrà creato un nuovo dispositivo') };
     const changes = [];
     const strongIdentity = _discHasStrongIdentity(d);
@@ -1308,7 +1317,7 @@ async function importDiscovered(){
         // condivisione del MAC-gateway e badge preview ↔ esito import coincidono.
         if(typeof _discAttachMergeGuards === 'function') _discAttachMergeGuards(existingIdx);
 
-        let imported=0, updated=0, floorCount=0, conflicts=0;
+        let imported=0, updated=0, floorCount=0, conflicts=0, vmKnown=0;
         const _importedEndpoints=[];
         const fvp = store.state.floorView || {x:0,y:0,zoom:1};
         const fpEl = document.getElementById('floorplan');
@@ -1326,6 +1335,9 @@ async function importDiscovered(){
             // concreto rilevato (v1/v2c/v3); v2c solo come ripiego se la versione manca.
             const importDriver = d.snmpReachable ? (d.snmpDriver || driver) : '';
             const match = _discFindExistingDevice(d, existingIdx);
+            // Gia' documentato come VM di un host: nessun tile accanto alla VM (era cosi' che lo stesso IP finiva su
+            // due apparati). Non si aggiorna niente: la VM non e' un nodo, e una VM non entra nell'audit di presenza.
+            if(!match.node && match.vm){ vmKnown++; return; }
             // MAC da SCRIVERE come identità del nodo: '' se è un MAC di next-hop
             // (gateway/proxy-ARP/VRRP) — non è l'identità dell'host (DISC-A1). Stesso
             // predicato del match (F4/F5): coerenza fra chi trova e chi scrive.
@@ -1567,6 +1579,7 @@ async function importDiscovered(){
         if(updated > 0)               parts.push(_dt('disc.imp.updated','{n} aggiornati',{n:updated}));
         if(autoLinked > 0)            parts.push(_dt('disc.imp.autoLinked','{n} collegati auto',{n:autoLinked}));
         if(conflicts > 0)             parts.push(_dt('disc.imp.conflicts','{n} conflitti IP/MAC',{n:conflicts}));
+        if(vmKnown > 0)               parts.push(_dt('disc.imp.vmKnown','{n} già documentati come VM',{n:vmKnown}));
         // Storia del documento: l'import da discovery è un evento strutturale come
         // aggiungere un device o un Sync. pushHistory() lo rende annullabile, ma il
         // GIORNALE «chi/quando/cosa» non lo registrava — un buco nella provenienza (gruppo G).
