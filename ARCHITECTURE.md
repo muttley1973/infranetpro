@@ -234,6 +234,17 @@ lib/                   Shared browser + test modules (the heart of the app)
   host-name.js      `isJunkHostName`: a hostname that is a machine blob (UUID, MAC, serial)
                     versus a name a person chose (`dc-01`); the cut is the length of the hex
                     run, not its alphabet  (pure)
+  vm-nics.js        a VM's network cards, read tolerantly (`vm.nics[]`, or the old flat fields
+                    as one implicit card), and "is this machine already a VM?":
+                    `buildVmIdentityIndex` / `findVmByIdentity` — the MAC of any vNIC, then the
+                    name, then the IP of any vNIC (`addrKey`, never the raw string). Name and
+                    IP count only when the MAC does not contradict them (a different MAC on the
+                    same IP is another machine, for the IPAM audit to flag); a next-hop MAC is
+                    not an identity. Discover, the topology crawl, the Verify adoption and the
+                    drop onto a host all ask it, so they cannot disagree  (pure)
+  undo-history.js   the model of undo/redo — `record` / `undo` / `redo` / `canUndo` / `canRedo`
+                    over a list of snapshots and an index — plus `shortcutAction` and
+                    `isTextEditingTarget` (see "Undo: the snapshot is taken before the change")  (pure)
   concurrency-gate.js  `createGate({max, queue, waitMs})`: N in flight, M waiting, the rest
                     refused at once — what keeps a burst of password checks from adding up
                     CPU in a single process  (Node)
@@ -1899,6 +1910,37 @@ copy of the file *before*, and existing files are tightened at startup.
   preserves the resolved vendor (`_discCrawlRow`, `src/app-discovery.js`). The two discovery
   items this section used to leave open — the ping-sweep **exit-code false positive** and the
   **off-segment ping-only** miss under sweep load — are both addressed (above).
+
+### Undo: the snapshot is taken before the change
+
+Every operation calls `pushHistory()` first — "remember how it is now" — and then changes the
+project, so the history holds the states *before* the operations and the current state is in no
+list until it is needed. `lib/undo-history.js` is the model. `record` drops the redo tail and
+never records the same state twice (two calls in a row, or one right after an undo, are one
+point). `undo` keeps the current state after the points when it differs from the last point, so
+redo has somewhere to go — and a change nobody recorded (a panel field, a Sync run) can be undone
+and redone too; "differs" is decided by comparing, not by a flag (the flag in `app-history.js`
+only lights the buttons). The history is replaced, never edited in place, and keeps 60 points
+(a snapshot is the whole project: hundreds of KB at 500 devices).
+
+What is not obvious from the code:
+
+- A caller that snapshots *after* changing breaks the order: the snapshot is the new state and
+  undo removes nothing. Dragging used to; it snapshots when the drag starts
+  (`app-pointer.js`), which also makes moving a rack icon and resizing a room undoable. A tile
+  dropped on the "import VM" zone is put back at its start *before* it is absorbed, so undoing
+  the absorption returns it there and the drag plus the absorption are one step.
+- The shortcut letter is compared lower case — with Shift or Caps Lock the browser reports
+  `"Z"`, and Ctrl+Shift+Z never worked on a real keyboard. Inside a text field, text area or
+  contenteditable (not read-only, not disabled) the key is the browser's: it undoes the typing,
+  and the app must not intercept it. On a checkbox, a button or a select it is the app's. With
+  Alt held it is not ours (AltGr is Ctrl+Alt on many keyboards).
+- ⛔ A test of undo does a real operation and presses the real key, with the letter a keyboard
+  sends (`Control+Shift+Z`, upper case). The suite once checked only that `undo` lit "Save", then
+  a fake two-state history; both passed while the first operation after loading could not be
+  undone and redo lost the last one.
+- Not recorded yet: the panel fields (`updateN`, `updateFloorId`, `updateVm`, `updateP`…), so
+  an edit made right after loading is not undoable.
 
 ### Touch input (tablet)
 

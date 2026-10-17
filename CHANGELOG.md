@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.11.18] — 2026-10-17
+
+A machine you documented stays documented, Ctrl+Z does what it says, and the VM card closes like the host panel.
+
+### Added
+
+- **The VM card has the host panel's arrows and summaries.** Expand all and collapse all sit in the header; a closed section says on the right what it holds — role and OS; vCPU, RAM and disk; hostname; address and MAC; the SNMP outcome; owner and criticality, or "empty" in grey when nothing is declared — and the card remembers which sections you closed instead of reopening them at the next field you write. On a narrow panel the header's buttons wrap under the title instead of running off the edge.
+
+### Fixed
+
+- **Ctrl+Z undoes one operation at a time, and Ctrl+Y gets you back.** On a freshly loaded project the first operation could not be undone, the first Ctrl+Z skipped one, and redo never reached the last state — undo then redo lost the last operation for good. Ctrl+Shift+Z never worked on a real keyboard, and Ctrl+Z was blocked inside text fields, where it now undoes the typing. Moving a tile, a rack icon or a room is one undoable step. Edits made in the panel fields are not recorded yet.
+- **A machine already documented as a VM is no longer "New".** Discover, the topology crawl and the Verify adoption looked only at devices and their ports, so a VM came back as a new tile next to itself and the IPAM audit reported one IP on two devices. They now say "Already present", with the VM and its host in the tooltip. Dropping a tile whose MAC (or IP, with no contradicting MAC) is already a VM of any host is refused, with a notice that names the other one; a different MAC on the same IP is another machine and stays a real conflict.
+
+### Changed
+
+- **The "silent to this key" badge on a Discover row reads "SNMP"**, with the muted speaker and the same tooltip. The filter above the table keeps its name.
+
 ## [2.11.17] — 2026-10-16
 
 A neighbour is created as what it says it is, a hostile id can no longer run code, and the discovery tells you when it could not look.
