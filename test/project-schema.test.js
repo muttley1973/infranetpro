@@ -142,7 +142,11 @@ test('CRICCHETTO — la classifica non elenca campi mai visti in nessun progetto
     // dichiarato dal cavo, e lo toglie quando tornano a combaciare. Esiste solo in un progetto SALVATO dopo una
     // Verifica su una rete con un cavo spostato — il censimento del 28/08 non poteva contenerlo — e l'ha trovato il
     // guard sui progetti veri, su una rete vera. Derivato: si ricalcola, non esce nell'export.
-    'miscabled']);
+    'miscabled',
+    // Capacita' dell'hypervisor, VLAN di gestione e sistema operativo dichiarato (17/10): select e campi del pannello
+    // che esistono solo dopo che una persona li compila — il censimento del 28/08 non aveva nessun hypervisor compilato.
+    // Dichiarazioni: escono nell'export. Il guard sui progetti veri li ha trovati sul PC di sviluppo.
+    'hvPlatform', 'hvRamGb', 'hvStorageTb', 'osType']);
   for (const scope of Object.keys(CENSUS)) {
     const visti = new Set(keysOf(scope));
     const extra = Object.keys(FIELD_CLASS_BY_SCOPE[scope]).filter(k => !visti.has(k) && !attesi.has(k));
@@ -184,6 +188,19 @@ test('link.miscabled e\' DERIVATO: lo scrive la Verifica, si ricalcola, e non vi
   assert.strictEqual(out.links[0].src, 'a-1', 'il cavo resta');
   assert.strictEqual(out.links[0].label, 'dorsale', 'e quello che ha scritto una persona pure');
   assert.deepStrictEqual(state.links[0].miscabled, { observed: 'sw9', declared: 'sw2' }, 'l\'originale non si tocca');
+});
+
+test('spec: piattaforma, RAM e storage dell\'hypervisor, VLAN di gestione e sistema operativo sono DOCUMENTO e restano nell\'export', () => {
+  for (const k of ['hvPlatform', 'hvRamGb', 'hvStorageTb', 'mgmtVlan', 'osType']) {
+    assert.strictEqual(classifyField('spec', k), 'document', `spec.${k} lo scrive una persona`);
+  }
+  const { sanitizePortableState } = require('../lib/project-format.js');
+  const out = sanitizePortableState({
+    nodes: [{ id: 'hv1', type: 'hypervisor', name: 'ESX1', spec: { hvPlatform: 'vmware', hvRamGb: 256, hvStorageTb: 12, mgmtVlan: 10, osType: 'win11' } }],
+    links: [], ports: {},
+  });
+  assert.deepStrictEqual(out.nodes[0].spec, { hvPlatform: 'vmware', hvRamGb: 256, hvStorageTb: 12, mgmtVlan: 10, osType: 'win11' },
+    'una dichiarazione esce: sono i dati che l\'utente ha compilato');
 });
 
 test('sui progetti VERI, se ci sono, nessun campo sfugge (in CI questo test passa a vuoto)', () => {
