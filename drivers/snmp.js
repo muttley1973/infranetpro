@@ -1839,7 +1839,17 @@ const { wirelessIfNames, isWirelessInterface } = require('../lib/wifi-assoc.js')
 // IP che un vicino dichiara di sé: scartati 0.x, loopback, link-local, multicast (stessa regola per LLDP e CDP).
 const { usableNeighborIp } = require('../lib/neighbor-type.js');
 
-const NEIGHBOR_OIDS = Object.values(N_OID);
+// Le basi che dicono CHE COSA e' un vicino (modello e capabilities, per lib/neighbor-type.js) sono
+// un ARRICCHIMENTO del vicino, non la topologia: stanno FUORI dalla walk principale. Messe dentro,
+// finivano prima della FDB nell'ordine delle basi, e la walk procede a ondate di WALK_CONCURRENCY
+// sotto un budget di tempo (v. _walkDeadline): su un agente lento ogni ondata che va in timeout
+// costa un timeout intero, quattro basi in piu' = un'ondata in piu' PRIMA della FDB, e la FDB
+// (che e' in fondo) poteva non partire mai. Si leggono dopo, solo se il vicino c'e', solo se
+// resta tempo (v. walkNeighbors).
+const EVIDENCE_LLDP = [N_OID.lldpRemSysDesc, N_OID.lldpRemSysCapEnabled];
+const EVIDENCE_CDP  = [N_OID.cdpPlatform, N_OID.cdpCapabilities];
+const _EVIDENCE = new Set([...EVIDENCE_LLDP, ...EVIDENCE_CDP]);
+const NEIGHBOR_OIDS = Object.values(N_OID).filter(b => !_EVIDENCE.has(b));
 
 // Gruppo FDB/bridge: le UNICHE basi il cui troncamento sotto carico crawl rompe la
 // macsuck (MAC senza porta → il sintomo "0 badge"). Meritano il retry adattivo:
@@ -1865,6 +1875,18 @@ async function walkNeighbors(session, opts = {}) {
   // Deadline: un device che risponde a sysName ma va in timeout sulle tabelle
   // (visto su un firewall reale) non deve sequenzializzare il Sync su ~70s.
   await _runWalks(session, rest, result, 'SNMP-NBR', WALK_CONCURRENCY, { retryBases: FDB_RETRY_BASES, deadline: opts.deadline });
+
+  // Prove di TIPO del vicino (modello, capabilities): DOPO la topologia, SOLO per i protocolli che
+  // hanno davvero dei vicini (un agente senza CDP non paga due timeout per niente) e SOLO se il
+  // budget non e' finito. Se mancano, il vicino resta com'era: un default dichiarato come tale.
+  const has = (base) => Object.keys(result).some(oid => oid.startsWith(base + '.'));
+  const evidence = [
+    ...(has(N_OID.lldpRemChassisId) || has(N_OID.lldpRemSysName) ? EVIDENCE_LLDP : []),
+    ...(has(N_OID.cdpDeviceId) ? EVIDENCE_CDP : []),
+  ];
+  if (evidence.length && !(opts.deadline && Date.now() >= opts.deadline)) {
+    await _runWalks(session, evidence, result, 'SNMP-NBR', WALK_CONCURRENCY, { retryBases: new Set(), deadline: opts.deadline });
+  }
   return result;
 }
 
@@ -2527,4 +2549,5 @@ module.exports._internals = {
   _v3RemoteEngineDiscovered, _runWalks, FDB_RETRY_BASES, _walkDeadline,
   _ownIp4FromVbs, _ipv4FromAddrOid, _isUsableOwnIp4, _createSnmpSession,
   walkSession, ENTITY_BASES,
+  walkNeighbors, NEIGHBOR_OIDS, EVIDENCE_LLDP, EVIDENCE_CDP,
 };
