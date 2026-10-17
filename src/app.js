@@ -16,6 +16,7 @@ import { TYPES, typeName, typeShort } from './app-types.js';   // ritiro ponte f
 import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM: come si LEGGE il nome di un device
 import { addrFamily } from '../lib/cidr.js';   // cos'e' un indirizzo: una definizione sola (campo IP del device)
 import { forgetFromRead } from '../lib/field-provenance.js';   // la regola: scrivere a mano toglie la provenienza «copiato dalla lettura»
+import { repairUnsafeIds } from '../lib/id-safety.js';   // un id è un nome, non HTML: lo stato caricato con id strani viene riparato (e i riferimenti con lui)
 import { identityLockFlag } from '../lib/identity-reconcile.js';   // modello/matricola/firmware: scritti a mano, il loro lucchetto si chiude
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: chiamate prima bare-global
 import { renderProps } from './app-properties.js';   // idem
@@ -455,10 +456,48 @@ export function _dhcpSyncLeases() {
     store._dhcpLeases = _dhcpMergeSources(store.state && store.state.dhcpSources);
 }
 
+// ── Numeri veri ─────────────────────────────────────────────────────────────
+// Posizione, dimensione, numero di porte e parametri SNMP sono NUMERI nel modello, ma il
+// documento è JSON scritto anche da altri (un file importato, le API): una stringa dove
+// serve un numero finiva interpolata nei pannelli (`value="${n.ports}"`) e, se era HTML,
+// veniva eseguita. Qui un valore che non è un numero finito torna numero (se era "24") o
+// sparisce (e vale il default del tipo), al caricamento, come fa la rinumerazione degli id.
+// È la seconda difesa: l'uscita resta comunque escapata nei punti che ne hanno bisogno.
+function _toFiniteNumber(v) {
+    if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
+    if (typeof v === 'string' && /^\s*-?\d{1,15}(\.\d{1,6})?\s*$/.test(v)) return Number(v);
+    return undefined;
+}
+function _coerceModelNumerics(s) {
+    if (!s || typeof s !== 'object') return;
+    const fix = (o, keys) => {
+        if (!o || typeof o !== 'object') return;
+        for (const k of keys) {
+            if (!(k in o)) continue;
+            const v = _toFiniteNumber(o[k]);
+            if (v === undefined) delete o[k]; else o[k] = v;
+        }
+    };
+    for (const n of (Array.isArray(s.nodes) ? s.nodes : [])) {
+        if (!n || typeof n !== 'object') continue;
+        fix(n, ['ports', 'rackU', 'sizeU', 'x', 'y', 'w', 'h']);
+        fix(n.integration, ['port', 'timeout', 'retries', 'interval']);
+    }
+    if (s.ports && typeof s.ports === 'object') {
+        for (const p of Object.values(s.ports)) fix(p, ['vlanOvr']);
+    }
+}
+
 export function _migrateState(s) {
     if(!s || typeof s !== 'object') s = _buildDefaultState();
     const incomingSchemaVersion = Number(s.schemaVersion);
     _sanitizeProjectConnectivity(s);
+    // Un `id` che non è un nome (virgolette, parentesi angolari…) viene da un file o da una
+    // chiamata alle API, non da uid(): l'interfaccia lo interpola come valore di attributo.
+    // Si rinomina e si riscrivono i riferimenti (lib/id-safety.js); gli id dei nodi li
+    // rinumera `_normalizeProjectNodeIds` più sotto.
+    repairUnsafeIds(s, (p) => uid(p));
+    _coerceModelNumerics(s);
     if (Array.isArray(s.nodes)) s.nodes.forEach(_compactNodeSpec);
     // Migrazione VLAN endpoint floor: i vecchi campi spec (vlanPc/vlanIot/…) erano
     // scollegati dal motore. Spostiamo il valore documentato (>1) sull'override di

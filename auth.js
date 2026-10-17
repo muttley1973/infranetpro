@@ -14,7 +14,8 @@ const rateLimit = require('express-rate-limit');
 // keyGenerator personalizzata — express-rate-limit v8 lo richiede quando si compone
 // la chiave a partire da req.ip, altrimenti avverte del rischio di bypass IPv6.
 const ipKeyGenerator = rateLimit.ipKeyGenerator;
-const { atomicWriteFile, readJsonWithBak } = require('./server/projects-store');
+const { atomicWriteFile, readJsonWithBak, PRIVATE_MODE, hardenBackup } = require('./server/projects-store');
+const { createGate } = require('./lib/concurrency-gate.js');
 
 // Override via INFRANET_USERS_FILE: tiene gli account su un volume dati persistente
 // (es. /data/users.json in Docker); default invariato su bare-metal.
@@ -24,6 +25,32 @@ const BCRYPT_COST = 12;
 // quando lo username NON esiste: equipara il tempo di risposta del login e nega
 // l'enumerazione degli utenti validi via timing. Calcolato una volta al boot.
 const _DUMMY_HASH = bcrypt.hashSync('infranet-dummy', BCRYPT_COST);
+
+// ── Quanti confronti bcrypt alla volta ───────────────────────────────────────
+// Un confronto a costo 12 vale ~340 ms di CPU (misurati) e il processo e' UNO: `compare`
+// cede il controllo fra una fetta e l'altra, ma il lavoro si SOMMA. Cento login nello stesso
+// istante sono ~34 secondi di CPU prima di rispondere a chiunque altro — anche al
+// monitoraggio, anche a chi e' gia' dentro — e il limite per IP non li vede: conta il budget
+// di un indirizzo, non quanti ne arrivano insieme (o da quanti indirizzi). Il cancello li
+// tiene a INFRANET_LOGIN_CONCURRENCY alla volta (default 2), ne mette in coda al piu'
+// INFRANET_LOGIN_QUEUE (default 8) e oltre risponde 503 SUBITO: rifiutare costa nulla.
+// Un picco breve (un ufficio che apre alle 9:00) passa, solo un po' piu' lento.
+const _intEnv = (name, def, min) => { const v = parseInt(process.env[name], 10); return Number.isFinite(v) && v >= min ? v : def; };
+const _bcryptGate = createGate({
+  max:    _intEnv('INFRANET_LOGIN_CONCURRENCY', 2, 1),
+  queue:  _intEnv('INFRANET_LOGIN_QUEUE', 8, 0),
+  waitMs: 5000,
+});
+// Esegue `fn` (lavoro bcrypt) dentro un posto del cancello. `{busy:true}` = cancello saturo.
+async function _withBcryptSlot(fn) {
+  const release = await _bcryptGate.acquire();
+  if (!release) return { busy: true };
+  try { return { value: await fn() }; } finally { release(); }
+}
+function _busy(res) {
+  res.set('Retry-After', '3');
+  return res.status(503).json({ ok: false, error: 'Server occupato: troppi accessi contemporanei. Riprova tra qualche secondo.' });
+}
 
 // ---- Bypass auth SOLO per sviluppo (off di default) -------------------------
 // Attivabile con INFRANET_DEV_NO_AUTH=1: inietta una sessione admin fittizia così
@@ -102,7 +129,8 @@ function loadUsers() {
 function saveUsers(users) {
   // Scrittura atomica (temp + fsync + rename) con .bak, come i progetti: un crash a
   // meta' scrittura lascia intatto il file precedente invece di troncarlo.
-  atomicWriteFile(USERS_FILE, JSON.stringify(users, null, 2));
+  atomicWriteFile(USERS_FILE, JSON.stringify(users, null, 2), PRIVATE_MODE);   // gli hash delle password: solo il proprietario
+  hardenBackup(USERS_FILE);
 }
 
 function nextUserId(users) {
@@ -309,7 +337,9 @@ async function loginApi(req, res) {
     // Anti user-enumeration: esegui SEMPRE un compare bcrypt (contro l'hash fittizio
     // se l'utente non esiste) così il tempo di risposta non distingue "username
     // sconosciuto" da "password errata".
-    const okPw = await bcrypt.compare(password, user ? user.passwordHash : _DUMMY_HASH);
+    const cmp = await _withBcryptSlot(() => bcrypt.compare(password, user ? user.passwordHash : _DUMMY_HASH));
+    if (cmp.busy) return _busy(res);
+    const okPw = cmp.value;
     if (!user || !okPw) {
       return res.status(401).json({ ok: false, error: 'Credenziali non valide' });
     }
@@ -374,10 +404,16 @@ async function changeOwnPassword(req, res) {
 
     // Il confronto si fa SEMPRE (non un ramo che salta il bcrypt): la password attuale
     // sbagliata è un 403, non un errore di forma.
-    if (!(await bcrypt.compare(currentPassword, current.passwordHash))) {
+    // Confronto e hash nuovo nello STESSO posto del cancello: sono un'operazione sola.
+    const done = await _withBcryptSlot(async () => (
+      (await bcrypt.compare(currentPassword, current.passwordHash))
+        ? { newHash: await bcrypt.hash(newPassword, BCRYPT_COST) }
+        : { wrong: true }));
+    if (done.busy) return _busy(res);
+    if (done.value.wrong) {
       return res.status(403).json({ ok: false, error: 'Password attuale errata' });
     }
-    const newHash = await bcrypt.hash(newPassword, BCRYPT_COST);
+    const newHash = done.value.newHash;
 
     // ── sezione critica: SENZA await ──
     const users = loadUsers();
@@ -540,9 +576,11 @@ function register(app) {
 module.exports = {
   register, requireAdmin,
   // esposti per i test (F16): store utenti + inizializzazione admin
-  loadUsers, saveUsers, ensureDefaultAdmin, _readUsersFile,
+  loadUsers, saveUsers, ensureDefaultAdmin, _readUsersFile, USERS_FILE,
   // SEC-M2: guardia pura del bypass auth (loopback + non-produzione)
   _computeDevNoAuth,
   // policy password (pura, testabile a tavolino)
   _passwordError, MIN_PASSWORD_LEN,
+  // il cancello dei confronti bcrypt: i test ne leggono lo stato (active/waiting) durante una raffica
+  _bcryptGate,
 };

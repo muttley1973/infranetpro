@@ -10,6 +10,7 @@ const https = require('https');
 const net   = require('net');
 const dgram = require('dgram');
 const { execFile } = require('child_process');
+const fs    = require('fs');
 const {
   buildMdnsQuery, buildSsdpQuery, buildWsDiscoveryProbe, buildOnvifGetDeviceInfo,
   aggregateSweep, parseSsdpResponse, parseWsDiscovery,
@@ -96,6 +97,24 @@ function _execFileAsync(cmd, args, timeoutMs = 2500) {
   });
 }
 
+// ── Strumenti di sistema che mancano ─────────────────────────────────────────
+// La scoperta si regge su due programmi del sistema operativo: `ping` (chi risponde) e
+// `arp`/la tabella dei vicini (chi c'e' sul segmento). In un container minimale o in
+// un sandbox mancano — e `_execFileAsync` ingoia l'errore (ENOENT) e risponde «non
+// vivo»: la scansione finiva con «0 host» e NESSUNA spiegazione, indistinguibile da una
+// rete vuota. Qui si ricorda COSA e' mancato durante la scansione, perche' la rotta lo
+// dica a chi guarda. Si azzera a ogni scansione: installare `ping` deve far sparire l'avviso
+// al giro dopo, non al riavvio.
+const _toolMissing = { ping: false, arp: false };
+function resetToolWarnings() { _toolMissing.ping = false; _toolMissing.arp = false; }
+function toolWarnings() {
+  const out = [];
+  if (_toolMissing.ping) out.push({ code: 'ping-missing', tool: 'ping' });
+  if (_toolMissing.arp)  out.push({ code: 'arp-missing',  tool: 'arp' });
+  return out;
+}
+const _isNotFound = (r) => !!(r && r.error && r.error.code === 'ENOENT');
+
 // Decide se un risultato di `ping` indica un host DAVVERO vivo (task_977d2930).
 // PERCHE' l'exit code NON basta: su Windows `ping.exe` restituisce exit code 0 anche
 // quando un ROUTER intermedio risponde "Destination host unreachable" / "TTL expired"
@@ -137,6 +156,7 @@ async function _pingHost(ip, timeoutMs = 800) {
   else if (plat === 'darwin')  args = ['-c', '1', '-W', String(timeoutMs), ip];
   else                         args = ['-c', '1', '-W', String(Math.max(1, Math.ceil(timeoutMs / 1000))), ip];
   const r = await _execFileAsync('ping', args, timeoutMs + 500);
+  if (_isNotFound(r)) _toolMissing.ping = true;   // senza `ping` ogni host sembra morto: va detto, non taciuto
   const alive = _pingResultIsAlive(plat, r);
   // Cattura il TTL dell'echo-reply (già nell'output) SOLO se vivo: un errore ICMP
   // intermedio riporta il TTL del router, non del target → fuorviante. { alive, ttl }.
@@ -259,6 +279,43 @@ function _parseNeighbors(text) {
   return map;
 }
 
+// `/proc/net/arp` (Linux): «IP address  HW type  Flags  HW address  Mask  Device». Flags 0x2 =
+// voce completa; 0x0 = incompleta (nessun MAC valido). E' la tabella che `arp -an` stampa, letta
+// senza il programma: dove `arp` manca (container minimali, net-tools non installato) e' l'unica
+// fonte che non richiede niente.
+function _parseProcNetArp(text) {
+  const map = new Map();
+  for (const line of String(text || '').split(/\r?\n/).slice(1)) {
+    const f = line.trim().split(/\s+/);
+    if (f.length < 4 || !/^\d{1,3}(?:\.\d{1,3}){3}$/.test(f[0])) continue;
+    const flags = parseInt(f[2], 16);
+    if (!(flags & 0x2)) continue;                           // incompleta
+    const mac = _normMac(f[3]);
+    if (!mac || mac === '00:00:00:00:00:00' || mac === 'FF:FF:FF:FF:FF:FF') continue;
+    const first = parseInt(f[0].split('.')[0], 10);
+    if (first === 0 || first >= 224 || f[0].endsWith('.255')) continue;
+    if (!map.has(f[0])) map.set(f[0], mac);
+  }
+  return map;
+}
+
+// `ip neigh show`: «192.168.1.1 dev eth0 lladdr aa:bb:cc:dd:ee:ff REACHABLE». FAILED/INCOMPLETE
+// non hanno `lladdr`; STALE/DELAY/PROBE si'. Il secondo ripiego, per sistemi con iproute2 ma senza
+// /proc leggibile.
+function _parseIpNeigh(text) {
+  const map = new Map();
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const m = line.match(/^(\d{1,3}(?:\.\d{1,3}){3})\s.*\blladdr\s+((?:[0-9a-fA-F]{1,2}:){5}[0-9a-fA-F]{1,2})/);
+    if (!m || /\b(FAILED|INCOMPLETE)\b/.test(line)) continue;
+    const mac = _normMac(m[2]);
+    if (!mac || mac === '00:00:00:00:00:00') continue;
+    const first = parseInt(m[1].split('.')[0], 10);
+    if (first === 0 || first >= 224 || m[1].endsWith('.255')) continue;
+    if (!map.has(m[1])) map.set(m[1], mac);
+  }
+  return map;
+}
+
 async function _readArpMap() {
   const isWin = os.platform() === 'win32';
   if (isWin) {
@@ -274,7 +331,17 @@ async function _readArpMap() {
     return _parseArpTable(r.stdout);
   }
   const r = await _execFileAsync('arp', ['-an'], 2500);
-  return _parseArpTable(r.stdout);
+  if (!_isNotFound(r)) return _parseArpTable(r.stdout);
+  // `arp` non c'e': stessa tabella, letta senza il programma.
+  if (os.platform() === 'linux') {
+    // Leggibile = la tabella esiste, anche VUOTA (nessun vicino): non e' uno strumento mancante.
+    try { return _parseProcNetArp(fs.readFileSync('/proc/net/arp', 'utf8')); }
+    catch (_) { /* illeggibile: si prova l'altro */ }
+  }
+  const n = await _execFileAsync('ip', ['neigh', 'show'], 2500);
+  if (!_isNotFound(n)) { const m = _parseIpNeigh(n.stdout); if (m.size || n.ok) return m; }
+  _toolMissing.arp = true;   // nessuna delle tre vie: la tabella dei vicini non si e' potuta leggere
+  return new Map();
 }
 
 // Declassa le righe vive SOLO via ARP-autorevole (viaArp, senza ping/snmp) il cui MAC
@@ -870,4 +937,4 @@ async function _mdnsSsdpSweep(opts = {}) {
   return aggregateSweep(messages);
 }
 
-module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingResultIsAlive, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, _readLocalCidrs, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _castProbe, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _fetchUpnpXml, _shuffled, _buildNbstatQuery, _parseNbstatResponse, _nbstatUdp };
+module.exports = { expandSubnet, _execFileAsync, _pingHost, _pingResultIsAlive, _pingHostRetry, _stealthDelayMs, _normMac, _parseArpTable, _parseNeighbors, _readArpMap, _ipToNum, _demoteStaleArpDup, _readLocalInterfaceMap, _readLocalCidrs, _extractTitle, _httpProbe, DEEP_TCP_PORTS, _tcpProbe, _deepScanHost, _castProbe, _parseNetbiosOutput, _netbiosProbe, _parseNetViewOutput, _smbSharesProbe, _deepIdentityScanHost, _mdnsSsdpSweep, _fetchUpnpXml, _shuffled, _buildNbstatQuery, _parseNbstatResponse, _nbstatUdp, resetToolWarnings, toolWarnings, _parseProcNetArp, _parseIpNeigh };

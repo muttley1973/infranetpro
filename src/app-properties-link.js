@@ -144,7 +144,7 @@ export function _renderLinkProps(panel){
         const srcNode=getNodeByPortId(l.src), dstNode=getNodeByPortId(l.dst);
         const srcLbl=(srcNode?.name||'?')+' · '+_cablePortDesc(l.src);
         const dstLbl=(dstNode?.name||'?')+' · '+_cablePortDesc(l.dst);
-        const rstBtn=l.colorOvr?`<button class="prst" style="font-size:0.85rem" data-tip="${t('pnl.gen.resetAutoColor')}" data-act="link-color-reset" data-lid="${l.id}">↺</button>`:'';
+        const rstBtn=l.colorOvr?`<button class="prst" style="font-size:0.85rem" data-tip="${t('pnl.gen.resetAutoColor')}" data-act="link-color-reset" data-lid="${escapeHTML(l.id)}">↺</button>`:'';
         const colorResetBtn = isAuto ? '' : rstBtn;
         // Stato esplicito link (lib/linkwin.state.js): 'ambiguous' = dedotto con
         // confidence < 0.80 (MAC/ARP/FDB). Va proposto all'utente per verifica.
@@ -158,13 +158,13 @@ export function _renderLinkProps(panel){
                     <span>${t('cable.verifyMsg')}</span>
                 </div>
                 <div class="link-verify-actions">
-                    <button class="toolbar-btn primary" data-act="link-promote" data-lid="${l.id}"><i class="fas fa-check"></i> ${t('common.confirm')}</button>
-                    <button class="toolbar-btn danger" data-act="link-del" data-lid="${l.id}"><i class="fas fa-trash"></i> ${t('common.delete')}</button>
+                    <button class="toolbar-btn primary" data-act="link-promote" data-lid="${escapeHTML(l.id)}"><i class="fas fa-check"></i> ${t('common.confirm')}</button>
+                    <button class="toolbar-btn danger" data-act="link-del" data-lid="${escapeHTML(l.id)}"><i class="fas fa-trash"></i> ${t('common.delete')}</button>
                 </div>
             </div>` : '';
         const autoEditBar = (isAuto && !_isAmbiguous) ? `<div style="margin-top:8px;padding:8px 10px;background:rgba(9,105,218,.06);border:1px solid rgba(9,105,218,.20);border-radius:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:0.78rem">
                 <span style="color:var(--text-muted)">${t('cable.autoEditMsg')}</span>
-                <button class="toolbar-btn primary" data-act="link-promote" data-lid="${l.id}"><i class="fas fa-pen"></i> ${t('common.edit')}</button>
+                <button class="toolbar-btn primary" data-act="link-promote" data-lid="${escapeHTML(l.id)}"><i class="fas fa-pen"></i> ${t('common.edit')}</button>
             </div>` : '';
         // Trunk EFFETTIVO (derivato dalle VLAN trasportate da voce/SSID, o manuale).
         const tk = (typeof _getLinkTrunk==='function') ? _getLinkTrunk(l)
@@ -331,7 +331,7 @@ export function _renderLinkProps(panel){
                 linkHeaderTitle,
                 linkHeaderSubtitle,
                 'fa-link',
-                `<span class="props-toggles"><button class="props-toggle-btn" data-act="props-expand-all" data-tip="${t('props.expandAll')}"><i class="fas fa-angles-down"></i></button><button class="props-toggle-btn" data-act="props-collapse-all" data-tip="${t('props.collapseAll')}"><i class="fas fa-angles-up"></i></button><button class="props-toggle-btn" data-act="props-reset-sections" data-tip="${t('props.resetSections')}"><i class="fas fa-rotate"></i></button><button class="props-toggle-btn danger" data-act="link-del" data-lid="${l.id}" data-tip="${_linkDeleteTip}"><i class="fas fa-trash"></i></button></span>`
+                `<span class="props-toggles"><button class="props-toggle-btn" data-act="props-expand-all" data-tip="${t('props.expandAll')}"><i class="fas fa-angles-down"></i></button><button class="props-toggle-btn" data-act="props-collapse-all" data-tip="${t('props.collapseAll')}"><i class="fas fa-angles-up"></i></button><button class="props-toggle-btn" data-act="props-reset-sections" data-tip="${t('props.resetSections')}"><i class="fas fa-rotate"></i></button><button class="props-toggle-btn danger" data-act="link-del" data-lid="${escapeHTML(l.id)}" data-tip="${_linkDeleteTip}"><i class="fas fa-trash"></i></button></span>`
             )}
             <div class="prop-row2">
               <div class="prop-group" style="flex:1 1 0;min-width:64px"><label>${t('common.type')}</label><input disabled style="width:100%;text-overflow:ellipsis" value="${escapeHTML(l.wireless?'Wireless':t('cable.cable'))}${l.autoLinked?' (auto)':''}"></div>
@@ -342,14 +342,14 @@ export function _renderLinkProps(panel){
             <div class="prop-group">
               <label style="display:flex;align-items:center;gap:5px">
                 ${t('cable.label')}
-                ${hasManualLbl?`<button class="prst" data-tip="${t('pnl.gen.resetAutoLabel')}" data-act="link-label-reset" data-lid="${l.id}">↺</button>`:''}
+                ${hasManualLbl?`<button class="prst" data-tip="${t('pnl.gen.resetAutoLabel')}" data-act="link-label-reset" data-lid="${escapeHTML(l.id)}">↺</button>`:''}
               </label>
               <input type="text"
                      value="${escapeHTML(l.label||'')}"
                      placeholder="${escapeHTML(autoLbl)}"
                      style="width:100%"
                      ${lockAttr}
-                     data-change="link-label" data-lid="${l.id}">
+                     data-change="link-label" data-lid="${escapeHTML(l.id)}">
               ${hasManualLbl?`<div style="font-size:var(--fs-2xs);color:var(--text-muted);margin-top:3px"><i class="fas fa-arrow-right-arrow-left" style="font-size:0.6rem;margin-right:3px"></i>${escapeHTML(autoLbl)}</div>`:''}
             </div>
             ${verifyBanner}
@@ -364,11 +364,11 @@ export function _renderLinkProps(panel){
               <label>${t('cable.portMode')}</label>
               <div style="display:flex;gap:6px;margin-top:4px">
                 <button class="toolbar-btn${!isTrunk?' soft':''}" style="flex:1;padding:5px" ${lockAttr}
-                  data-act="link-mode" data-lid="${l.id}" data-mode="access">
+                  data-act="link-mode" data-lid="${escapeHTML(l.id)}" data-mode="access">
                   <i class="fas fa-circle" style="font-size:0.6rem"></i> Access
                 </button>
                 <button class="toolbar-btn${isTrunk?' soft':''}" style="flex:1;padding:5px" ${lockAttr}
-                  data-act="link-mode" data-lid="${l.id}" data-mode="trunk">
+                  data-act="link-mode" data-lid="${escapeHTML(l.id)}" data-mode="trunk">
                   <i class="fas fa-layer-group" style="font-size:var(--fs-2xs)"></i> Trunk
                 </button>
               </div>
@@ -379,7 +379,7 @@ export function _renderLinkProps(panel){
               <label>${t('cable.trunkNativeLabel')}</label>
               ${_nativeActivePid
                 ? `<input type="number" min="1" max="4094" value="${tk.native}" ${lockAttr}
-                     data-change="link-native-vlan" data-lid="${l.id}"
+                     data-change="link-native-vlan" data-lid="${escapeHTML(l.id)}"
                      data-tip="${t('cable.trunkNativeTip')}">`
                 : `<div style="padding:4px 0;font-size:0.8rem;color:var(--text-muted)">VLAN ${tk.native} <span style="font-size:var(--fs-2xs)">· ${t('cable.trunkNativeUpstream')}</span></div>`}
             </div>
@@ -394,11 +394,11 @@ export function _renderLinkProps(panel){
               <div style="font-size:var(--fs-2xs);color:var(--text-muted);margin:4px 0 6px">${t('cable.trunkAutoNote')}</div>
               <input type="text" value="" placeholder="${escapeHTML(tk.vlans.join(','))}"
                 style="width:100%" ${lockAttr}
-                data-change="link-trunk-vlans" data-lid="${l.id}"
+                data-change="link-trunk-vlans" data-lid="${escapeHTML(l.id)}"
                 data-blur="link-trunk-vlans">` : `
               <input type="text" value="${escapeHTML(trunkVlans)}" placeholder="1,10,20,100"
                 style="width:100%" ${lockAttr}
-                data-change="link-trunk-vlans" data-lid="${l.id}"
+                data-change="link-trunk-vlans" data-lid="${escapeHTML(l.id)}"
                 data-blur="link-trunk-vlans">
               <div style="font-size:var(--fs-2xs);color:var(--text-muted);margin-top:3px">
                 ${t('cable.vlansConfigured',{n:_parseTrunkVlans(trunkVlans).length})}
@@ -412,7 +412,7 @@ export function _renderLinkProps(panel){
               </label>
                <input type="color" value="${l.colorOvr||autoColor}"
                       style="width:100%;${l.colorOvr?'border-color:#e3b341':''}" ${lockAttr}
-                      data-change="link-color" data-lid="${l.id}">
+                      data-change="link-color" data-lid="${escapeHTML(l.id)}">
             </div>
               </div>
             </details>
@@ -562,7 +562,7 @@ export function _renderLinkProps(panel){
                     <div class="prop-group" style="margin-top:10px">
                       <button class="toolbar-btn soft" style="width:100%;justify-content:center;gap:8px"
                               data-tip="${t('cable.splitTip')}"
-                              data-act="link-route" data-lid="${l.id}">
+                              data-act="link-route" data-lid="${escapeHTML(l.id)}">
                         <i class="fas fa-route"></i> ${t('cable.routeThrough')}
                       </button>
                     </div>
@@ -698,12 +698,12 @@ export function _renderLinkProps(panel){
                        class="${ovr('cableType')}"
                        value="${escapeHTML(l.cableType||'')}"
                        placeholder="${escapeHTML(_derivedCableType || t('pnl.gen.cableTypePh'))}" ${lockAttr}
-                       data-change="link-prop" data-lid="${l.id}" data-lprop="cableType">
+                       data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="cableType">
               </div>
 
               <div class="prop-group">
                 <label>${t('cable.segmentType')}</label>
-                <select class="${ovr('isPermanent')}" ${lockAttr} data-change="link-prop" data-lid="${l.id}" data-lprop="isPermanent">
+                <select class="${ovr('isPermanent')}" ${lockAttr} data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="isPermanent">
                   <option value="" ${l.isPermanent==null?'selected':''}>${t('common.unspecifiedM')}</option>
                   <option value="patch" ${l.isPermanent===false?'selected':''}>${t('cable.patchCord')}</option>
                   <option value="permanent" ${l.isPermanent===true?'selected':''}>Permanent link</option>
@@ -712,7 +712,7 @@ export function _renderLinkProps(panel){
 
               <div class="prop-group">
                 <label>${t('common.status')}</label>
-                <select class="${ovr('cableStatus')}" ${lockAttr} data-change="link-prop" data-lid="${l.id}" data-lprop="cableStatus">
+                <select class="${ovr('cableStatus')}" ${lockAttr} data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="cableStatus">
                   <option value="" ${!l.cableStatus?'selected':''}>${t('common.unspecifiedM')}</option>
                   <option value="active"     ${l.cableStatus==='active'    ?'selected':''}>${t('port.statusActive')}</option>
                   <option value="inactive"   ${l.cableStatus==='inactive'  ?'selected':''}>${t('port.statusInactive')}</option>
@@ -722,7 +722,7 @@ export function _renderLinkProps(panel){
 
               <div class="prop-group">
                 <label>${t('cable.medium')}</label>
-                <select class="${ovr('medium')}" ${lockAttr} data-change="link-prop" data-lid="${l.id}" data-lprop="medium" data-coerce="trim">
+                <select class="${ovr('medium')}" ${lockAttr} data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="medium" data-coerce="trim">
                   <option value="" ${!l.medium?'selected':''}>${t('common.unspecifiedM')}</option>
                   <option value="copper" ${l.medium==='copper'?'selected':''}>${t('cable.copper')}</option>
                   <option value="fiber" ${l.medium==='fiber'?'selected':''}>${t('cable.fiber')}</option>
@@ -733,7 +733,7 @@ export function _renderLinkProps(panel){
 
               <div class="prop-group">
                 <label>${catLabel}</label>
-                <select class="${ovr('cableCategory')}" ${lockAttr} data-change="link-prop" data-lid="${l.id}" data-lprop="cableCategory" data-coerce="trim">
+                <select class="${ovr('cableCategory')}" ${lockAttr} data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="cableCategory" data-coerce="trim">
                   <option value="" ${!l.cableCategory?'selected':''}>${t('common.unspecifiedF')}</option>
                   <option value="Cat5e" ${l.cableCategory==='Cat5e'?'selected':''}>Cat 5e</option>
                   <option value="Cat6" ${l.cableCategory==='Cat6'?'selected':''}>Cat 6</option>
@@ -749,7 +749,7 @@ export function _renderLinkProps(panel){
 
               <div class="prop-group">
                 <label>${t('cable.connector')}</label>
-                <select class="${ovr('connector')}" ${lockAttr} data-change="link-prop" data-lid="${l.id}" data-lprop="connector" data-coerce="trim">
+                <select class="${ovr('connector')}" ${lockAttr} data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="connector" data-coerce="trim">
                   <option value="" ${!l.connector?'selected':''}>${t('common.unspecifiedM')}</option>
                   <option value="RJ45" ${l.connector==='RJ45'?'selected':''}>RJ45</option>
                   <option value="LC" ${l.connector==='LC'?'selected':''}>LC</option>
@@ -765,7 +765,7 @@ export function _renderLinkProps(panel){
 
               <div class="prop-group">
                 <label>${t('cable.maxSpeed')}</label>
-                <select class="${ovr('maxSpeed')}" ${lockAttr} data-change="link-prop" data-lid="${l.id}" data-lprop="maxSpeed" data-coerce="trim">
+                <select class="${ovr('maxSpeed')}" ${lockAttr} data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="maxSpeed" data-coerce="trim">
                   <option value="" ${!l.maxSpeed?'selected':''}>${t('common.unspecifiedF')}</option>
                   <option value="100M" ${l.maxSpeed==='100M'?'selected':''}>100 Mbps</option>
                   <option value="1G" ${l.maxSpeed==='1G'?'selected':''}>1 Gbps</option>
@@ -784,9 +784,9 @@ export function _renderLinkProps(panel){
                 <label>${t('cable.lengthM')}</label>
                 <input type="number" min="0" step="0.5"
                        class="${ovr('length')}"
-                       value="${l.length!=null?l.length:''}"
+                       value="${escapeHTML(l.length!=null?l.length:'')}"
                        placeholder="${t('pnl.gen.lengthPh')}" ${lockAttr}
-                       data-change="link-prop" data-lid="${l.id}" data-lprop="length" data-coerce="num">
+                       data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="length" data-coerce="num">
               </div>
 
               <div class="prop-group">
@@ -795,7 +795,7 @@ export function _renderLinkProps(panel){
                        class="${ovr('installedAt')}"
                        value="${escapeHTML(l.installedAt||'')}"
                        ${lockAttr}
-                       data-change="link-prop" data-lid="${l.id}" data-lprop="installedAt">
+                       data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="installedAt">
               </div>
 
               <div class="prop-group">
@@ -804,12 +804,12 @@ export function _renderLinkProps(panel){
                        class="${ovr('installedBy')}"
                        value="${escapeHTML(l.installedBy||'')}"
                        placeholder="${t('cable.installedByPh')}" ${lockAttr}
-                       data-change="link-prop" data-lid="${l.id}" data-lprop="installedBy">
+                       data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="installedBy">
               </div>
 
               <div class="prop-group">
                 <label>PoE</label>
-                <select class="${ovr('poe')}" ${lockAttr} data-change="link-prop" data-lid="${l.id}" data-lprop="poe" data-coerce="trim">
+                <select class="${ovr('poe')}" ${lockAttr} data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="poe" data-coerce="trim">
                   <option value="" ${!l.poe?'selected':''}>${t('common.unspecifiedM')}</option>
                   <option value="none" ${l.poe==='none'?'selected':''}>${t('o.none')}</option>
                   <option value="802.3af" ${l.poe==='802.3af'?'selected':''}>802.3af — 15 W</option>
@@ -825,7 +825,7 @@ export function _renderLinkProps(panel){
                           class="${ovr('notes')}"
                           placeholder="${t('pnl.gen.freeDescPh')}"
                           style="width:100%;resize:vertical;padding:5px 7px;font-size:var(--fs-lg);background:var(--bg-color);border:1px solid var(--panel-border);border-radius:4px;color:var(--text-main)" ${lockAttr}
-                          data-change="link-prop" data-lid="${l.id}" data-lprop="notes">${escapeHTML(l.notes||'')}</textarea>
+                          data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="notes">${escapeHTML(l.notes||'')}</textarea>
               </div>`;
               })()}
               </div></details>`;

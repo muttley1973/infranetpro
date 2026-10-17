@@ -1795,8 +1795,16 @@ const N_OID = {
   lldpRemPortId:  '1.0.8802.1.1.2.1.4.1.1.7',
   lldpRemPortDesc:'1.0.8802.1.1.2.1.4.1.1.8',
   lldpRemSysName: '1.0.8802.1.1.2.1.4.1.1.9',
+  // .10 SysDesc (il MODELLO, testo libero) · .12 SysCapEnabled (BITS: bridge, router,
+  // access point, telefono…). Dicono CHE COSA è il vicino: senza, ogni vicino nasceva
+  // «switch» (lib/neighbor-type.js). Si leggono, non si interpretano qui.
+  lldpRemSysDesc: '1.0.8802.1.1.2.1.4.1.1.10',
+  lldpRemSysCapEnabled:'1.0.8802.1.1.2.1.4.1.1.12',
   cdpDeviceId:    '1.3.6.1.4.1.9.9.23.1.2.1.1.6',
   cdpDevicePort:  '1.3.6.1.4.1.9.9.23.1.2.1.1.7',
+  // CISCO-CDP-MIB: .8 cdpCachePlatform (modello) · .9 cdpCacheCapabilities (maschera)
+  cdpPlatform:    '1.3.6.1.4.1.9.9.23.1.2.1.1.8',
+  cdpCapabilities:'1.3.6.1.4.1.9.9.23.1.2.1.1.9',
   cdpAddressType: '1.3.6.1.4.1.9.9.23.1.2.1.1.3',
   cdpAddress:     '1.3.6.1.4.1.9.9.23.1.2.1.1.4',
   // LLDP management addresses (IEEE 802.1AB) — IP di management dei vicini LLDP
@@ -1828,8 +1836,20 @@ const { bytesToIpv6, pickBestIp6 } = require('../lib/ipv6.js');
 // Predicato PURO "interfaccia wireless" (ieee80211/nome) — stessa fonte di verità
 // del fallback client, per emettere `wifiIfs` nella risposta topologia (vendor-neutral).
 const { wirelessIfNames, isWirelessInterface } = require('../lib/wifi-assoc.js');
+// IP che un vicino dichiara di sé: scartati 0.x, loopback, link-local, multicast (stessa regola per LLDP e CDP).
+const { usableNeighborIp } = require('../lib/neighbor-type.js');
 
-const NEIGHBOR_OIDS = Object.values(N_OID);
+// Le basi che dicono CHE COSA e' un vicino (modello e capabilities, per lib/neighbor-type.js) sono
+// un ARRICCHIMENTO del vicino, non la topologia: stanno FUORI dalla walk principale. Messe dentro,
+// finivano prima della FDB nell'ordine delle basi, e la walk procede a ondate di WALK_CONCURRENCY
+// sotto un budget di tempo (v. _walkDeadline): su un agente lento ogni ondata che va in timeout
+// costa un timeout intero, quattro basi in piu' = un'ondata in piu' PRIMA della FDB, e la FDB
+// (che e' in fondo) poteva non partire mai. Si leggono dopo, solo se il vicino c'e', solo se
+// resta tempo (v. walkNeighbors).
+const EVIDENCE_LLDP = [N_OID.lldpRemSysDesc, N_OID.lldpRemSysCapEnabled];
+const EVIDENCE_CDP  = [N_OID.cdpPlatform, N_OID.cdpCapabilities];
+const _EVIDENCE = new Set([...EVIDENCE_LLDP, ...EVIDENCE_CDP]);
+const NEIGHBOR_OIDS = Object.values(N_OID).filter(b => !_EVIDENCE.has(b));
 
 // Gruppo FDB/bridge: le UNICHE basi il cui troncamento sotto carico crawl rompe la
 // macsuck (MAC senza porta → il sintomo "0 badge"). Meritano il retry adattivo:
@@ -1855,6 +1875,18 @@ async function walkNeighbors(session, opts = {}) {
   // Deadline: un device che risponde a sysName ma va in timeout sulle tabelle
   // (visto su un firewall reale) non deve sequenzializzare il Sync su ~70s.
   await _runWalks(session, rest, result, 'SNMP-NBR', WALK_CONCURRENCY, { retryBases: FDB_RETRY_BASES, deadline: opts.deadline });
+
+  // Prove di TIPO del vicino (modello, capabilities): DOPO la topologia, SOLO per i protocolli che
+  // hanno davvero dei vicini (un agente senza CDP non paga due timeout per niente) e SOLO se il
+  // budget non e' finito. Se mancano, il vicino resta com'era: un default dichiarato come tale.
+  const has = (base) => Object.keys(result).some(oid => oid.startsWith(base + '.'));
+  const evidence = [
+    ...(has(N_OID.lldpRemChassisId) || has(N_OID.lldpRemSysName) ? EVIDENCE_LLDP : []),
+    ...(has(N_OID.cdpDeviceId) ? EVIDENCE_CDP : []),
+  ];
+  if (evidence.length && !(opts.deadline && Date.now() >= opts.deadline)) {
+    await _runWalks(session, evidence, result, 'SNMP-NBR', WALK_CONCURRENCY, { retryBases: new Set(), deadline: opts.deadline });
+  }
   return result;
 }
 
@@ -1950,6 +1982,8 @@ function extractNeighbors(vbs) {
   lldpEntry(N_OID.lldpRemPortIdSubtype,    (e, v) => { e._pidSub = bufToInt(v); });
   lldpEntry(N_OID.lldpRemPortId,           (e, v) => { e._pid    = v; });
   lldpEntry(N_OID.lldpRemPortDesc,         (e, v) => { e._pdesc  = bufToStr(v); });
+  lldpEntry(N_OID.lldpRemSysDesc,          (e, v) => { e.remotePlatform = bufToStr(v).slice(0, 200); });
+  lldpEntry(N_OID.lldpRemSysCapEnabled,    (e, v) => { e.remoteCaps = Buffer.isBuffer(v) ? v.toString('hex') : ''; });
 
   // L'interpretazione arriva DOPO la raccolta: sottotipo e valore stanno in due
   // colonne diverse, e l'ordine con cui le percorriamo non deve contare.
@@ -2019,6 +2053,9 @@ function extractNeighbors(vbs) {
       remotePortMac: entry.remotePortMac || '',
       remoteIP:     entry.remoteIP    || '',
       remoteMac:    entry.remoteMac   || '',
+      // Prove di TIPO (lib/neighbor-type.js): modello e capabilities, come annunciate.
+      remotePlatform: entry.remotePlatform || '',
+      remoteCaps:   entry.remoteCaps  || '',
       protocol:     'LLDP',
     });
   }
@@ -2042,6 +2079,8 @@ function extractNeighbors(vbs) {
   cdpEntry(N_OID.cdpDeviceId,   (e, v) => { e.remoteDevice = bufToStr(v); });
   cdpEntry(N_OID.cdpDevicePort, (e, v) => { e.remotePort   = bufToStr(v); });
   cdpEntry(N_OID.cdpAddressType,(e, v) => { e.remoteAddrType = bufToInt(v); });
+  cdpEntry(N_OID.cdpPlatform,   (e, v) => { e.remotePlatform = bufToStr(v).slice(0, 200); });
+  cdpEntry(N_OID.cdpCapabilities,(e, v) => { e.remoteCaps = Buffer.isBuffer(v) ? v.toString('hex') : ''; });
   cdpEntry(N_OID.cdpAddress,    (e, v) => {
     // cdpCacheAddress:
     //  - molti device: 4 byte IPv4 puri
@@ -2063,7 +2102,9 @@ function extractNeighbors(vbs) {
       localPort:    ifName[ix] || `ifIndex:${ix}`,
       remoteDevice: entry.remoteDevice,
       remotePort:   entry.remotePort || '',
-      remoteIP:     entry.remoteIP   || '',
+      remoteIP:     usableNeighborIp(entry.remoteIP),
+      remotePlatform: entry.remotePlatform || '',
+      remoteCaps:   entry.remoteCaps || '',
       protocol:     'CDP',
     });
   }
@@ -2508,4 +2549,5 @@ module.exports._internals = {
   _v3RemoteEngineDiscovered, _runWalks, FDB_RETRY_BASES, _walkDeadline,
   _ownIp4FromVbs, _ipv4FromAddrOid, _isUsableOwnIp4, _createSnmpSession,
   walkSession, ENTITY_BASES,
+  walkNeighbors, NEIGHBOR_OIDS, EVIDENCE_LLDP, EVIDENCE_CDP,
 };

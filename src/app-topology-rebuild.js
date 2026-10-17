@@ -20,6 +20,7 @@ import { nodeById, getPortNodeId, getNodeByPortId, _invalidateIdx, _createLinkRe
 import { _findPortByIfName } from './app-topology-discover.js';
 import { uid } from './app-util.js';
 import { markFilledFromRead } from '../lib/field-provenance.js';   // la regola: un nodo nato da una lettura marca i campi che questa ha scritto
+import { inferNeighborType, usableNeighborIp } from '../lib/neighbor-type.js';   // che COSA è il vicino: dalle capabilities/piattaforma che annuncia, non «sempre uno switch»
 import { t, expose } from './_bridge.js';
 
 const _norm = (m) => (typeof _normMacKey === 'function') ? _normMacKey(m) : String(m || '').trim().toLowerCase();
@@ -54,20 +55,41 @@ function _ensureRack() {
   return rackId;
 }
 
-// Vicino LLDP/CDP annunciato non documentato (es. gateway) → SWITCH in RACK con
-// l'identità nota (MAC/IP/hostname). Il tipo esatto (switch/router) lo conferma l'utente.
-function _createNeighborNode(nn) {
+// Vicino LLDP/CDP annunciato non documentato (es. gateway) → nodo con l'identità
+// nota (MAC/IP/hostname). Il TIPO viene dalle prove che il vicino annuncia (capabilities
+// e piattaforma: lib/neighbor-type.js); dove non ce ne sono resta «switch», come prima,
+// e resta una deduzione (`inferred`) che l'utente conferma. Dove sta lo decide il tipo:
+// un apparato da rack va nel rack, un access point o un telefono sul piano — non si
+// riempie lo scaffale di cose che in uno scaffale non stanno.
+// `k` = quanti nodi da piano sono già nati in questo giro (li distanzia in griglia).
+function _createNeighborNode(nn, k) {
+  const { type } = inferNeighborType({ protocol: nn.protocol, caps: nn.caps, platform: nn.platform, name: nn.hostname });
+  const def = (typeof TYPES !== 'undefined' && TYPES[type]) || {};
   const usedIds = new Set(store.state.nodes.map(n => String(n.id || '')));
-  const id = (typeof _nextNodeId === 'function') ? _nextNodeId('switch', usedIds) : ('sw_' + store.state.nodes.length);
-  const rackId = _ensureRack();
-  const rackU = (typeof _findFreeU === 'function') ? _findFreeU(rackId, 1) : 1;
+  const id = (typeof _nextNodeId === 'function') ? _nextNodeId(type, usedIds) : ((type === 'switch' ? 'sw_' : type + '_') + store.state.nodes.length);
+  // L'IP di un vicino è identità solo se plausibile (non 0.x/loopback/link-local/multicast).
+  const ip = usableNeighborIp(nn.ip);
   const n = {
-    id, type: 'switch', name: nn.hostname || nn.ip || nn.mac || t('toporebuild.lldpNeighbor'),
-    rackId, rackU, sizeU: 1, ports: 24,
-    mac: nn.mac || '', ip: nn.ip || '', hostname: nn.hostname || '',
-    inferred: true, identitySource: 'lldp', identityConfidence: 'high',
+    id, type, name: nn.hostname || ip || nn.mac || t('toporebuild.lldpNeighbor'),
+    mac: nn.mac || '', ip, hostname: nn.hostname || '',
+    inferred: true, identitySource: nn.protocol && /^CDP/i.test(nn.protocol) ? 'cdp' : 'lldp', identityConfidence: 'high',
   };
-  markFilledFromRead(n, ['mac']);   // nato da un vicino LLDP: il MAC lo ha scritto la lettura, non una persona
+  if (def.isFloor) {
+    // Sul piano: vicino al centro della vista, in griglia per non sovrapporre i nodi nati insieme.
+    const base = (typeof _findFreeFloorSpot === 'function') ? _findFreeFloorSpot() : { x: 200, y: 200 };
+    const i = k || 0;
+    n.x = (base && base.x || 0) + (i % 5) * 120;
+    n.y = (base && base.y || 0) + Math.floor(i / 5) * 120;
+    n.ports = def.ports || 1;
+  } else {
+    const sU = def.sizeU || 1;
+    const rackId = _ensureRack();
+    n.rackId = rackId;
+    n.rackU = (typeof _findFreeU === 'function') ? _findFreeU(rackId, sU) : 1;
+    n.sizeU = sU;
+    n.ports = type === 'switch' ? 24 : (def.ports || 1);
+  }
+  markFilledFromRead(n, ['mac']);   // nato da un vicino LLDP/CDP: il MAC lo ha scritto la lettura, non una persona
   store.state.nodes.push(n);
   return n;
 }
@@ -85,7 +107,7 @@ function _mkLink(src, dst, meta) {
  * Muta store.state; NON fa pushHistory/render (li gestisce il chiamante/Sync).
  *
  * @param {Array} pollResults - [{ nodeId, fdbTable, neighbors, suggestedSharedSegments? }]
- * @returns {{ nodes:number, links:number, pruned:number }}
+ * @returns {{ nodes:number, links:number, pruned:number, made?:Array }}
  */
 export function materializeTopologyNodes(pollResults) {
   const EMPTY = { nodes: 0, links: 0, pruned: 0 };
@@ -149,8 +171,17 @@ export function materializeTopologyNodes(pollResults) {
     segments++;
   }
 
+  let floorMade = 0;
+  const made = [];   // identità dei nodi nati: chi riassume il giro non li conta più fra i «non agganciati»
   for (const nn of (ops.materializeNeighbors || [])) {
-    const node = _createNeighborNode(nn); nodes++;
+    // Due nodi con lo stesso IP sono due identità in conflitto: se l'apparato esiste già
+    // (nato poco fa in questo stesso giro, o non riconosciuto dal confronto per nome) non
+    // se ne crea un secondo — il cavo lo disegnerà il prossimo Sync sul nodo che c'è.
+    const _ip = usableNeighborIp(nn.ip);
+    if (_ip && store.state.nodes.some(x => x && x.ip === _ip)) continue;
+    const node = _createNeighborNode(nn, floorMade); nodes++;
+    if (node.rackId == null) floorMade++;
+    made.push({ nodeId: node.id, mac: node.mac || '', ip: node.ip || '', hostname: node.hostname || '' });
     const p1 = `${node.id}-1`;
     if (!store.state.ports[p1]) store.state.ports[p1] = {};
     if (!store.state.ports[nn.onLocalPid]) store.state.ports[nn.onLocalPid] = {};
@@ -162,7 +193,7 @@ export function materializeTopologyNodes(pollResults) {
   }
 
   if (nodes && typeof _invalidateIdx === 'function') _invalidateIdx();
-  return { nodes, links, pruned: 0, segments };
+  return { nodes, links, pruned: 0, segments, made };
 }
 
 // Esposto per test e2e (page.evaluate); il Sync la importa via ESM.

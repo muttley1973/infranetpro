@@ -53,6 +53,20 @@ const _avvisaRecupero = (res) => {
         'warn');
 };
 
+// ⭐ Il server puo' CORREGGERE lo stato che riceve (un IP che non e' un indirizzo, un id che non e'
+// un nome): lo fa per non perdere il salvataggio, ma una correzione silenziosa e' una modifica del
+// lavoro di qualcuno che non l'ha vista. Il numero viaggia in un'intestazione (il corpo e' il DTO
+// pubblico) e qui diventa un avviso. Non blocca niente: il salvataggio e' riuscito.
+const _avvisaPulizia = (res) => {
+    if (!res.ok) return;
+    const h = res.headers.get('X-InfraNet-Sanitized');
+    const m = h && /^ip=(\d+);id=(\d+)$/.exec(h);
+    if (!m) return;
+    const ip = +m[1], id = +m[2];
+    if (!ip && !id) return;
+    _showToast(t('msg.ui.projectSanitized', { ip, id }), 'warn');
+};
+
 // Le due cose da fare su una risposta che porta un progetto: prendere la
 // versione, e dire se è stata recuperata.
 const _onProjectGet = (res) => { _captureEtag(res); _avvisaRecupero(res); };
@@ -264,7 +278,7 @@ export async function saveProject(opts = {}) {   // ASSE B: importata da app.js 
             method:'PUT',
             headers: { 'Content-Type':'application/json', ..._ifMatch() },
             body: JSON.stringify({state: store.state}),
-            onResponse: _captureEtag,
+            onResponse: (res) => { _captureEtag(res); _avvisaPulizia(res); },
         });
         _clearDirty(epoca);
         // Snapshot completo su Salva MANUALE (non autosave, non ripristino), con throttle:

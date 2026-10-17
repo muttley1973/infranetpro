@@ -20,6 +20,7 @@
 //   <baseDir>/<id>/observations.json              — chi è stato visto dove, e quante volte
 //   <baseDir>/<id>/audit.json                     — giornale «chi/quando/cosa» del documento
 const fs = require('fs');
+const { PRIVATE_MODE } = require('./projects-store');
 const path = require('path');
 const zlib = require('zlib');
 
@@ -71,7 +72,9 @@ function createFsHistoryStore(opts = {}) {
   // Scrittura atomica: tmp + rename (vale per stringhe e Buffer/gzip).
   function _atomicWrite(file, data) {
     const tmp = file + '.tmp';
-    const fd = fs.openSync(tmp, 'w');
+    // Gli snapshot sono copie intere del progetto — credenziali SNMP comprese — e la presenza/audit
+    // dicono chi e dove: stessi permessi del progetto (0600), non la maschera di default.
+    const fd = fs.openSync(tmp, 'w', PRIVATE_MODE);
     try { fs.writeSync(fd, data); fs.fsyncSync(fd); }
     finally { fs.closeSync(fd); }
     fs.renameSync(tmp, file);

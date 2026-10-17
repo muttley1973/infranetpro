@@ -469,8 +469,12 @@ function _topology(links, resolveNode, nameById) {
 
 // ── Ri-sanitizzazione dei liveFacts (allowlist per categoria) ────────────────
 const _num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
-const _str = (v) => { const t = (v == null ? '' : String(v)).trim(); return t || null; };
-function _arr(x) { return Array.isArray(x) ? x : []; }
+// I liveFacts arrivano dal browser e finiscono nel prompt: ogni stringa ha un tetto e ogni elenco
+// una lunghezza massima, o un corpo da 20 MB diventava un prompt da 20 MB pagato con la chiave dell'admin.
+const MAX_FACT_STR = 200;       // un hostname, un MAC, una frase di cambio: niente di piu' lungo e' un fatto
+const MAX_FACT_LIST = 500;      // voci per categoria: una Verifica su una rete grande ne produce decine
+const _str = (v) => { const t = (v == null ? '' : String(v)).trim().slice(0, MAX_FACT_STR); return t || null; };
+function _arr(x) { return Array.isArray(x) ? x.slice(0, MAX_FACT_LIST) : []; }
 
 function _driftEntry(e, fields) {
   if (!e || typeof e !== 'object') return null;
@@ -710,6 +714,7 @@ module.exports = {
   _normScope, _buildPortNodeResolver, _portNum, _buildNeighborIndex,
   MAX_ARCHI_MOSTRATI, MAX_PORTE_MOSTRATE, MAX_PRESE_MOSTRATE,
   MAX_VM_MOSTRATE, MAX_SSID_MOSTRATI, MAX_PORTE_RACCOLTE, MIN_PASSIVI_PER_RIASSUMERE,
+  MAX_FACT_STR, MAX_FACT_LIST,
   _safeScalars, _devicePorts, _deviceHealth, _topology, _wirelessSsids, _collectPorts,
   _lifecycle, _vms, _outlets, _identityEntry,
   _PASSIVE_NO_IP_TYPES,

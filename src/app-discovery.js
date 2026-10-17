@@ -15,29 +15,20 @@ import { _discIndexNode, _discVendorFromMac, _discRememberVendor, _discIdentityS
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 import { registerChangeActions, registerClickActions } from './app-delegation.js';   // ASSE B: checkbox "seleziona tutti" Scopri via data-change; bottone "Nuova ricerca" via data-act
 import { enableColumnResize } from './app-col-resize.js';   // colonne della tabella Scopri trascinabili + scorrimento orizzontale
+import { isJunkHostName } from '../lib/host-name.js';   // «dc-01» e' un nome, un UUID/MAC no: la regola sta in un posto solo, testata
 
 // Nome DISPLAY per la tabella Scopri e per il nome del nodo importato. L'utente legge la
 // RIGA (Nome -> Vendor -> Tipo, gia' in colonne separate) e fa l'abbinamento da solo:
 // quindi il Nome deve essere l'IDENTIFICATIVO piu' specifico del device, e MAI il tipo
-// (ridondante) ne' il vendor (colonna Vendor). Il MODELLO ha PRIORITA' sull'hostname:
+// (ridondante) ne' il vendor (colonna Vendor). Il MODELLO ha PRIORITA' sull'hostname (tranne per un
+// apparato SNMP con un nome leggibile: li' il nome e' una scelta e il modello no, v. _discDisplayName):
 // e' l'identita' di PRODOTTO (SHIELD, RLC-810A, Mediapad M5) mentre l'hostname e' spesso
 // un default generico (SRV mDNS "Android.local", name ONVIF "IPC-BO") che lo mascherava.
 //   1. MODELLO annunciato, ripulito (mDNS `md`/`ty`, UPnP modelName, ONVIF hardware):
 //      "SHIELD Android TV"->"Shield", "HUAWEI Mediapad M5"->"Mediapad M5", "RLC-810A".
 //   2. hostname REALE se leggibile (Sinology.local, GS1900) — non UUID/blob/auto-ID/generico
 //   3. l'IP come riferimento stabile e univoco quando non c'e' ne' modello ne' hostname.
-function _discIsJunkHost(h){
-    const s = String(h||'').trim().toLowerCase().replace(/\.local\.?$/,'').replace(/\.$/,'');
-    if(!s) return true;
-    if(/^[0-9a-f]{2,}(-[0-9a-f]{2,})+$/.test(s)) return true;   // UUID / gruppi esadecimali (mDNS)
-    if(/^[0-9a-f]{12,}$/.test(s)) return true;                  // blob esadecimale lungo
-    // Hostname AUTO-GENERATO dal device: codice-brand corto + seriale/MAC esadecimale, senza
-    // separatori/parole (HP "HPF4390962F234", Brother "BRW008077...", ESP, ...). Vendor-neutral:
-    // e' lo SCHEMA (poche lettere + molti hex) a non essere leggibile, non un marchio specifico.
-    // NB: "GS1900" (modello, 4 cifre) e "DESKTOP-ABC123" (separatore) NON matchano -> restano.
-    if(/^[a-z]{2,6}[0-9a-f]{8,}$/.test(s)) return true;
-    return false;
-}
+function _discIsJunkHost(h){ return isJunkHostName(h); }
 // Descrittori di CLASSE/SERVIZIO generici (UPnP/DLNA) — "WPS Access Point", "Internet Gateway
 // Device", "MediaRenderer": la funzione del device, NON la sua identita' -> non usarli come nome.
 // Vendor-neutral (termini standard). Tieni in sync con lib/discovery-mdns.js isGenericDeviceName.
@@ -98,9 +89,15 @@ function _discDisplayName(d){
     if(!d) return '';
     // Modello ESATTO: SNMP ENTITY-MIB (switch/router/NAS che lo espongono) o mDNS/UPnP/ONVIF.
     const model = _discCleanModel(d.snmpModel || (d.mdns && d.mdns.model) || '', d.vendor);
-    if(model && !_discIsGenericName(model)) return model;
     const host = String(d.hostname || d.netbiosName || '').trim();
-    if(host && !_discIsJunkHost(host) && !_discIsGenericName(host)) return host;
+    const hostOk = !!host && !_discIsJunkHost(host) && !_discIsGenericName(host);
+    // Un apparato che ha risposto a SNMP e' gestito da qualcuno: il suo nome e' una SCELTA (sysName,
+    // o il DNS che l'amministratore gli ha dato), mentre il modello e' uguale per tutti quelli dello
+    // stesso tipo. Dodici «Catalyst 2960» in colonna non dicono quale sia quale: il nome si'.
+    // Il modello resta il primo dove l'hostname e' un default generico (mDNS «Android.local», ONVIF).
+    if(d.snmpReachable && hostOk) return host;
+    if(model && !_discIsGenericName(model)) return model;
+    if(hostOk) return host;
     return String(d.ip || '').trim();
 }
 
@@ -401,7 +398,8 @@ async function runDiscovery(){
         const found1 = store._discResults.filter(d=>d.alive).length;
 
         _discRenderTable();
-        const baseSummary = _discSummaryHtml(store._discResults);
+        const toolWarn = _discToolWarningsHtml(data.warnings);
+        const baseSummary = _discSummaryHtml(store._discResults) + toolWarn;
         if(found1===0){
             document.getElementById('disc-progress').innerHTML =
                 `<span class="tm-err">${_dt('disc.noHostsOn','Nessun host marcato On. Controlla firewall/ICMP o abilita SNMP/HTTP sui dispositivi.')}</span>` + baseSummary;
@@ -427,7 +425,7 @@ async function runDiscovery(){
             const newViaLldp = total - found1;
             document.getElementById('disc-progress').innerHTML =
                 `<span class="tm-ok">${_dt('disc.doneTotal','Completato - {n} dispositivi',{n:`<strong>${total}</strong>`})}` +
-                (newViaLldp > 0 ? ` ${_dt('disc.viaSplit','({scan} scan + {lldp} via LLDP/CDP)',{scan:found1,lldp:`<strong>${newViaLldp}</strong>`})}` : '') + `</span>${_discSummaryHtml(store._discResults)}`
+                (newViaLldp > 0 ? ` ${_dt('disc.viaSplit','({scan} scan + {lldp} via LLDP/CDP)',{scan:found1,lldp:`<strong>${newViaLldp}</strong>`})}` : '') + `</span>${_discSummaryHtml(store._discResults)}${toolWarn}`
                 + _discSnmpZeroHint(store._discResults);
         }
 
@@ -829,6 +827,20 @@ function _discSummaryHtml(results, extra={}){
 // soglia che nessuno ha misurato.
 // ⚠️ Con SNMPv3 rilevato la discovery sa gia' dire di meglio (needsCredentials, 🔑):
 // li' questa frase tace, se no manda a cercare una community a chi serve un utente.
+// Gli strumenti di sistema che sono mancati durante la scansione (`ping`, tabella ARP): il server
+// li dice nella risposta (`warnings`, codici stabili) e qui diventano una riga ben visibile. Prima
+// «0 trovati» senza `ping` era identico a una rete vuota — e l'utente cercava il guasto nella rete.
+function _discToolWarningsHtml(warnings){
+    const list = Array.isArray(warnings) ? warnings : [];
+    return list.map(w => {
+        const code = String((w && w.code) || '');
+        if(!/^[a-z-]{1,30}$/.test(code)) return '';
+        const key = 'disc.warn.' + code;
+        const txt = _dt(key, '');
+        return (txt && txt !== key) ? `<div class="tm-err" style="margin-top:6px">${escapeHTML(txt)}</div>` : '';
+    }).join('');
+}
+
 function _discSnmpZeroHint(rows){
     const list = Array.isArray(rows) ? rows : [];
     const vivi = list.filter(d => d.alive === true || d.pingReachable === true).length;
@@ -1582,7 +1594,7 @@ expose({
     openDiscovery, closeDiscovery, _closeDiscoveryOverlayClick, runDiscovery,
     importDiscovered,
     _discExistingNode, _discRenderTable, _discCrawlRow, _discArpRow, _discVendorLabel,
-    _discApplyEdges,
+    _discApplyEdges, _discDisplayName,
 });
 
 // ASSE B — superficie DINAMICA tabella Scopri (righe rese da _discRenderTable):

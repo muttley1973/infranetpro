@@ -17,6 +17,7 @@ const { mergeAudit, foldAudit, stripAudit } = require('../../lib/audit-log');
 const { runProjectDeleteHooks } = require('../module-registry');
 const { stripRefCreds } = require('../../lib/backup-ref.js');
 const { addrFamily } = require('../../lib/cidr.js');
+const { repairUnsafeIds } = require('../../lib/id-safety.js');
 
 const router = express.Router();
 const HISTORY_DIR = path.join(PROJECTS_DIR, 'history');
@@ -155,6 +156,31 @@ function _sanitizeNodeAddrs(state) {
   return cleared;
 }
 
+// ── Un id è un nome, non un pezzo di HTML ─────────────────────────────────────
+// L'interfaccia interpola gli id come valori di attributo; uno stato con un id come
+//   "><img src=x onerror=…>
+// eseguirebbe codice nel browser di chiunque lo apra, viewer compresi. Il client, aprendo
+// un progetto, ripara gli id strani (lib/id-safety.js); questo copre chi scrive senza
+// passare dal client — un PUT fatto a mano, un progetto importato da JSON, uno snapshot.
+// Stessa scelta di `_sanitizeNodeAddrs`: il salvataggio NON si rifiuta (si perderebbe il
+// lavoro dell'intero progetto per un campo), si ripara e si scrive nel log quanti sono.
+// ⚠️ La riparazione riscrive anche i riferimenti (rackId, estremi dei cavi…): un id
+// rinominato e basta scollegherebbe il progetto. Gli id dei NODI non si toccano qui: il
+// client li rinumera al caricamento, e le porte `<nodo>-<n>` li portano dentro il nome.
+function _repairUnsafeIds(state) {
+  const n = repairUnsafeIds(state);
+  if (n) console.warn('[projects] ' + n + ' id che non erano un nome (virgolette, parentesi angolari…): rinominati, riferimenti riscritti');
+  return n;
+}
+
+// ── Quanto e' stato corretto, detto a chi ha salvato ─────────────────────────
+// Azzerare un IP o rinominare un id senza dirlo e' una modifica silenziosa del lavoro di
+// qualcuno: il log del server la registra, ma chi ha premuto Salva non lo vede. Il numero viaggia
+// in un'INTESTAZIONE (il corpo e' il DTO pubblico, v. ETag), e il client lo dice in un avviso.
+function _noteSanitized(res, { ip = 0, id = 0 } = {}) {
+  if (ip || id) res.set('X-InfraNet-Sanitized', `ip=${ip | 0};id=${id | 0}`);
+}
+
 // ── Chi ha in mano quale versione ────────────────────────────────────────────
 // L'ETag viaggia nell'INTESTAZIONE, non nel corpo: il corpo di GET/POST/copia è il
 // DTO del progetto, che esce anche dalla REST API v1 e dall'inventario Ansible, e
@@ -181,8 +207,9 @@ router.post('/api/projects', auth.requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'state must be an object', code: 'bad-state' });
   }
   const state = req.body?.state ?? {};
+  const fixedIds = _repairUnsafeIds(state);
   _sanitizeBackupRefs(state);
-  _sanitizeNodeAddrs(state);
+  const clearedIp = _sanitizeNodeAddrs(state);
   const now   = timestamp();
   // Qui si toglie e basta, senza far confluire niente: una presenza che arriva
   // insieme a un progetto NUOVO (import di un export altrui) è la misura di
@@ -201,6 +228,7 @@ router.post('/api/projects', auth.requireAdmin, async (req, res) => {
     return nuovo;
   });
   _tag(res, id);
+  _noteSanitized(res, { ip: clearedIp, id: fixedIds });
   res.status(201).json(loadProject(id));
 });
 
@@ -267,8 +295,9 @@ router.put('/api/projects/:id', auth.requireAdmin, async (req, res) => {
   }
   const name  = req.body?.name  ? (req.body.name.toString().trim() || p.name) : p.name;
   const state = req.body?.state !== undefined ? req.body.state : p.state;
+  const fixedIds = _repairUnsafeIds(state);
   _sanitizeBackupRefs(state);
-  _sanitizeNodeAddrs(state);
+  const clearedIp = _sanitizeNodeAddrs(state);
   const now   = timestamp();
   _presenceOutOfDocument(id, state);
   _observationsOutOfDocument(id, state);
@@ -305,6 +334,7 @@ router.put('/api/projects/:id', auth.requireAdmin, async (req, res) => {
   // intero per poter salvare una seconda volta, e il secondo Salva prenderebbe un
   // 409 contro sé stesso.
   _tag(res, id);
+  _noteSanitized(res, { ip: clearedIp, id: fixedIds });
   res.json({ id, name, updated_at: now });
 });
 
@@ -351,3 +381,4 @@ module.exports = router;
 module.exports._redactSnmpSecrets = _redactSnmpSecrets;
 module.exports._sanitizeBackupRefs = _sanitizeBackupRefs;
 module.exports._sanitizeNodeAddrs = _sanitizeNodeAddrs;
+module.exports._repairUnsafeIds = _repairUnsafeIds;

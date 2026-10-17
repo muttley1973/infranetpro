@@ -399,8 +399,8 @@ const CAPS = {
     // +1 (2026-10-16, da 55): `_summaryBits.join(' · ')` unisce pezzi che contengono t() con
     // parametri (lunghezze e indici del cavo: numeri). Prima la chiamata t() era assolta per
     // definizione; ora i parametri si provano e questi non sono dimostrabili numerici.
-    'src/app-properties-link.js': 56,
-    'src/app-properties-node-devices.js': 87,
+    'src/app-properties-link.js': 31,
+    'src/app-properties-node-devices.js': 86,
     // −3 (2.10.1, da 49): la riga del gruppo LAG ha guadagnato il campo VLAN del
     // bundle, e nel farlo i quattro `data-gid` di quella riga sono passati
     // dall'escaper. Non e' cosmesi: per un LAG scoperto via SNMP il gid e'
@@ -409,8 +409,8 @@ const CAPS = {
     // +2 (2026-10-16, da 71): `_ppPreview` e il ternario sul conteggio porte di un device a piu'
     // porte portano t() con parametri NUMERICI (da/a della numerazione, `_fpc`); stessa causa di
     // app-properties-link.js. Nessuno di questi valori e' testo che arriva da fuori.
-    'src/app-properties-node.js': 73,
-    'src/app-properties-port.js': 35,
+    'src/app-properties-node.js': 62,
+    'src/app-properties-port.js': 33,
     'src/app-properties-vm.js': 16,
     'src/app-properties.js': 15,
     'src/app-render-core.js': 38,
@@ -427,7 +427,7 @@ const CAPS = {
     // esposte di questa.
     'src/app-topology-overlay.js': 10,
     'src/app-vlan-autopoll.js': 19,
-    'src/app-wifi.js': 27,
+    'src/app-wifi.js': 24,
     // −2 (2.11.3, da 3): il badge di stato-di-prova del cavo è stato RITIRATO, e con
     // lui le sue due interpolazioni non provate — `${badgeInk(m.color)}` e `${m.color}`.
     // ⭐ Vale la pena dire come si chiude una deroga: la nota precedente spiegava
@@ -460,7 +460,7 @@ const I18N_CAPS = {
     'src/app-ports.js': 2,
     'src/app-properties-floor.js': 6,   // `{n: u.usedCount}` & co + `{vid}` (numero di VLAN)
     'src/app-properties-link.js': 2,
-    'src/app-properties-node.js': 4,    // contatori + `{when: lastOkStr}` (toLocaleString di una data)
+    'src/app-properties-node.js': 3,    // contatori + `{when: lastOkStr}` (toLocaleString di una data)
     'src/app-shared-segment.js': 1,
     'src/app-snmp.js': 2,
     'src/app-spare.js': 5,

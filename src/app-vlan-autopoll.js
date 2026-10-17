@@ -468,8 +468,17 @@ export function _effPortVlan(pid){
     // «questo apparato classifica le VLAN?». Se se la componesse per conto suo,
     // il pannello della porta e il cavo direbbero due VLAN diverse.
     const active=isVlanAware(getNodeByPortId(pid));
-    if(active) return pi.vlanOvr ?? (pi.vlan>=1?pi.vlan:undefined) ?? pi.vlanProp ?? _siteNativeVlan();
-    return pi.vlanProp ?? pi.vlanOvr ?? (pi.vlan>=1?pi.vlan:undefined) ?? _siteNativeVlan();
+    // Una VLAN è un NUMERO. Il valore che esce di qui finisce in pannelli, tooltip, colori
+    // e cavi: un campo che nel documento fosse una stringa qualunque (un file importato,
+    // le API) ci arriverebbe tale e quale — anche come HTML. Chi non è un numero finito
+    // non conta come risposta e si passa alla fonte successiva, come per un campo assente.
+    const ovr=_vlanNum(pi.vlanOvr), vl=_vlanNum(pi.vlan), prop=_vlanNum(pi.vlanProp);
+    if(active) return ovr ?? (vl>=1?vl:undefined) ?? prop ?? _siteNativeVlan();
+    return prop ?? ovr ?? (vl>=1?vl:undefined) ?? _siteNativeVlan();
+}
+function _vlanNum(x){
+    const v = (typeof x==='string' && /^\d{1,4}$/.test(x)) ? +x : x;
+    return (typeof v==='number' && Number.isFinite(v)) ? v : undefined;
 }
 
 // Trunk EFFETTIVO di un link, derivato dalle "VLAN trasportate" dei device agli

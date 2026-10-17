@@ -28,13 +28,33 @@ const { loadProject } = require('../projects-store');
 
 const router = express.Router();
 
-// Id progetto SICURO: intero positivo. `loadProject` fa
-// path.join(PROJECTS_DIR, `${id}.json`) → senza coercizione un projectId come
-// "../users" nel body uscirebbe dalla cartella projects/ (path traversal).
-// Allinea al `+req.params.id` già usato dalle altre route. Ritorna l'intero o null.
+// Id progetto SICURO: intero positivo, nella forma in cui lo scrive il nostro client — un numero
+// o la sua scrittura decimale canonica. `loadProject` fa path.join(PROJECTS_DIR, `${id}.json`):
+// senza coercizione un projectId come "../users" uscirebbe dalla cartella projects/ (path
+// traversal). Il vecchio `Number(raw)` era piu' largo di quanto serviva: `true`, `[5]`, `'0x10'`
+// e `'1e3'` diventavano 1, 5, 16 e 1000 — progetti che nessuno aveva chiesto.
+// Ritorna l'intero o null.
 function _safeProjectId(raw) {
-  const n = Number(raw);
-  return (Number.isInteger(n) && n > 0) ? n : null;
+  if (typeof raw === 'number') return (Number.isSafeInteger(raw) && raw > 0) ? raw : null;
+  if (typeof raw === 'string') {
+    const t = raw.trim();                      // gli spazi attorno erano gia' tollerati, e non fanno male
+    if (/^[1-9]\d{0,14}$/.test(t)) { const n = Number(t); return Number.isSafeInteger(n) ? n : null; }
+  }
+  return null;
+}
+
+// Tetti sulla conversazione che il client manda al modello: il corpo puo' pesare fino a 20 MB
+// (limite globale di express.json) e tutto cio' che arriva qui viene INOLTRATO al provider con la
+// chiave dell'admin — cioe' pagato. Si tengono gli ultimi turni, ciascuno troncato, e un totale.
+const MAX_TURNS = 40;
+const MAX_TURN_CHARS = 8000;
+const MAX_TOTAL_CHARS = 60000;
+function _capTurns(turns) {
+  let out = turns.slice(-MAX_TURNS).map(m => ({ role: m.role, content: m.content.slice(0, MAX_TURN_CHARS) }));
+  let total = out.reduce((n, m) => n + m.content.length, 0);
+  // Oltre il totale si scartano i turni piu' VECCHI, mai l'ultimo: e' la domanda a cui si risponde.
+  while (out.length > 1 && total > MAX_TOTAL_CHARS) { total -= out[0].content.length; out = out.slice(1); }
+  return out;
 }
 
 // ── Aiuto §4c: catalogo UI (pulsanti+tooltip) DERIVATO una volta da
@@ -53,14 +73,22 @@ function _helpLines(lang) {
   catch (_e) { return []; }
 }
 
-router.get('/api/ai/config', (_req, res) => {
-  res.json(aiConfig.getConfig());
+router.get('/api/ai/config', (req, res) => {
+  const cfg = aiConfig.getConfig();
+  // L'endpoint e' un dato di RETE (spesso un host interno: `http://10.0.4.7:11434`) e serve a chi lo
+  // configura. Gli altri utenti ne ricavano solo `local` (il chip 🔒 Locale / ☁ Cloud).
+  if (!req.session || !req.session.user || req.session.user.role !== 'admin') delete cfg.endpoint;
+  res.json(cfg);
 });
 
 router.put('/api/ai/config', auth.requireAdmin, (req, res) => {
   try {
     res.json(aiConfig.setConfig(req.body || {}));
-  } catch (_e) {
+  } catch (e) {
+    // Un campo sbagliato e' colpa di chi l'ha mandato, non del server: 400 col motivo, non un 500 muto.
+    if (e && (e.code === 'endpoint_invalid' || e.code === 'key_invalid')) {
+      return res.status(400).json({ error: e.code === 'endpoint_invalid' ? 'endpoint_invalid' : 'key_invalid', reason: e.reason || '' });
+    }
     res.status(500).json({ error: 'Impossibile salvare la configurazione AI' });
   }
 });
@@ -111,6 +139,7 @@ router.post('/api/ai/chat', auth.requireAdmin, async (req, res) => {
     .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
     .map(m => ({ role: m.role, content: String(m.content) }));
   if (!turns.length) return res.status(400).json({ error: 'Nessun messaggio' });
+  const capped = _capTurns(turns);
 
   // Handler async: la costruzione di contesto/prompt e JSON.stringify va DENTRO un
   // try. Un throw qui, restando fuori, diventava una unhandledRejection (Express 4
@@ -129,7 +158,7 @@ router.post('/api/ai/chat', auth.requireAdmin, async (req, res) => {
   try {
     const out = await chatCompletion({
       endpoint: cfg.endpoint, model: cfg.model, key: cfg.key,
-      messages: [{ role: 'system', content: system }, ...turns],
+      messages: [{ role: 'system', content: system }, ...capped],
     });
     // `entities` = digest delle entità REALI del contesto (id/nome/ip/mac/vlan)
     // → il client fa il controllo anti-invenzione (lib/ai-grounding) su ciò che
@@ -143,4 +172,6 @@ router.post('/api/ai/chat', auth.requireAdmin, async (req, res) => {
 });
 
 router._safeProjectId = _safeProjectId;   // esportato per il test di sicurezza
+router._capTurns = _capTurns;
+router.CAPS = { MAX_TURNS, MAX_TURN_CHARS, MAX_TOTAL_CHARS };
 module.exports = router;

@@ -82,6 +82,54 @@ function atomicWriteFile(file, data, mode) {
   }
 }
 
+// ── Permessi dei file che portano credenziali ────────────────────────────────
+// I progetti contengono le credenziali SNMP dei dispositivi (community, utente e password v3),
+// `users.json` gli hash delle password e `api-tokens.json` quelli dei token: con la maschera
+// di default (0644) li leggeva OGNI utente del sistema. L'API li oscura ai viewer, ma il file no.
+// (`.session-secret` e le config AI/DCIM erano gia' 0600; questi no.)
+// 0600 = solo il proprietario. Chi ha bisogno di un permesso piu' largo — un backup lanciato da
+// un altro utente, una cartella condivisa — lo sceglie con INFRANET_FILE_MODE (es. 640): sempre
+// lettura+scrittura al proprietario e NIENTE per "altri", o si torna a 600.
+// Su Windows/FAT chmod non fa niente: best-effort ovunque.
+function _privateMode(raw) {
+  const s = String(raw == null ? '' : raw).trim();
+  if (!/^[0-7]{3}$/.test(s)) return 0o600;
+  const m = parseInt(s, 8);
+  return ((m & 0o600) === 0o600 && (m & 0o007) === 0) ? m : 0o600;
+}
+const PRIVATE_MODE = _privateMode(process.env.INFRANET_FILE_MODE);
+
+function hardenFile(file, mode) {
+  try { fs.chmodSync(file, mode == null ? PRIVATE_MODE : mode); } catch (_) { /* assente / non nostro / FS senza permessi */ }
+}
+// La copia `.bak` nasce dal file di PRIMA: se quello era 0644, il backup lo e' rimasto anche dopo che
+// il principale e' diventato 0600. Si stringe a parte, perche' la scrittura atomica non la tocca.
+function hardenBackup(file) { hardenFile(file + '.bak'); }
+
+// Retrofit di una cartella: i file scritti prima di questa regola hanno i permessi vecchi. Solo i
+// file dei dati (json, jsonl, gz, bak), ricorsivo; mai le cartelle, mai nulla fuori da `dir`.
+function hardenTree(dir, re) {
+  const pat = re || /\.(json|jsonl|gz|bak)$/i;
+  let n = 0;
+  const walk = (d, depth) => {
+    if (depth > 6) return;
+    let ents;
+    try { ents = fs.readdirSync(d, { withFileTypes: true }); } catch (_) { return; }
+    for (const e of ents) {
+      const f = path.join(d, e.name);
+      if (e.isSymbolicLink()) continue;                       // un link non si segue: potrebbe uscire dalla cartella
+      if (e.isDirectory()) walk(f, depth + 1);
+      else if (e.isFile() && pat.test(e.name)) {
+        try {
+          if ((fs.statSync(f).mode & 0o777) !== PRIVATE_MODE) { fs.chmodSync(f, PRIVATE_MODE); n++; }
+        } catch (_) { /* best-effort */ }
+      }
+    }
+  };
+  walk(dir, 0);
+  return n;
+}
+
 // La stessa scrittura, ASINCRONA. Serve al salvataggio dei progetti, che e'
 // l'unico posto dove il file e' grande abbastanza da farsi sentire: mentre il
 // disco lavora, l'event loop e' fermo e ogni altra richiesta aspetta. Misurato
@@ -424,7 +472,8 @@ async function _salvaOra(id, name, state, createdAt, updatedAt) {
     ? rawVersion : PROJECT_STATE_SCHEMA_VERSION;
   await atomicWriteFileAsync(file, JSON.stringify(
     { format: 'infranet-project', schemaVersion: storeState.schemaVersion, id, name, created_at: createdAt, updated_at: updatedAt, state: storeState }
-  ));
+  ), PRIVATE_MODE);
+  hardenBackup(file);   // il .bak e' la copia del file di prima: anche lui porta le credenziali
   // ⚠️ Chi ha scritto LO SA: la riga d'elenco tenuta da parte per questo progetto
   // non vale piu'. La firma su disco se ne accorgerebbe da sola quasi sempre, ma
   // «quasi» qui ha un caso vero — due scritture nello stesso millesimo e con la
@@ -662,6 +711,7 @@ function safeProjectId(raw) {
 
 module.exports = {
   PROJECTS_DIR, ASSETS_DIR, atomicWriteFile, atomicWriteFileAsync, readJsonWithBak, withProject, CHIAVE_NUOVO,
+  PRIVATE_MODE, _privateMode, hardenFile, hardenBackup, hardenTree,
   _tmpPath, nextId, saveProject, loadProject, readProjectFile, listProjects, safeProjectId,
   extractBgAsset, reattachBgAsset, removeBgAsset, projectEtag, fileEtag,
 };

@@ -412,8 +412,15 @@ function _buildDiscoveryMeta(row, extra = {}) {
     }
   }
   if (row.hostname) {
-    addSource('dns', 'DNS', 'medium', 'Hostname risolto');
-    addEvidence('hostname', row.hostname, 12, 'Reverse DNS o SNMP sysName');
+    // L'hostname puo' venire dal DNS inverso o dal sysName letto via SNMP (`hostnameFrom`).
+    // Presentarlo sempre come «DNS» attribuiva a una risoluzione una lettura dell'apparato.
+    // Senza `hostnameFrom` (righe vecchie, fixture) resta la dicitura storica.
+    if (row.hostnameFrom === 'snmp') {
+      addEvidence('hostname', row.hostname, 12, 'SNMP sysName');
+    } else {
+      addSource('dns', 'DNS', 'medium', 'Hostname risolto');
+      addEvidence('hostname', row.hostname, 12, row.hostnameFrom === 'dns' ? 'Reverse DNS' : 'Reverse DNS o SNMP sysName');
+    }
     addReason('hostname-known');
   }
   if (row.netbiosName || row.netbiosGroup) {

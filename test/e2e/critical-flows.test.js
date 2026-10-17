@@ -6263,6 +6263,112 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(errs.length, 0, 'nessun errore JS: ' + errs.join(' | '));
     });
 
+    await t.test('Sync: il vicino annunciato nasce del TIPO che dichiara — AP/telefono sul piano, server in rack, non sempre «switch»', async () => {
+      const errBefore = pageErrors.length;
+      await page.evaluate(() => {
+        state.nodes.push({ id: 'e2eTy', type: 'switch', name: 'E2E TY', rackId: null, ports: 24 });
+        for (const k of [1, 2, 3, 4, 5]) state.ports['e2eTy-' + k] = { ifName: 'Gi' + k };
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+      });
+      const POLL = [{
+        nodeId: 'e2eTy', fdbTable: {}, suggestedSharedSegments: [],
+        neighbors: [
+          { localPort: 'Gi1', remoteDevice: 'AP-PIANO1', remoteMac: 'aa:00:00:00:10:01', remoteIP: '10.77.0.11', protocol: 'LLDP',
+            remotePlatform: 'UniFi AP U6-Lite', remoteCaps: '3000' },
+          { localPort: 'Gi2', remoteDevice: 'SEP00AA00AA0002', remoteMac: '', remoteIP: '10.77.0.12', protocol: 'CDP',
+            remotePlatform: 'Cisco IP Phone 8841', remoteCaps: '00000090' },
+          { localPort: 'Gi3', remoteDevice: 'srv-db01', remoteMac: 'aa:00:00:00:10:03', remoteIP: '10.77.0.13', protocol: 'LLDP',
+            remotePlatform: 'Linux srv-db01 5.15.0-91-generic', remoteCaps: '0100' },
+          { localPort: 'Gi4', remoteDevice: 'RT-BORDO', remoteMac: 'aa:00:00:00:10:04', remoteIP: '127.0.0.1', protocol: 'LLDP',
+            remotePlatform: '', remoteCaps: '0800' },
+          { localPort: 'Gi5', remoteDevice: 'MUTO-1', remoteMac: 'aa:00:00:00:10:05', remoteIP: '', protocol: 'LLDP' },
+        ],
+      }];
+      const r = await page.evaluate((poll) => {
+        const res = materializeTopologyNodes(poll);
+        const by = (mac) => state.nodes.find(n => n.mac === mac);
+        const pick = (n) => n && ({ type: n.type, rack: !!n.rackId, floor: typeof n.x === 'number' && typeof n.y === 'number',
+                                    ip: n.ip, src: n.identitySource, inferred: !!n.inferred });
+        const phone = state.nodes.find(n => n.hostname === 'SEP00AA00AA0002');
+        const floorPts = state.nodes.filter(n => n.inferred && typeof n.x === 'number').map(n => n.x + ',' + n.y);
+        return { made: res.nodes, links: res.links, ap: pick(by('aa:00:00:00:10:01')), phone: pick(phone), srv: pick(by('aa:00:00:00:10:03')),
+                 rt: pick(by('aa:00:00:00:10:04')), mute: pick(by('aa:00:00:00:10:05')), floorPts,
+                 madeIds: (res.made || []).length };
+      }, POLL);
+      assert.equal(r.made, 5);
+      assert.equal(r.madeIds, 5, 'ogni nodo nato viene restituito: il riepilogo del Sync li toglie dai «non agganciati»');
+      assert.equal(r.links, 5, 'un cavo per vicino');
+      assert.deepEqual(r.ap, { type: 'ap', rack: false, floor: true, ip: '10.77.0.11', src: 'lldp', inferred: true }, 'AP: sul piano, non nello scaffale');
+      assert.equal(r.phone.type, 'voip');
+      assert.equal(r.phone.rack, false);
+      assert.equal(r.phone.src, 'cdp', 'il vicino letto via CDP non si dichiara LLDP');
+      assert.deepEqual([r.srv.type, r.srv.rack], ['server', true], 'server: in rack');
+      assert.deepEqual([r.rt.type, r.rt.rack], ['router', true], 'router: in rack');
+      assert.equal(r.rt.ip, '', 'un IP di loopback annunciato NON diventa l\'IP del nodo');
+      assert.deepEqual([r.mute.type, r.mute.rack], ['switch', true], 'senza prove: il default storico, in rack');
+      assert.equal(new Set(r.floorPts).size, r.floorPts.length, 'i nodi nati sul piano nello stesso giro non si sovrappongono');
+      const again = await page.evaluate((poll) => materializeTopologyNodes(poll).nodes, POLL);
+      assert.equal(again, 0, 're-run = 0 nodi (idempotente)');
+      // Stesso IP di un nodo già nato: non se ne crea un secondo.
+      const dup = await page.evaluate(() => {
+        state.ports['e2eTy-6'] = { ifName: 'Gi6' };
+        const before = state.nodes.length;
+        const res = materializeTopologyNodes([{ nodeId: 'e2eTy', fdbTable: {}, suggestedSharedSegments: [], neighbors: [
+          { localPort: 'Gi6', remoteDevice: 'AP-RINOMINATO', remoteMac: 'aa:00:00:00:99:99', remoteIP: '10.77.0.11', protocol: 'LLDP' } ] }]);
+        return { made: res.nodes, delta: state.nodes.length - before, sameIp: state.nodes.filter(n => n.ip === '10.77.0.11').length };
+      });
+      assert.deepEqual(dup, { made: 0, delta: 0, sameIp: 1 }, 'due nodi con lo stesso IP sono due identità in conflitto');
+      const errs = pageErrors.slice(errBefore);
+      assert.equal(errs.length, 0, 'nessun errore JS: ' + errs.join(' | '));
+    });
+
+    await t.test('Scopri: il NOME di una riga — sysName per un apparato SNMP, modello dove l\'hostname e\' generico, `dc-01` non e\' un blob', async () => {
+      const r = await page.evaluate(() => ({
+        // dodici «Catalyst 2960» in colonna non dicono quale sia quale: il nome che l'amministratore ha dato, si'
+        snmp: _discDisplayName({ ip: '10.0.0.11', snmpReachable: true, snmpModel: 'Catalyst 2960', hostname: 'SW-ACCESS-01' }),
+        // senza hostname leggibile resta il modello
+        snmpNoName: _discDisplayName({ ip: '10.0.0.12', snmpReachable: true, snmpModel: 'Catalyst 2960', hostname: '' }),
+        // dove l'hostname e' un default generico (mDNS/ONVIF) il modello e' l'identita'
+        mdns: _discDisplayName({ ip: '10.0.0.13', hostname: 'IPC-BO', mdns: { model: 'RLC-810A' } }),
+        // un nome fatto di sillabe a-f/cifre e' un nome
+        dc: _discDisplayName({ ip: '10.0.0.14', hostname: 'dc-01' }),
+        // un UUID no: si ricade sull'IP
+        uuid: _discDisplayName({ ip: '10.0.0.15', hostname: '5f2a9c1e-0b3d-4c8e-9a41-7d6e2b1f3a90' }),
+        // un hostname generico di classe («gateway») nemmeno
+        generic: _discDisplayName({ ip: '10.0.0.16', snmpReachable: true, snmpModel: 'RB4011', hostname: 'router' }),
+      }));
+      assert.equal(r.snmp, 'SW-ACCESS-01');
+      assert.equal(r.snmpNoName, 'Catalyst 2960');
+      assert.equal(r.mdns, 'RLC-810A');
+      assert.equal(r.dc, 'dc-01');
+      assert.equal(r.uuid, '10.0.0.15');
+      assert.equal(r.generic, 'RB4011', 'un hostname generico non batte il modello');
+    });
+
+    await t.test('Export: titoli e nomi dei file portano il nome del progetto APERTO, non «InfraNet Pro»/«infranet»', async () => {
+      const r = await page.evaluate(() => {
+        const sel = document.getElementById('project-select');
+        const opt = sel && sel.selectedOptions && sel.selectedOptions[0];
+        const nome = opt ? opt.textContent.trim() : '';
+        const X = window._exportInternals;
+        const out = { nome, project: X._exportProjectName(), stem: X._exportFileStem() };
+        // un nome con spazi, accenti e simboli: lo stem resta un nome di file sicuro e non si svuota
+        const old = opt ? opt.textContent : null;
+        if (opt) opt.textContent = 'Sede Società & C. / piano 2';
+        out.stemSporco = X._exportFileStem();
+        if (opt) opt.textContent = '日本語';
+        out.stemSoloSimboli = X._exportFileStem();
+        if (opt) opt.textContent = old;
+        return out;
+      });
+      assert.ok(r.nome, 'c\'e\' un progetto aperto con un nome');
+      assert.equal(r.project, r.nome, 'il titolo e\' il nome del progetto');
+      assert.match(r.stem, /^[A-Za-z0-9_-]+$/, 'stem sicuro per un file');
+      assert.notEqual(r.stem, 'infranet', 'non il segnaposto');
+      assert.equal(r.stemSporco, 'Sede_Societ_C_piano_2', 'spazi, accenti e simboli → un nome di file leggibile');
+      assert.equal(r.stemSoloSimboli, 'infranet', 'un nome fatto solo di simboli non lascia un file senza nome');
+    });
+
     // Etichetta di planimetria: PRIMA cosa e', POI dove sta. Lo Scopri, senza
     // hostname, mette l'IP in `node.name` (app-discovery.js `_discDisplayName`):
     // la riga leggibile va DERIVATA dal misurato, senza riscrivere il documento.

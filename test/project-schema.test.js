@@ -137,7 +137,12 @@ test('CRICCHETTO — la classifica non elenca campi mai visti in nessun progetto
     'connection', 'rtWanType', 'rtRoutingProtos',
     // I lucchetti di modello/matricola/firmware (16/10): si chiudono quando una persona scrive il campo, quindi
     // non esistono in nessun progetto salvato prima. Dichiarazioni, non misure: escono nell'export.
-    'modelManual', 'serialNumberManual', 'firmwareVerManual']);
+    'modelManual', 'serialNumberManual', 'firmwareVerManual',
+    // Il cavo contraddetto (17/10): lo scrive la Verifica quando il vicino osservato su una porta non e` quello
+    // dichiarato dal cavo, e lo toglie quando tornano a combaciare. Esiste solo in un progetto SALVATO dopo una
+    // Verifica su una rete con un cavo spostato — il censimento del 28/08 non poteva contenerlo — e l'ha trovato il
+    // guard sui progetti veri, su una rete vera. Derivato: si ricalcola, non esce nell'export.
+    'miscabled']);
   for (const scope of Object.keys(CENSUS)) {
     const visti = new Set(keysOf(scope));
     const extra = Object.keys(FIELD_CLASS_BY_SCOPE[scope]).filter(k => !visti.has(k) && !attesi.has(k));
@@ -165,6 +170,20 @@ test('il trio dello stato SNMP e\' tutto MISURA e nessuno esce nell\'export (il 
     assert.ok(!(k in n), `${k} non deve uscire nell'export portabile: una misura di un impianto che chi apre il file non ha davanti`);
   }
   assert.strictEqual(n.name, 'SW', 'il resto del nodo resta');
+});
+
+test('link.miscabled e\' DERIVATO: lo scrive la Verifica, si ricalcola, e non viaggia nell\'export', () => {
+  assert.strictEqual(classifyField('link', 'miscabled'), 'derived');
+  const { sanitizePortableState } = require('../lib/project-format.js');
+  const state = {
+    nodes: [], ports: {},
+    links: [{ id: 'l1', src: 'a-1', dst: 'b-1', miscabled: { observed: 'sw9', declared: 'sw2' }, label: 'dorsale' }],
+  };
+  const out = sanitizePortableState(state);
+  assert.strictEqual(out.links[0].miscabled, undefined, 'cio\' che ha visto questo impianto non esce');
+  assert.strictEqual(out.links[0].src, 'a-1', 'il cavo resta');
+  assert.strictEqual(out.links[0].label, 'dorsale', 'e quello che ha scritto una persona pure');
+  assert.deepStrictEqual(state.links[0].miscabled, { observed: 'sw9', declared: 'sw2' }, 'l\'originale non si tocca');
 });
 
 test('sui progetti VERI, se ci sono, nessun campo sfugge (in CI questo test passa a vuoto)', () => {

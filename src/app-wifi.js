@@ -451,7 +451,7 @@ export function _renderRadioProps(panel, pid){
         const nm = on ? ((typeof getNodeDisplayName === 'function' ? getNodeDisplayName(on) : '') || on.name || on.id) : other;
         const kind = l.wireless ? _t('cable.wirelessAssoc') : _t('cable.cable');
         const ico = l.wireless ? 'fa-wifi' : 'fa-ethernet';
-        return `<div class="radio-assoc-row" data-act="wifi-assoc-open" data-lid="${l.id}">
+        return `<div class="radio-assoc-row" data-act="wifi-assoc-open" data-lid="${escapeHTML(l.id)}">
             <i class="fas ${ico}"></i><span class="ra-name">${esc(nm)}</span><span class="ra-kind">${esc(kind)}</span></div>`;
     }).join('');
     const assocBlock = links.length
@@ -530,8 +530,8 @@ export function _wifiAssocHtml(l){
     const dist = (l.length != null && l.length !== '') ? l.length : '';
     return `${inh}
         <div class="prop-grid2">
-          <div class="prop-group"><label>${esc(t('pnl.feat.rssiSignal'))}</label><input type="number" max="0" min="-100" value="${esc(rssi)}" placeholder="${esc(t('pnl.feat.rssiPh'))}" data-change="link-prop" data-lid="${l.id}" data-lprop="rssi"></div>
-          <div class="prop-group"><label>${esc(t('pnl.feat.distance'))}</label><input type="number" min="0" value="${esc(dist)}" placeholder="${esc(t('pnl.feat.distancePh'))}" data-change="link-prop" data-lid="${l.id}" data-lprop="length"></div>
+          <div class="prop-group"><label>${esc(t('pnl.feat.rssiSignal'))}</label><input type="number" max="0" min="-100" value="${esc(rssi)}" placeholder="${esc(t('pnl.feat.rssiPh'))}" data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="rssi"></div>
+          <div class="prop-group"><label>${esc(t('pnl.feat.distance'))}</label><input type="number" min="0" value="${esc(dist)}" placeholder="${esc(t('pnl.feat.distancePh'))}" data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="length"></div>
         </div>`;
 }
 

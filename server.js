@@ -23,7 +23,7 @@ const HOST         = process.env.HOST || '127.0.0.1';
 const ROOT         = __dirname;
 
 // ---- Persistenza progetti (server/projects-store.js) ------------------------
-const { PROJECTS_DIR } = require('./server/projects-store');
+const { PROJECTS_DIR, hardenTree, hardenFile, hardenBackup } = require('./server/projects-store');
 
 // ============================================================
 // Express
@@ -237,6 +237,15 @@ app.use((err, req, res, next) => {
 // Avvia il listen SOLO se eseguito direttamente (node server.js).
 // Quando il file viene richiesto da un test (require), NON apre la porta.
 if (require.main === module) {
+  // Retrofit dei permessi: i file scritti prima della regola «le credenziali sono 0600» hanno la
+  // maschera di default e li leggerebbe ogni utente del sistema. Una volta per avvio, solo qui (non
+  // al require: i test puntano le cartelle altrove), best-effort e idempotente.
+  try {
+    const n = hardenTree(PROJECTS_DIR);
+    for (const f of [auth.USERS_FILE, require('./server/api-tokens').TOKENS_FILE]) { hardenFile(f); hardenBackup(f); }
+    if (n) console.log(`  [SICUREZZA] permessi dei dati ristretti a 0600: ${n} file`);
+  } catch (e) { console.warn('  [SICUREZZA] retrofit permessi non riuscito:', e.message); }
+
   const server = app.listen(PORT, HOST, () => {
     const shownHost = (HOST === '0.0.0.0' || HOST === '::') ? 'localhost' : HOST;
     console.log('');

@@ -13,7 +13,7 @@
 const path   = require('path');
 const crypto = require('crypto');
 const { timestamp } = require('../utils');
-const { atomicWriteFile, readJsonWithBak } = require('./projects-store');   // scrittura atomica + .bak, e il lettore che lo apre
+const { atomicWriteFile, readJsonWithBak, PRIVATE_MODE, hardenBackup } = require('./projects-store');   // scrittura atomica + .bak, e il lettore che lo apre
 const { cleanUserText } = require('../lib/user-text.js');  // la stessa forma del nome progetto
 
 const TOKENS_FILE = process.env.INFRANET_API_TOKENS_FILE || path.join(__dirname, '..', 'api-tokens.json');
@@ -74,7 +74,8 @@ function saveTokens(tokens) {
   // loadTokens degradava a [] -> TUTTI i token API invalidati in silenzio (nessun
   // .bak da cui recuperare). Ora il .bak c'e' E loadTokens lo apre (`readJsonWithBak`):
   // per un po' la frase diceva «durevole» ma il lettore non lo leggeva mai.
-  atomicWriteFile(TOKENS_FILE, JSON.stringify(tokens, null, 2));
+  atomicWriteFile(TOKENS_FILE, JSON.stringify(tokens, null, 2), PRIVATE_MODE);   // gli hash dei token: solo il proprietario
+  hardenBackup(TOKENS_FILE);
 }
 
 function nextTokenId(tokens) {
