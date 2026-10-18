@@ -333,6 +333,24 @@ function diffCatalog(previousCanonical, nextCanonical, previousRuntime, nextRunt
   };
 }
 
+// Il cancello contro un classificatore (o un formato YAML) che si rompe in silenzio.
+// Non conta quanti modelli la libreria SCARTA: quando NetBox aggiunge seimila
+// telecamere IP gli esclusi si decuplicano e il catalogo in uso e' identico —
+// l'allarme sarebbe falso e l'aggiornamento resterebbe bloccato per sempre. Conta
+// i modelli GIA' NOTI che cambiano destino: usciti dal catalogo in uso (scartati
+// dal filtro dei ruoli o spariti dalla sorgente) o entrati, pur essendo gia' nel
+// canonico precedente. I modelli nuovi non contano: sono la sorgente che cresce.
+function runtimeChurn(previousCanonical, previousRuntime, nextRuntime) {
+  const keyOf = x => x.sourceSlug || x.slug;
+  const known = new Set((previousCanonical || []).map(x => x.sourceSlug));
+  const was = new Set((previousRuntime || []).map(keyOf));
+  const is = new Set((nextRuntime || []).map(keyOf));
+  const lost = [], gained = [];
+  for (const key of was) if (!is.has(key)) lost.push(key);
+  for (const key of is) if (!was.has(key) && known.has(key)) gained.push(key);
+  return { lost: lost.sort(), gained: gained.sort() };
+}
+
 function detectLicense(inputDir, source) {
   if (/netbox-community\/devicetype-library/i.test(source)) return 'CC0-1.0';
   for (const name of ['LICENSE', 'LICENSE.txt', 'LICENSE.md', 'README.md']) {
@@ -437,10 +455,16 @@ async function main() {
     const diff = diffCatalog(previousModels || [], result.canonical, Array.isArray(previousRuntime) ? previousRuntime : [], result.runtime);
     const license = detectLicense(acquired.dir, source);
     if (flag('--strict-license') && license !== 'CC0-1.0') throw new Error('licenza CC0 non verificata nella sorgente');
-    const previousExclusions = previous ? Number(previous.excludedModels || 0) : null;
-    const maxExclusionDelta = Number(option('max-exclusion-delta', '500'));
-    if (previousExclusions != null && Math.abs(result.dropped.length - previousExclusions) > maxExclusionDelta) {
-      throw new Error('variazione anomala delle esclusioni: ' + previousExclusions + ' → ' + result.dropped.length);
+    if (previous) {
+      const churn = runtimeChurn(previousModels, Array.isArray(previousRuntime) ? previousRuntime : [], result.runtime);
+      const configured = Number(option('max-runtime-change', '500'));
+      const maxChange = Number.isFinite(configured) && configured >= 0 ? configured : 500;
+      if (churn.lost.length + churn.gained.length > maxChange) {
+        const sample = churn.lost.concat(churn.gained).slice(0, 5).join(', ');
+        throw new Error('variazione anomala del catalogo in uso: ' + churn.lost.length + ' modelli usciti, ' +
+          churn.gained.length + ' rientrati tra quelli gia\' noti (limite ' + maxChange + '; es. ' + sample +
+          '). Se e\' voluta, rilancia con --max-runtime-change=N');
+      }
     }
     const vendors = new Set(result.runtime.map(model => model.brand).filter(Boolean));
     const manifest = {
@@ -495,4 +519,4 @@ if (require.main === module) {
   main().catch(error => fail(error.message || error));
 }
 
-module.exports = { build, canonicalModel, runtimeModel, sourceFiles, diffCatalog, detectLicense };
+module.exports = { build, canonicalModel, runtimeModel, sourceFiles, diffCatalog, runtimeChurn, detectLicense };

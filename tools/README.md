@@ -140,8 +140,12 @@ Local corrections stay separate from the CC0 source:
 Overrides are applied to the runtime projection only; the canonical file always
 keeps the original value. The command aborts the update if it finds incomplete
 YAML, duplicate slugs, oversized files, symlinks, or an abnormal change in the
-exclusions. `--strict-license` additionally enables the explicit CC0 licence check
-on the local source.
+catalogue in use: more than 500 models it already knew that were dropped from it
+or brought back into it (new models never count — that is the source growing, and
+the number of excluded models is not looked at at all). A deliberate change is
+let through with `--max-runtime-change=N`; a refused update writes no file.
+`--strict-license` additionally enables the explicit CC0 licence check on the
+local source.
 
 The runtime uses the NetBox `device_type.slug` first, then aliases and normalised
 brand/model. If the model is not found, the device and its interfaces remain

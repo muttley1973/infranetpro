@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **The hardware catalogue update no longer stops when the source library grows.** The check refused any update in which the number of excluded models moved by more than 500; when the NetBox library added about six thousand camera models the excluded count went from 747 to 6,884 and the update, and "Check for updates" with it, failed for good while the catalogue in use was almost unchanged. The check now counts the models it already knew that change fate — dropped from the catalogue in use, or brought back into it — and ignores new models, which are just the source growing. The limit is 500 and `--max-runtime-change=N` raises it by hand; a refused update still writes nothing (`--max-exclusion-delta` is gone).
+
 ## [2.11.18] — 2026-10-17
 
 A machine you documented stays documented, Ctrl+Z does what it says, and the VM card closes like the host panel.
