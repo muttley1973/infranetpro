@@ -10,8 +10,8 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="4,296 tests, 0 failing" src="https://img.shields.io/badge/tests-4%2C296%20%C2%B7%200%20failing-3fb950"></a>
-  <a href="#testing"><img alt="148 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-148%20real--browser%20flows-3fb950"></a>
+  <a href="#testing"><img alt="4,305 tests, 0 failing" src="https://img.shields.io/badge/tests-4%2C305%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="149 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-149%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#oui-intelligence-engine"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
   <img alt="No database" src="https://img.shields.io/badge/database-none-8b949e">
@@ -1301,7 +1301,7 @@ Full release notes live in [CHANGELOG.md](CHANGELOG.md). Highlights of what has 
 - [x] **DHCP lease import** — cross-VLAN authoritative MAC ↔ IP for the documentation check; multi-server persisted sources; treated as an identity map, never a false *absent*
 - [x] **IPAM occupancy · management-VLAN role · VM import** — real per-VLAN address usage (documented / DHCP-only / free); anti-guest management VLAN; absorb a discovered floor tile as a host VM
 - [x] **Reality Check / Drift Report + Adopt** — doc-vs-network diff in 9 categories (consistent, state, IP change, **hardware identity — a swapped serial/model vs ENTITY-MIB**, absent, undocumented, ghost cable, cable on a shut port, unverifiable) with per-row update/ignore/investigate and a multi-signal ping/ARP/TCP presence sweep; one-click Adopt of undocumented devices
-- [x] **Handoff Dossier + Audit Trail** — one-click handover PDF; append-only project changelog with CSV export
+- [x] **Handoff Dossier + Audit Trail** — the handover dossier (cover page and change history) is always part of Export PDF; append-only project changelog with CSV export
 - [x] **Visible locks for documented values** — one-click freeze on IP / hostname / port-VLAN (surfaces the existing manual-first pins)
 - [x] **Wireless** — Packet-Tracer sine-wave links, up to 8 radios/device (SSID/band/channel/security/VLAN), SSID-VLAN trunk derivation
 - [x] **L3-lite gateway** — network → routing-device resolution (one row per prefix, v4 and v6), VLAN → SVI binding, L3 badge, Report → L3 map with CSV
@@ -1357,8 +1357,8 @@ server on a temp store and is skipped unless `RUN_E2E=1`.
 Coverage focuses on the pure, bug-prone logic that has historically broken: SNMP parsing & extraction (`test/snmp.test.js`, `test/extractData.test.js`), discovery & classification (`test/discovery.test.js`, 14 real-device cases), correlation primitives (`test/correlate.test.js`), the sysObjectID / OUI / Fusion engines (`test/sysobject-engine.test.js`, `test/oui-engine.test.js`, `test/fusion-scorer.test.js`), front-panel state, cable validation (incl. **Cat8 30 m reach**), IPAM & LAG audits, and an app-wide **smoke E2E** (`test/smoke-app.test.js`) that loads every `netmapper.html` script plus the esbuild bundle into a `vm` + DOM stub and asserts `renderAll`/`renderProps` never throw on any device type.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **575** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
-- `npm test` runs the full regression suite (currently **4,296 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **148 flows**)
+- `npm run check` parses every JS source of the product — **576** of them. It skips the folders `eslint.config.js` already ignores (git worktrees, the private workspace, the editor's caches), so the number stays stable between runs instead of drifting with whatever happens to be checked out beside the repo
+- `npm test` runs the full regression suite (currently **4,305 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **149 flows**)
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that actually lists something, and the test count above measured against what the suite really prints — the one number no test can check without counting itself
 - final visual verification is still important for rack/front-panel refinements
 

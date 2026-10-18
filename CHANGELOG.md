@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **The handover dossier is part of Export PDF, not a menu entry of its own.** The Export menu loses "Handoff dossier"; the Export PDF dialog opens with a locked, always-on row for it — the cover page and the change history — and every section below it starts unticked, so the PDF carries exactly what you tick on top of that frame. "Deselect all" can now really empty the list. No preference is remembered between openings. The downloaded file is always named `<project>-dossier.pdf`.
+
 ### Fixed
 
 - **The hardware catalogue update no longer stops when the source library grows.** The check refused any update in which the number of excluded models moved by more than 500; when the NetBox library added about six thousand camera models the excluded count went from 747 to 6,884 and the update, and "Check for updates" with it, failed for good while the catalogue in use was almost unchanged. The check now counts the models it already knew that change fate — dropped from the catalogue in use, or brought back into it — and ignores new models, which are just the source growing. The limit is 500 and `--max-runtime-change=N` raises it by hand; a refused update still writes nothing (`--max-exclusion-delta` is gone). The catalogue in use moves from 5,296 to 5,502 models.

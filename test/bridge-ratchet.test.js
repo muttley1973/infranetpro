@@ -763,7 +763,7 @@ function countInlineHandlers() {
 // scope:link cambia, verificato handler-only (strip on*/data-* → identico).
 //
 // −31 (479 → 448), Blocco 2b — PANNELLO FLOOR / contesto planimetria
-// (app-properties-floor.js). I 31 handler (20 onclick + 9 onchange + 2 oninput)
+// (app-properties-floor.js). Gli handler (20 onclick + 9 onchange + 2 oninput)
 // della card VLAN + immagine di sfondo + colori/etichette passano a data-act/
 // data-change/data-input + azioni delegate registrate nel modulo. Le 21 funzioni
 // chiamate sono passate a `export` nei moduli che le possiedono (app-vlan-autopoll:
@@ -908,7 +908,7 @@ function countInlineHandlers() {
 // PAVIMENTO ASSE B con l'harness attuale = MAX_INLINE_HANDLERS (nessun altro handler è migrabile senza
 // nuovi tipi di evento o senza sfondare il tetto A). Fotografia onesta del residuo:
 //   • 21 in netmapper.html = dialoghi PDF/etichette export (14 onclick + 3 onchange +
-//     4 oninput) + le 4 voci EXPORT del menu (JSON/PDF/dossier/etichette) → chiamano
+//     4 oninput) + le 3 voci EXPORT del menu (JSON/PDF/etichette) → chiamano
 //     export.js (CLASSIC <script>, non-ESM): registrarli richiederebbe una lettura
 //     win.* e romperebbe il tetto A, oggi SATURO (letture misurate = tetto, margine
 //     ZERO). Il valore vive in MAX_WIN_REFS e solo lì; quando il margine si apre è il
@@ -917,7 +917,7 @@ function countInlineHandlers() {
 //     mouseenter/mouseleave) + 1 in app-render-core (onpointerdown). Aspettano NUOVI
 //     tipi di evento nell'harness (app-delegation.js oggi: click·change·input·focus·
 //     blur·keydown·dragstart·toggle) e vanno testati col mouse vero (pan/zoom/drag).
-const MAX_INLINE_HANDLERS = 32;
+const MAX_INLINE_HANDLERS = 31;
 test('ponte ASSE B: gli handler inline on*= non superano il tetto a cricchetto', () => {
   const total = countInlineHandlers();
   assert.ok(total <= MAX_INLINE_HANDLERS,

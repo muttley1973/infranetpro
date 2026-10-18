@@ -389,7 +389,7 @@ registerClickActions({
     // Menu Import/Export (header): toggle + la voce «Importa JSON» (owned qui). La voce
     // «Importa CSV» è registrata in app-csv-import.js (OWNER di openCsvImport, importa di
     // là closeImpExpMenu → nessun ciclo verso app-types). Le voci di EXPORT (JSON/PDF/
-    // dossier/etichette) restano onclick inline: chiamano export.js (classic <script>);
+    // etichette) restano onclick inline: chiamano export.js (classic <script>);
     // migrarle richiederebbe una lettura win.* → romperebbe il tetto Asse A.
     'impexp-toggle':      () => toggleImpExpMenu(),
     'impexp-import-json': () => { document.getElementById('json-upload').click(); closeImpExpMenu(); },

@@ -80,11 +80,6 @@
             <button class="header-menu-item" id="btn-export-pdf" onclick="openPdfExportOptions();closeImpExpMenu()">
                 <i class="fas fa-file-pdf"></i> <span data-i18n="impexp.exportPdf">Esporta PDF</span>
             </button>
-            <button class="header-menu-item" onclick="exportDossier();closeImpExpMenu()"
-                    data-i18n-tip="impexp.dossierTip"
-                    data-tip="PDF di consegna completo: copertina, planimetria, rack, porte, VLAN, inventario, registro asset (con la nota di ogni apparato) e storia modifiche">
-                <i class="fas fa-folder-open"></i> <span data-i18n="impexp.dossier">Dossier di consegna</span>
-            </button>
             <button class="header-menu-item" onclick="openLabelExportOptions();closeImpExpMenu()">
                 <i class="fas fa-tags"></i> <span data-i18n="impexp.labels">Esporta etichette…</span>
             </button>
@@ -1036,28 +1031,39 @@
       <button class="toolbar-btn" onclick="closePdfExportOptions()" style="padding:4px 8px"><i class="fas fa-times"></i></button>
     </div>
     <div class="tool-modal-body">
+      <!-- Il dossier di consegna (copertina in testa, storia modifiche in coda) è SEMPRE
+           nel PDF: la casella è accesa e bloccata, e export.js lo rimette comunque nelle
+           opzioni anche se qualcuno chiamasse exportPDF() senza. Tutto il resto parte
+           spento (PDF_EXPORT_DEFAULTS) e lo accende chi lo vuole. -->
+      <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:12px;padding:8px 10px;border:1px solid var(--panel-border);border-radius:6px">
+        <input type="checkbox" id="pdfopt-dossier" checked disabled style="margin-top:3px">
+        <span>
+          <span data-i18n="pdf.dossier">Dossier di consegna</span>
+          <small data-i18n="pdf.dossierSub" style="display:block;color:var(--text-muted)">Copertina e storia modifiche: sempre incluse</small>
+        </span>
+      </label>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:10px">
         <button class="toolbar-btn" style="padding:3px 8px;font-size:var(--fs-xs)" onclick="setPdfExportAll(true)" data-i18n="common.selectAll">Seleziona tutto</button>
         <button class="toolbar-btn" style="padding:3px 8px;font-size:var(--fs-xs)" onclick="setPdfExportAll(false)" data-i18n="common.deselectAll">Deseleziona tutto</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
-        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-plan" checked onchange="syncPdfExportUi()"> <span data-i18n="pdf.plan">Planimetria (pagina 1)</span></label>
-        <label style="display:flex;align-items:center;gap:8px;padding-left:22px;opacity:.95"><input type="checkbox" id="pdfopt-bg" checked> <span data-i18n="pdf.bg">Include immagine di sfondo planimetria</span></label>
-        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-overview" checked> <span data-i18n="pdf.overview">Dashboard (sintesi in testa)</span></label>
-        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-inventory" checked> <span data-i18n="pdf.inventory">Inventario cavi</span></label>
-        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-asbuilt" checked> <span data-i18n="pdf.asbuilt">Tracciato cablaggio (As-Built)</span></label>
-        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-racks" checked> <span data-i18n="pdf.racks">Vista rack</span></label>
-        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-ports" checked> <span data-i18n="pdf.ports">Assegnazione porte</span></label>
-        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-vlans" checked> <span data-i18n="pdf.vlans">Sommario VLAN</span></label>
-        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-topology" checked> <span data-i18n="pdf.topology">Topologia LLDP/CDP</span></label>
-        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-vms" checked> <span data-i18n="pdf.vms">Macchine virtuali (per host)</span></label>
-        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-pdu" checked> <span data-i18n="pdf.pdu">Alimentazione: PDU e prese</span></label>
-        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-spare" checked> <span data-i18n="pdf.spare">Porte libere (capacità per rack)</span></label>
-        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-assets" checked> <span data-i18n="pdf.assets">Registro asset (inventario dispositivi + note)</span></label>
-        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-recovery" checked> <span data-i18n="pdf.recovery">Ripristinabilità (backup · identità · posizione)</span></label>
-        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-wan" checked> <span data-i18n="pdf.wan">WAN: mappa delle sedi e ripristino dei collegamenti</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-plan" onchange="syncPdfExportUi()"> <span data-i18n="pdf.plan">Planimetria (pagina 1)</span></label>
+        <label style="display:flex;align-items:center;gap:8px;padding-left:22px;opacity:.95"><input type="checkbox" id="pdfopt-bg"> <span data-i18n="pdf.bg">Include immagine di sfondo planimetria</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-overview"> <span data-i18n="pdf.overview">Dashboard (sintesi in testa)</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-inventory"> <span data-i18n="pdf.inventory">Inventario cavi</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-asbuilt"> <span data-i18n="pdf.asbuilt">Tracciato cablaggio (As-Built)</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-racks"> <span data-i18n="pdf.racks">Vista rack</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-ports"> <span data-i18n="pdf.ports">Assegnazione porte</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-vlans"> <span data-i18n="pdf.vlans">Sommario VLAN</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-topology"> <span data-i18n="pdf.topology">Topologia LLDP/CDP</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-vms"> <span data-i18n="pdf.vms">Macchine virtuali (per host)</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-pdu"> <span data-i18n="pdf.pdu">Alimentazione: PDU e prese</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-spare"> <span data-i18n="pdf.spare">Porte libere (capacità per rack)</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-assets"> <span data-i18n="pdf.assets">Registro asset (inventario dispositivi + note)</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-recovery"> <span data-i18n="pdf.recovery">Ripristinabilità (backup · identità · posizione)</span></label>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pdfopt-wan"> <span data-i18n="pdf.wan">WAN: mappa delle sedi e ripristino dei collegamenti</span></label>
       </div>
-      <div id="pdfopt-hint" style="margin-top:12px;font-size:0.76rem;color:var(--text-muted)"></div>
+      <div id="pdfopt-hint" data-i18n="impexp.pickSections" style="margin-top:12px;font-size:0.76rem;color:var(--text-muted)">Seleziona le sezioni che vuoi includere nel PDF.</div>
     </div>
     <div class="tool-modal-footer">
       <button class="toolbar-btn" onclick="closePdfExportOptions()" data-i18n="common.cancel">Annulla</button>

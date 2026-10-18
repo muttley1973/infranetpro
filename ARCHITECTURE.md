@@ -1288,7 +1288,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,296 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,305 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
@@ -2029,7 +2029,7 @@ so the rest of the app keeps thinking in terms of one pointer. Rules worth knowi
     surface in `src/*.js` is delegated, and so is `netmapper.html`'s static shell (buttons, tabs,
     dialogs — each action registered in its owning module). At that floor the remaining handlers are all
     non-migratable with the current harness. The residue is: the PDF/label export dialogs and the
-    export-menu items (JSON/PDF/dossier/labels — they call `export.js`, a classic non-ESM `<script>`;
+    export-menu items (JSON/PDF/labels — they call `export.js`, a classic non-ESM `<script>`;
     delegating them would need a `win.*` read and breach the Axis-A floor, so they stay by design),
     plus the canvas interactions (wheel / drop / dragover / contextmenu / scroll / mouse-enter-leave +
     `app-render-core`'s pointer-down) that still await new harness event types.** `src/app-delegation.js`

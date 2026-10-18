@@ -21,22 +21,34 @@ const _typeName = (k) => (typeof typeName === 'function')
 // la frase deve restare una frase, non sparire.
 const _t = (key, fallback, vars) => (typeof t === 'function' ? t(key, vars) : fallback);
 
+// Il Dossier di consegna (N4) è la CORNICE di ogni PDF: copertina in testa, storia
+// modifiche in coda. Non è un'opzione — non ha una casella da spegnere — e
+// `exportPDF` lo rimette comunque sopra a qualunque cosa gli si passi.
+const PDF_DOSSIER = {
+    includeCover:     true,
+    includeChangelog: true,
+};
+
+// Le SEZIONI invece partono tutte spente: chi apre il dialogo sceglie cosa aggiungere
+// alla cornice (il vecchio «Dossier di consegna» era il preset «tutte accese»: ora è
+// «Seleziona tutto»). Nessuna preferenza persistita le riaccende: a ogni apertura il
+// dialogo riparte da qui.
 const PDF_EXPORT_DEFAULTS = {
-    includePlanimetria: true,
-    includeBackground:  true,
-    includeOverview:    true,   // Panoramica: la sintesi esecutiva in testa al dossier
-    includeInventory:   true,
-    includeAsBuilt:     true,
-    includeRacks:       true,
-    includePorts:       true,
-    includeVlans:       true,
-    includeTopology:    true,
-    includeVms:         true,   // capitolo "Macchine virtuali": catalogo delle VM per host
-    includePdu:         true,   // capitolo "Alimentazione": riepilogo PDU + dettaglio prese
-    includeSpare:       true,
-    includeAssets:      true,   // registro asset per-device (NIS2/ISO): server-side da nodeToDevice
-    includeRecovery:    true,   // sezione Ripristinabilità (DR): backup pointer + serial/firmware + posizione
-    includeWan:         true,   // capitolo "WAN": mappa inter-sede + schede per rifare linee e collegamenti
+    includePlanimetria: false,
+    includeBackground:  false,
+    includeOverview:    false,  // Panoramica: la sintesi esecutiva in testa al dossier
+    includeInventory:   false,
+    includeAsBuilt:     false,
+    includeRacks:       false,
+    includePorts:       false,
+    includeVlans:       false,
+    includeTopology:    false,
+    includeVms:         false,  // capitolo "Macchine virtuali": catalogo delle VM per host
+    includePdu:         false,  // capitolo "Alimentazione": riepilogo PDU + dettaglio prese
+    includeSpare:       false,
+    includeAssets:      false,  // registro asset per-device (NIS2/ISO): server-side da nodeToDevice
+    includeRecovery:    false,  // sezione Ripristinabilità (DR): backup pointer + serial/firmware + posizione
+    includeWan:         false,  // capitolo "WAN": mappa inter-sede + schede per rifare linee e collegamenti
 };
 
 // 🔒 Il file che si scarica passa SEMPRE dalla redazione delle credenziali
@@ -387,27 +399,18 @@ function closePdfExportOptions(){ document.getElementById('pdf-export-overlay').
 function setPdfExportAll(val){
     ['pdfopt-plan','pdfopt-bg','pdfopt-inventory','pdfopt-asbuilt','pdfopt-racks','pdfopt-ports','pdfopt-vlans','pdfopt-topology','pdfopt-vms','pdfopt-pdu','pdfopt-spare','pdfopt-assets','pdfopt-recovery','pdfopt-wan','pdfopt-overview']
         .forEach(id=>{ const el=document.getElementById(id); if(el) el.checked=!!val; });
-    if(!val){
-        // Mantieni almeno una sezione attiva per evitare export vuoto.
-        document.getElementById('pdfopt-plan').checked=true;
-    }
+    // «Deseleziona tutto» può davvero svuotare le sezioni: il PDF non resta vuoto,
+    // il dossier (copertina + storia modifiche) c'è comunque.
     syncPdfExportUi();
 }
 
 function syncPdfExportUi(){
     const plan=document.getElementById('pdfopt-plan');
     const bg=document.getElementById('pdfopt-bg');
-    const hint=document.getElementById('pdfopt-hint');
-    if(!plan||!bg||!hint) return;
+    if(!plan||!bg) return;
     bg.disabled=!plan.checked;
     bg.parentElement.style.opacity=plan.checked?'0.95':'0.5';
     if(!plan.checked) bg.checked=false;
-
-    const opts=_getPdfExportOptionsFromUi();
-    const hasAny=Object.entries(opts).some(([k,v])=>k!=='includeBackground'&&v);
-    hint.textContent=hasAny
-        ? _t('impexp.pickSections','Select the sections you want to include in the PDF.')
-        : _t('impexp.pickASection','Select at least one section.');
 }
 
 function _getPdfExportOptionsFromUi(){
@@ -432,8 +435,6 @@ function _getPdfExportOptionsFromUi(){
 
 function confirmPdfExport(){
     const opts=_getPdfExportOptionsFromUi();
-    const hasAny=Object.entries(opts).some(([k,v])=>k!=='includeBackground'&&v);
-    if(!hasAny){ _showToast(_t('impexp.pickASection','Select at least one section.'),'warn'); return; }
     closePdfExportOptions();
     exportPDF(opts);
 }
@@ -1668,7 +1669,7 @@ function _buildPdfReportData() {
 }
 
 async function exportPDF(opts={}){
-    const options={ ...PDF_EXPORT_DEFAULTS, ...(opts||{}) };
+    const options={ ...PDF_EXPORT_DEFAULTS, ...(opts||{}), ...PDF_DOSSIER };
     const btn=document.getElementById('btn-export-pdf');
     const origHtml=btn?.innerHTML||'';
     try {
@@ -1743,7 +1744,7 @@ async function exportPDF(opts={}){
         const url=URL.createObjectURL(blob);
         const a=document.createElement('a');
         a.href=url;
-        a.download=`${(projName||'infranetpro').replace(/[^a-z0-9_\- ]/gi,'_')}-${options._dossier?'dossier':'report'}.pdf`;
+        a.download=`${(projName||'infranetpro').replace(/[^a-z0-9_\- ]/gi,'_')}-dossier.pdf`;
         a.click();
         setTimeout(()=>URL.revokeObjectURL(url),5000);
     } catch(err){
@@ -1751,24 +1752,6 @@ async function exportPDF(opts={}){
     } finally {
         if(btn){ btn.disabled=false; btn.innerHTML=origHtml; }
     }
-}
-
-// Dossier di consegna (N4): preset "un click" — tutte le sezioni + copertina
-// + storia modifiche. Le note per-device stanno nel Registro asset. Riusa exportPDF.
-function exportDossier(){
-    return exportPDF({
-        includePlanimetria:true, includeBackground:true,
-        includeInventory:true, includeAsBuilt:true, includeRacks:true,
-        includePorts:true, includeVlans:true, includeTopology:true,
-        includeVms:true, includePdu:true,
-        includeCover:true, includeChangelog:true,
-        includeSpare:true, includeAssets:true,
-        // La WAN sta nel dossier di consegna per lo stesso motivo della
-        // Ripristinabilità: è la meta' del ripristino che non vive dentro il
-        // progetto — la mappa fra le sedi e i dati per rifare linee e tunnel.
-        includeWan:true,
-        _dossier:true,
-    });
 }
 
 window.exportJSON = exportJSON;
@@ -1784,7 +1767,6 @@ window.syncPdfExportUi = syncPdfExportUi;
 window.confirmPdfExport = confirmPdfExport;
 window.exportFloorSVG = exportFloorSVG;
 window.exportPDF = exportPDF;
-window.exportDossier = exportDossier;
 window.exportDrawio = exportDrawio;
 
 // La voce di menu "Esporta draw.io" NON usa onclick inline (che gonfierebbe il

@@ -532,6 +532,87 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       }
     });
 
+    await t.test('Esporta PDF: il dossier di consegna è dentro e non si spegne, la voce separata non c\'è, le sezioni partono spente', async () => {
+      // Prima il menù aveva DUE voci per lo stesso file («Esporta PDF», tutte le caselle
+      // accese; «Dossier di consegna», un preset). Ora la voce è una, il dossier
+      // (copertina + storia modifiche) è la cornice di ogni PDF e le sezioni si
+      // aggiungono. Si guarda ciò che PARTE verso il server, non solo la pagina.
+      const richieste = [];
+      await page.route('**/api/export-pdf', async (route) => {
+        richieste.push(JSON.parse(route.request().postData() || '{}'));
+        await route.fulfill({ status: 200, contentType: 'application/pdf', body: '%PDF-1.4\n%%EOF\n' });
+      });
+      const attendiRichiesta = async (n) => {
+        const fine = Date.now() + 8000;
+        while (richieste.length < n && Date.now() < fine) await page.waitForTimeout(50);
+        assert.equal(richieste.length, n, 'la richiesta di export è partita');
+        return richieste[n - 1].reportOptions;
+      };
+      const caselle = () => page.evaluate(() => Object.fromEntries(
+        [...document.querySelectorAll('#pdf-export-overlay input[id^="pdfopt-"]')]
+          .map((i) => [i.id, { checked: i.checked, disabled: i.disabled }])));
+      try {
+        // ── Il menù: una voce sola per il PDF, nessun «dossier» a parte ──
+        await page.click('#btn-impexp');
+        const voci = await page.evaluate(() => [...document.querySelectorAll('#impexp-dropdown .header-menu-item')]
+          .map((b) => b.textContent.replace(/\s+/g, ' ').trim()));
+        assert.ok(voci.some((v) => /Esporta PDF/.test(v)), 'la voce «Esporta PDF» c\'è: ' + voci.join(' | '));
+        assert.deepEqual(voci.filter((v) => /dossier/i.test(v)), [], 'nel menù non c\'è più la voce del dossier');
+        await page.click('#btn-export-pdf');
+        await page.waitForSelector('#pdf-export-overlay.open', { timeout: 5000 });
+
+        // ── Il dialogo: dossier acceso e bloccato, tutto il resto spento ──
+        let c = await caselle();
+        assert.deepEqual(c['pdfopt-dossier'], { checked: true, disabled: true }, 'il dossier è sempre dentro e non si spegne');
+        const accese = Object.entries(c).filter(([id, v]) => id !== 'pdfopt-dossier' && v.checked).map(([id]) => id);
+        assert.deepEqual(accese, [], 'ogni sezione parte spenta');
+        assert.ok(Object.keys(c).length >= 16, 'le caselle sono quelle vere');
+        assert.equal(c['pdfopt-bg'].disabled, true, 'lo sfondo segue la planimetria: spenta lei, bloccato lui');
+
+        // ── Esporta senza spuntare niente: parte la sola cornice ──
+        await page.click('#pdf-export-overlay .toolbar-btn.primary');
+        let opz = await attendiRichiesta(1);
+        assert.equal(opz.includeCover, true, 'copertina sempre');
+        assert.equal(opz.includeChangelog, true, 'storia modifiche sempre');
+        const sezioniAccese = Object.entries(opz).filter(([k, v]) => !/^include(Cover|Changelog)$/.test(k) && v);
+        assert.deepEqual(sezioniAccese, [], 'nessuna sezione accesa da sola: ' + JSON.stringify(sezioniAccese));
+
+        // ── «Seleziona tutto» = il vecchio dossier; «Deseleziona tutto» svuota davvero ──
+        await page.evaluate(() => openPdfExportOptions());
+        await page.click('#pdf-export-overlay button[onclick="setPdfExportAll(true)"]');
+        c = await caselle();
+        assert.deepEqual(Object.entries(c).filter(([id, v]) => id !== 'pdfopt-dossier' && !v.checked).map(([id]) => id), [],
+          '«Seleziona tutto» accende ogni sezione');
+        assert.deepEqual(c['pdfopt-dossier'], { checked: true, disabled: true }, 'e il dossier resta com\'è');
+        await page.click('#pdf-export-overlay button[onclick="setPdfExportAll(false)"]');
+        c = await caselle();
+        assert.deepEqual(Object.entries(c).filter(([id, v]) => id !== 'pdfopt-dossier' && v.checked).map(([id]) => id), [],
+          '«Deseleziona tutto» non lascia accesa nemmeno la planimetria');
+
+        // ── Una sezione spuntata si aggiunge alla cornice; riaprendo, il dialogo riparte spento ──
+        await page.check('#pdfopt-vlans');
+        await page.click('#pdf-export-overlay .toolbar-btn.primary');
+        opz = await attendiRichiesta(2);
+        assert.equal(opz.includeVlans, true, 'la sezione spuntata viaggia');
+        assert.equal(opz.includeCover && opz.includeChangelog, true, 'insieme alla cornice');
+        assert.equal(opz.includePorts, false, 'e le altre restano spente');
+        await page.evaluate(() => openPdfExportOptions());
+        c = await caselle();
+        assert.equal(c['pdfopt-vlans'].checked, false, 'nessuna preferenza ricordata: a ogni apertura il dialogo riparte spento');
+        await page.evaluate(() => closePdfExportOptions());
+
+        // ── La cornice non si spegne nemmeno per chi chiama exportPDF a mano ──
+        await page.evaluate(() => exportPDF({ includeCover: false, includeChangelog: false, includeRacks: true }));
+        opz = await attendiRichiesta(3);
+        assert.equal(opz.includeCover, true, 'exportPDF rimette la copertina');
+        assert.equal(opz.includeChangelog, true, 'exportPDF rimette la storia modifiche');
+        assert.equal(opz.includeRacks, true, 'e rispetta le sezioni chieste');
+      } finally {
+        await page.unroute('**/api/export-pdf');
+        await page.evaluate(() => { try { closePdfExportOptions(); } catch (_) { /* già chiuso */ } });
+      }
+    });
+
     await t.test('instradamento cavi: getCablePath è direction-true (niente nodo) nel browser reale', async () => {
       const r = await page.evaluate(() => ({
         horiz: getCablePath(10, 20, 210, 20),
