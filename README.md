@@ -575,7 +575,7 @@ Double-click <code>avvia.bat</code>.<br>
 
 | Area | At a glance |
 |---|---|
-| **🗺️ Diagramming** | 19″ racks with live port LEDs, floor plans, ~5,300 device models across 276 vendors, MGMT & SFP blocks, hypervisors and VMs, the Dashboard, exports to PDF · SVG · draw.io |
+| **🗺️ Diagramming** | 19″ racks with live port LEDs, floor plans, ~5,500 device models across 289 vendors, MGMT & SFP blocks, hypervisors and VMs, the Dashboard, exports to PDF · SVG · draw.io |
 | **🏢 Multi-site** | The floor above a project: the sites, the WAN lines each one buys and the tunnels between them, as a map and as a form in the same place. A coherence audit on the declared model alone keeps inconsistencies and gaps apart and names what it could not check; NetBox circuits and VPN tunnels are read per site; the dossier gains a WAN chapter with a recovery card per line and per link. |
 | **📡 Live SNMP** | v1 / v2c / v3 discovery, interfaces, VLANs, LAG, LLDP/CDP neighbours, ENTITY-MIB inventory, wireless associations, DHCP lease import, the Verify / Drift report. A device announced by a neighbour that stays quiet to the community in use is reported as **silent to this key** rather than as having no SNMP |
 | **🔄 DCIM / IPAM sync** | Import an existing **NetBox** into a new project over its REST API — sites, racks (front/rear split), floor-placed, devices, interfaces, VLANs/prefixes and patch-panel cabling; free import, paid write-back |
@@ -605,7 +605,7 @@ Double-click <code>avvia.bat</code>.<br>
 <summary><b>🗺️ Diagramming</b> — <sub>racks, floor plans, labels, hypervisors, the Dashboard and every export</sub></summary>
 
 - **Rack view** — drag-and-drop 19″ rack units (1U–8U) with colour-coded port LEDs.
-- **Apply model** — search a real switch or router model and apply it in one click: port count and front panel are set natively and drawn by the built-in renderer. The catalogue ships ~5,300 models across 276 vendors, generated from public-domain device data (`tools/import-device-types.js`).
+- **Apply model** — search a real switch or router model and apply it in one click: port count and front panel are set natively and drawn by the built-in renderer. The catalogue ships ~5,500 models across 289 vendors, generated from public-domain device data (`tools/import-device-types.js`).
 - **Front-panel controls** — per-device port count and layout (Auto / Linear / Sequential / Cisco-alternating), with an optional separate SFP block and a dedicated MGMT block.
 - **Dedicated MGMT ports** — up to 4 cyan cells outside the regular `1..N` numbering, with an editable label (MGMT, iLO, iDRAC, fxp0…). Excluded from VLAN/LAG/FDB data-plane logic.
 - **SFP block** — a separate cell group with an anodised border, left or right of the main port grid, up to 48 per block; high-density combinations compact the gaps and cells automatically so copper, SFP and MGMT ports remain visible.
