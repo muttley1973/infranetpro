@@ -64,7 +64,7 @@
 That is the whole idea: a document you can hand to a client, that tells you what it could not check.
 
 <p align="center">
-  <img src="GitHub%20Images/verify.png" width="640" alt="The Documentation check: seven declared LAN networks each with its own verdict, one of them marked not reached by the check with its 13 unverified devices nested underneath; an IP change on the same MAC; two devices on the network that the document does not know, each with the switch port they were seen on; and documented-but-absent left at zero because nothing proved an absence"><br>
+  <img src="GitHub%20Images/verify.png" width="640" alt="The Dashboard's Conformance column after a check: every SNMP device answering, one address that changed on the same MAC, two devices on the network that the document does not know, and the seven declared LAN networks each with its own verdict, one of them marked not reached by the check with its 13 unverified devices nested underneath"><br>
   <em><b>The check, on a demo network.</b> A subnet marked <i>not reached by the check</i> carries its unverified devices — they are not reported as absent, because nothing proved an absence. A MAC that moved address is a <i>changed IP</i>, not a new device.</em>
 </p>
 
