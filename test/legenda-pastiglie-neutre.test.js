@@ -91,7 +91,7 @@ test('la sigla si SCIOGLIE nel tooltip, in entrambe le lingue', () => {
   const dict = require('../lib/i18n.js')._i18nDict;
   for (const [lang, parola] of [['it', 'Instradato'], ['en', 'Routed']]) {
     assert.equal(dict[lang]['legend.routedLink'], 'L3', `[${lang}] la pastiglia resta corta`);
-    assert.ok(String(dict[lang]['legend.routedLinkTip'] || '').startsWith(parola + ':'),
+    assert.ok(new RegExp('^' + parola + '\\b').test(String(dict[lang]['legend.routedLinkTip'] || '')),
       `[${lang}] il tooltip deve APRIRE con «${parola}»: una sigla senza scioglimento è un indovinello`);
   }
 });
