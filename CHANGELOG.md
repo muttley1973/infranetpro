@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **The "Routed by" list on a VLAN no longer offers "Custom…".** Choosing it wrote a placeholder as the gateway device, and the card then said the device no longer exists.
+
 ## [2.11.19] — 2026-10-23
 
 The dossier lives inside Export PDF, the catalogue update works again, and the manuals describe the interface as it is.

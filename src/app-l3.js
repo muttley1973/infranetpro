@@ -221,9 +221,12 @@ export function _l3GatewayBindingHtml(vid, row){
         // dice più qui: parlava di un valore che da questa sezione non si vede né si
         // corregge. Vive accanto all'indirizzo, nel dettaglio della rete.
     }
+    // `data-no-manual`: la select è un RIFERIMENTO a un device del progetto, non un campo libero.
+    // Senza, `_enableManualValueInProps` le aggiunge «Personalizzato…», che scrive il proprio
+    // segnaposto come `gatewayNodeId` e fa dire «il device gateway scelto non esiste più».
     return `<div class="prop-group" style="grid-column:1/-1">
         <label>${t('l3.gwDevice')} <span style="font-weight:400;color:var(--text-muted)">${t('l3.gwDeviceSub')}</span></label>
-        <select data-change="l3-gw-select" data-vid="${+vid}">${opts}</select>
+        <select data-change="l3-gw-select" data-vid="${+vid}" data-no-manual="1">${opts}</select>
         ${hint ? `<div class="vlan-l3-hint${warn ? ' warn' : ''}">${hint}</div>` : ''}
       </div>`;
 }

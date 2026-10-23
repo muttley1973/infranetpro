@@ -629,3 +629,28 @@ test('la card VLAN: il legame con l\'SVI resta qui — e` un device, non un attr
   assert.strictEqual(r.bindingInCard, true, 'il selettore del device gateway sta nella card VLAN');
   assert.strictEqual(r.keptOnVlan, 'rt1', 'e il legame resta sul record della VLAN');
 });
+
+test('⚠️ la scelta del device gateway NON accetta un valore digitato a mano', () => {
+  // L'harness `_enableManualValueInProps` aggiunge «Personalizzato…» a ogni select del
+  // pannello che non dichiari `data-no-manual`. Qui è un difetto, non una comodità: la
+  // select è un RIFERIMENTO a un device del progetto, e la voce scriveva il suo
+  // segnaposto come `gatewayNodeId` — un legame che non punta a niente, con il
+  // suggerimento «il device gateway scelto non esiste più». Trovato provando l'app vera.
+  const out = run(APP.ctx, `(() => {
+    const section = (h, name) => {
+      const i = h.indexOf('data-section="' + name + '"');
+      if (i < 0) return '';
+      const j = h.indexOf('data-section="', i + 1);
+      return j < 0 ? h.slice(i) : h.slice(i, j);
+    };
+    state = _migrateState({ schemaVersion:2, nodes:[{ id:'rt1', type:'router', name:'RT1', ip:'192.168.20.1' }],
+      racks:[], links:[], ports:{}, vlanColors:{ 20:'#00d4ff' }, vlanNames:{},
+      ipam:{ vlans:{ 20:{} }, prefixes:[{ cidr:'192.168.20.0/24', vlan:20, gateway:'192.168.20.1' }] } });
+    _prefixOpen.clear(); _netsBad = '';
+    selType = null; selId = null; renderProps();
+    return section(document.getElementById('props-panel').innerHTML, 'floor-vlan');
+  })()`);
+  const sel = (out.match(/<select[^>]*data-change="l3-gw-select"[^>]*>/) || [''])[0];
+  assert.ok(sel, 'la select del device gateway c’è');
+  assert.ok(/data-no-manual="1"/.test(sel), 'e rifiuta l’harness del valore libero');
+});
