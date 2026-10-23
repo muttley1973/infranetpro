@@ -26,7 +26,9 @@ const bcrypt = require('bcryptjs');
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'infranet-authlimits-'));
 const UF  = path.join(TMP, 'users.json');
-const IP_MAX = 5;
+// Il budget per-IP deve bastare anche quando la prova di «login ASINCRONO» usa i suoi tre tentativi (3) e
+// il cambio password ne brucia altri due: con 5 il limiter scattava prima dell'ultimo test e bloccava i login validi.
+const IP_MAX = 8;
 process.env.INFRANET_USERS_FILE   = UF;
 process.env.INFRANET_PROJECTS_DIR = path.join(TMP, 'projects');
 process.env.SESSION_SECRET        = 'fixed-test-secret';
@@ -85,18 +87,33 @@ test('login ASINCRONO: il confronto bcrypt cede il controllo (era: server fermo 
   // e' RELATIVO alla durata (non una soglia in millisecondi): su una macchina lenta il confronto dura
   // di piu', ma il rapporto non cambia. NB: non e' parallelismo — bcryptjs e' JS puro, il CPU e'
   // lo stesso —, e' che nessuno resta fermo per piu' di una fetta.
-  let last = Date.now(), maxGap = 0;
-  const timer = setInterval(() => { const n = Date.now(); maxGap = Math.max(maxGap, n - last); last = n; }, 10);
-  const t0 = Date.now();
-  const r = await login('nessuno-' + t0, 'qualunque');
-  await new Promise(res => setTimeout(res, 30));   // lascia scattare il tick in coda, se il loop era bloccato
-  const ms = Date.now() - t0;
-  clearInterval(timer);
-  failures++;
-  assert.equal(r.status, 401);
-  assert.ok(ms > 100, 'sanity: il confronto a costo 12 non è istantaneo (' + ms + ' ms)');
-  assert.ok(maxGap < ms * 0.6,
-    'il loop non deve restare fermo per quasi tutto il confronto: buco massimo ' + maxGap + ' ms su ' + ms + ' ms');
+  //
+  // ⚠️ Fino a TRE tentativi, e passa il primo che rispetta il rapporto. La CI l'ha visto cadere a caso
+  // (22/10, due giri: «buco massimo 222 ms su 317 ms»): una fetta di ~100 ms di CPU puo' durare molto di
+  // piu' in tempo di muro se la macchina condivisa la sospende, e UN solo stallo basta a sforare il
+  // rapporto — senza che il confronto abbia smesso di cedere il controllo. Il difetto che la prova deve
+  // vedere (`compareSync`) NON e' uno stallo: il buco coincide con TUTTO il confronto, a ogni tentativo.
+  // Chi stalla una volta non stalla tre volte di fila; chi blocca il server le fallisce tutte e tre.
+  const MAX_PROVE = 3;
+  const prove = [];
+  for (let k = 0; k < MAX_PROVE; k++) {
+    let last = Date.now(), maxGap = 0;
+    const timer = setInterval(() => { const n = Date.now(); maxGap = Math.max(maxGap, n - last); last = n; }, 10);
+    const t0 = Date.now();
+    const r = await login('nessuno-' + t0 + '-' + k, 'qualunque');
+    await new Promise(res => setTimeout(res, 30));   // lascia scattare il tick in coda, se il loop era bloccato
+    const ms = Date.now() - t0;
+    clearInterval(timer);
+    failures++;                                       // ogni tentativo e' un fallimento dell'IP: conta nel budget
+    assert.equal(r.status, 401);
+    assert.ok(ms > 100, 'sanity: il confronto a costo 12 non è istantaneo (' + ms + ' ms)');
+    prove.push({ maxGap, ms });
+    if (maxGap < ms * 0.6) break;
+  }
+  const ok = prove.some(p => p.maxGap < p.ms * 0.6);
+  assert.ok(ok,
+    'il loop non deve restare fermo per quasi tutto il confronto, in nessuno dei ' + prove.length + ' tentativi: ' +
+    prove.map(p => 'buco massimo ' + p.maxGap + ' ms su ' + p.ms + ' ms').join(' · '));
 });
 
 test('login riuscito: NON consuma il budget per-IP (contano solo i fallimenti)', async () => {
