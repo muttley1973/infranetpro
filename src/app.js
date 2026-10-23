@@ -1126,7 +1126,14 @@ function _expandLagMemberLinks(s){
     // mutazione era MUTA: se avevi marcato tu quel LAG, il marcatore spariva a ogni
     // load senza che nulla lo dicesse — e non c'era modo di capire perché non
     // «tenesse». La funzione il conteggio lo restituiva già: ora lo si racconta.
-    const _lagTypeOfPort = pid => (TYPES[getNodeByPortId(pid)?.type] || null);
+    // ⚠️ I nodi sono quelli di `s`, il progetto che si sta CARICANDO — non `getNodeByPortId`,
+    // che legge l'indice dello stato GLOBALE: durante il caricamento quello è il progetto di
+    // prima (all'avvio, il default). Con i nodi sbagliati ogni capo risultava senza tipo,
+    // cioè «non eleggibile», e a ogni apertura spariva ogni marcatore LAG di ogni progetto —
+    // con l'avviso qui sotto che diceva «cavo verso un elemento passivo»: falso.
+    const _lagNodes = Object.create(null);
+    for(const n of (Array.isArray(s.nodes) ? s.nodes : [])) if(n && n.id != null) _lagNodes[String(n.id)] = n;
+    const _lagTypeOfPort = pid => (TYPES[_lagNodes[getPortNodeId(pid, _lagNodes)]?.type] || null);
     if(typeof stripLagOnPassive==='function'){
         const _stripped = stripLagOnPassive(s.links, _lagTypeOfPort);
         if(_stripped > 0 && typeof _showToast === 'function')

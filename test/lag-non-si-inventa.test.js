@@ -201,3 +201,35 @@ test('⚠️ ma il capo MUTO continua a ricevere il gruppo: è il motivo per cui
   assert.equal(JSON.parse(gruppoDi('sw2-1')), 'lldp-lag-sw1||sw2', 'ed è la porta muta ad adottarlo');
   for (const p of r.porte) assert.equal(p.lagGroup, 'snmp-lag-sw1-1', 'il capo che misura non viene toccato');
 });
+
+// ── il caricamento non butta via i marcatori che una persona o una misura hanno scritto ──
+// `_expandLagMemberLinks` toglie il marcatore LAG a un cavo con un capo PASSIVO (presa, patch
+// panel): è giusto. Ma il tipo del nodo lo cercava nell'indice dello stato GLOBALE, e mentre
+// un progetto si carica quello stato è il progetto di PRIMA (all'avvio, quello di default):
+// nodi sconosciuti → tipo nullo → «non eleggibile» → a ogni apertura spariva ogni marcatore
+// LAG di ogni progetto, con un avviso («un cavo verso un elemento passivo…») che era falso.
+// Misurato sui progetti veri: 6, 6 e 7 marcatori tolti all'avvio, 6, 6 e 7 tenuti riaprendo
+// lo stesso progetto — la differenza stava solo in cosa c'era nello stato globale.
+test('⚠️ il caricamento NON toglie i marcatori LAG di un progetto con i capi attivi', () => {
+  const out = run(APP.ctx, `(() => {
+    // come all'avvio: lo stato globale NON è il progetto che si sta caricando
+    state = _buildDefaultState(); _invalidateIdx();
+    const raw = { schemaVersion:2, racks:[], ports:{}, vlanColors:{}, vlanNames:{}, ipam:{ vlans:{} },
+      nodes:[ { id:'sw41', type:'switch', name:'A', ports:8 }, { id:'sw42', type:'switch', name:'B', ports:8 },
+              { id:'pp41', type:'patchpanel', name:'PP', ports:24 } ],
+      links:[
+        { id:'ok1', src:'sw41-1', dst:'sw42-1', lagLogicalKey:'K', lagMemberPair:'sw41-1||sw42-1' },
+        { id:'ok2', src:'sw41-2', dst:'sw42-2', lagLogicalKey:'K', lagMemberPair:'sw41-2||sw42-2' },
+        { id:'pp1', src:'pp41-1', dst:'sw41-3', lagLogicalKey:'P', lagMemberPair:'pp41-1||sw41-3' } ] };
+    const m = _migrateState(raw);
+    const get = id => m.links.find(l => l.id === id);
+    return JSON.stringify({ ok1: get('ok1') && get('ok1').lagLogicalKey, ok2: get('ok2') && get('ok2').lagLogicalKey,
+                            pp1Cavo: !!get('pp1'), pp1Tag: !!(get('pp1') && (get('pp1').lagLogicalKey || get('pp1').lagMemberPair)) });
+  })()`);
+  const r = JSON.parse(out);
+  assert.strictEqual(r.ok1, 'K', 'il LAG fra due switch resta, anche se lo stato globale non è questo progetto');
+  assert.strictEqual(r.ok2, 'K');
+  // …e la regola che il caricamento esiste per applicare continua a valere, sul progetto GIUSTO:
+  assert.strictEqual(r.pp1Cavo, true, 'il cavo verso il patch panel resta');
+  assert.strictEqual(r.pp1Tag, false, 'ma il suo marcatore LAG, quello sì, viene tolto: un passivo non aggrega');
+});
