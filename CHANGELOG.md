@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- **The manuals describe the toolbar and the status bar as they are.** Both still drew a toolbar without Multi-site, import/export and History, and said the centre of the status bar suggests the next step — it has not since August, the step lives in the Assistant panel. The centre is now described as what it shows (the active VLAN filter and the last auto-link), and both PDFs are rebuilt.
 - **The hardware catalogue update no longer stops when the source library grows.** The check refused any update in which the number of excluded models moved by more than 500; when the NetBox library added about six thousand camera models the excluded count went from 747 to 6,884 and the update, and "Check for updates" with it, failed for good while the catalogue in use was almost unchanged. The check now counts the models it already knew that change fate — dropped from the catalogue in use, or brought back into it — and ignores new models, which are just the source growing. The limit is 500 and `--max-runtime-change=N` raises it by hand; a refused update still writes nothing (`--max-exclusion-delta` is gone). The catalogue in use moves from 5,296 to 5,502 models.
 
 ## [2.11.18] — 2026-10-17

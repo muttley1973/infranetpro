@@ -1939,8 +1939,8 @@ What is not obvious from the code:
   sends (`Control+Shift+Z`, upper case). The suite once checked only that `undo` lit "Save", then
   a fake two-state history; both passed while the first operation after loading could not be
   undone and redo lost the last one.
-- Not recorded yet: the panel fields (`updateN`, `updateFloorId`, `updateVm`, `updateP`…), so
-  an edit made right after loading is not undoable.
+- Not recorded, by decision: the panel fields (`updateN`, `updateFloorId`, `updateVm`, `updateP`…), so
+  an edit made in a panel field is not undoable.
 
 ### Touch input (tablet)
 
