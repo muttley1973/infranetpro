@@ -99,18 +99,18 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 - 🖥️ **Windows:** double-click `avvia.bat`. Details in [Installation](#installation) and [Configuration](#configuration).
 - **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.18) — a machine you documented stays documented, Ctrl+Z does what it says, and the VM card closes like the host panel.**
+> 📰 **What's new (v2.11.19) — the dossier lives inside Export PDF, the catalogue update works again, and the manuals describe the interface as it is.**
 >
-> - A machine already documented as a VM is no longer "New" in Discover, the topology crawl or the Verify adoption, and is never documented twice.
-> - Ctrl+Z undoes one step at a time and Ctrl+Y gets you back; inside a text field Ctrl+Z undoes the typing.
-> - The VM card has expand-all / collapse-all arrows and a summary on every closed section; the badge on a Discover row quiet to the community in use now reads **SNMP**.
+> - The handover dossier is no longer a menu entry: the Export PDF dialog opens with it locked on (cover page and change history) and every section starts unticked, so the PDF carries what you tick.
+> - The hardware catalogue update no longer stops when the source library grows; the catalogue in use now has 5,502 models.
+> - Both manuals draw the toolbar and the status bar as they are, and the README screenshots show the current interface.
 >
 > Earlier:
+> - **v2.11.18** — a machine you documented stays documented, Ctrl+Z does what it says, and the VM card closes like the host panel.
 > - **v2.11.17** — a neighbour is created as what it announces over LLDP/CDP; a hostile id can no longer run code; "0 found" says when the scan could not look.
 > - **v2.11.16** — a value says where it comes from; a model you typed is no longer called a swapped device.
 > - **v2.11.15** — the map and the rack work with a finger on a tablet; the History says what the Sync really read.
 > - **v2.11.14** — a device that never answers no longer freezes the monitoring; a *Port descriptions* report.
-> - **v2.11.13** — a damaged state file is read from its backup; an address is sent as it was checked.
 >
 > Every release, in detail: [CHANGELOG.md](CHANGELOG.md).
 
