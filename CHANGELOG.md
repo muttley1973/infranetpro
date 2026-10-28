@@ -22,6 +22,10 @@
 - **The expand-all and collapse-all arrows of every properties panel are real buttons with an accessible name.** Project, device, cable and VM panels each carried their own copy of the markup, and only the VM card's had `type="button"` and a label.
 - **Undo and redo do less work.** Every Ctrl+Z or Ctrl+Y serialised the whole project to compare it with the last point; it now does so only when something happened since (a recorded or unrecorded change). Loading, creating, duplicating or restoring a project starts the history clean, including the "something happened" flag of the project before.
 
+### Security
+
+- **The four vulnerabilities `npm audit` reported in the production dependencies are gone.** They were denials of service in the request-body parser, in the query-string parser and, through the rate limiter, in the IP address library. The lockfile — what `npm ci` and the Docker image install — now resolves the patched releases, and it catches up with the versions the tests had been running on, the SNMP library included (net-snmp 3.26 → 3.29), so what is tested is what is installed. Run `npm ci` and restart the server.
+
 ## [2.11.19] — 2026-10-23
 
 The dossier lives inside Export PDF, the catalogue update works again, and the manuals describe the interface as it is.
