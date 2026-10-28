@@ -6,6 +6,12 @@
 
 - **Opening a project no longer drops its LAG markers.** The check at load time that removes the LAG marker from a cable to a passive element (wall port, patch panel) looked the cable's ends up in the project that was open before — at start-up, the default one — so every end looked inactive and the markers of every project were dropped on opening, with a notice that blamed a passive element. It now reads the project being opened: a LAG between two switches stays, and only a cable that really ends on a passive element loses its marker.
 - **The "Routed by" list on a VLAN no longer offers "Custom…".** Choosing it wrote a placeholder as the gateway device, and the card then said the device no longer exists.
+- **Panning, zooming or switching rack tab no longer breaks Undo and Redo.** After a Ctrl+Z, moving the view made the next Ctrl+Z undo only the view and wiped the Redo, so Ctrl+Y could not get back to the last operation. The view is no longer part of what Ctrl+Z restores, and it stays where you left it.
+- **Redo no longer overwrites a change made after an undo.** A panel field edited, or an automatic update that landed, between Ctrl+Z and Ctrl+Y was silently lost; it is now kept, and Ctrl+Z after the redo brings it back.
+- **Nothing is recorded when nothing happened.** The automatic monitor's silent rounds, and a drag that ends where it started, outside the floor plan or whose VM import is refused, no longer leave an Undo step: Undo stayed lit for a gesture that changed nothing, and the Redo was thrown away.
+- **A refused cable no longer deletes the automatic cables on its ports, and an accepted one can be undone.** A manual cable replaces the automatic ones on its two ports; they were removed before the checks and before the Undo point, so a refusal lost them silently and Ctrl+Z could not bring them back.
+- **Ctrl+Z works after Enter in the rack height field and in date fields.** Both kept the keyboard focus, so the key went to the field instead of the project.
+- **Undoing a JSON import brings back the background and the change history from before it**, not the ones of the imported file.
 
 ## [2.11.19] — 2026-10-23
 

@@ -8,7 +8,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, renderCables, _invalidateIdx, switchRightTab, _showToast, _linksForPort, _nextNodeId, _isRadioPid, logAudit, _renderModeIndicator, _promoteLinkToManual, canAddConnection, _createLinkRecord, getPortMaxConnections, getNodeRackSize, getRackSize, _validateWallPortConnection, _cableAutoLabel } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, getNodeByPortId, getPortNodeId, getNodeDisplayName, pushHistory, takeSnapshot, recordSnapshot, renderCables, _invalidateIdx, switchRightTab, _showToast, _linksForPort, _nextNodeId, _isRadioPid, logAudit, _renderModeIndicator, _promoteLinkToManual, canAddConnection, _createLinkRecord, getPortMaxConnections, getNodeRackSize, getRackSize, _validateWallPortConnection, _cableAutoLabel } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans, setVlanFilter } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { seedPortActive } from '../lib/port-state.js';   // il cavo semina «attiva», mai sopra a una misura
@@ -111,6 +111,21 @@ const _FLOOR_DBL_MS = 350;
 // (pannello/sidebar/fuori, NON la zona import né la planimetria) il device ci torna,
 // invece di restare "perso" sotto il pannello.
 let _floorDragOrigin = null;
+// La foto del progetto presa quando il trascinamento si ARMA (> soglia), cioe' PRIMA del primo movimento. Non si
+// registra subito: un trascinamento puo' finire dov'era, fuori dalla planimetria (il tile torna a casa) o rifiutato
+// (e' gia' una VM, non e' idoneo), e un punto registrato in partenza restava li' — «Annulla» acceso a vuoto, e il
+// ripeti buttato — per un gesto che non ha cambiato niente. Si registra a fine gesto, e solo se il progetto e'
+// cambiato (v. _commitDragHistory). Stato di MODULO: lo scrivono l'arma e il rilascio, nessun altro.
+let _dragSnap = null;
+// Fine di un trascinamento ARMATO: se il progetto e' cambiato, la foto di partenza diventa il punto di annulla e il
+// documento e' sporco; se no, niente — ne' punto ne' «Salva». Ritorna true se qualcosa e' cambiato.
+function _commitDragHistory(){
+    const before = _dragSnap; _dragSnap = null;
+    if(before === null || takeSnapshot() === before) return false;
+    recordSnapshot(before);
+    markDirty();
+    return true;
+}
 // Apre le Proprieta' di un nodo floor (doppio click): seleziona, evidenzia il run,
 // intent esplicito (uniforme col rack) → switcha al pannello Proprieta'. Condiviso
 // dal doppio click manuale (pointerdown) e da handleFloorDoubleClick (fallback) →
@@ -357,7 +372,7 @@ function handlePointerDown(e){
     // marchiamo il drag come "non ancora armato". Sara' handlePointerMove
     // a sganciare il drag solo dopo > 5px di movimento.
     store._dragDownPt = { x: e.clientX, y: e.clientY };
-    store._dragArmed = false;
+    store._dragArmed = false; _dragSnap = null;
     _deselectOnTap = false;
     _lastPt = { x: e.clientX, y: e.clientY };
     cancelTouchHold();   // un tocco nuovo: nessuna pressione lunga del gesto di prima resta in attesa
@@ -692,8 +707,9 @@ function handlePointerMove(e){
         else {
             store._dragArmed = true;
             // La foto PRIMA di muovere (convenzione di pushHistory): fotografare a fine drag, come si faceva,
-            // salvava lo stato NUOVO e il Ctrl+Z non riportava il pezzo dov'era.
-            if(store.dragNode || store.dragRack || store.resizeNode) pushHistory();
+            // salvava lo stato NUOVO e il Ctrl+Z non riportava il pezzo dov'era. La si TIENE in mano e la si registra
+            // a fine gesto, solo se qualcosa e' cambiato (v. _dragSnap).
+            if(store.dragNode || store.dragRack || store.resizeNode) _dragSnap = takeSnapshot();
         }
     }
     if(store.isPanningFloor){
@@ -803,36 +819,49 @@ function _tryFinishLink(tgt){
         if(ext.autoLinked){ pushHistory(); _promoteLinkToManual(ext); markDirty(); }
         _cancelLink(); renderAll(); return true;
     }
-    // Priorità al collegamento MANUALE: rimuovi eventuali auto-link concorrenti
-    // sulle stesse porte (un cavo manuale sostituisce quello dedotto automaticamente).
+    // Priorità al collegamento MANUALE: un cavo manuale sostituisce gli auto-link concorrenti sulle stesse porte
+    // (quello dedotto automaticamente). Le regole (presa a muro, porta piena, radio) si valutano come se non ci
+    // fossero — canAddConnection conta anche l'auto-link che sta sulla porta e rifiuterebbe il cavo proprio dove lo
+    // sostituisce — ma si TOGLIERANNO davvero solo se il cavo viene accettato, e DOPO pushHistory(): un rifiuto non
+    // tocca niente, e Ctrl+Z li ridà. (Prima sparivano comunque, anche a cavo rifiutato, senza punto di annulla.)
     const _isConcurrentAuto = l => l.autoLinked && (_linkTouchesPort(l, store.linkStart) || _linkTouchesPort(l, tgt));
-    if(store.state.links.some(_isConcurrentAuto)){
+    const _allLinks = store.state.links;
+    const _hasConcurrent = _allLinks.some(_isConcurrentAuto);
+    if(_hasConcurrent){
+        store.state.links = _allLinks.filter(l => !_isConcurrentAuto(l));
+        _invalidateIdx();
+    }
+    let _rejection = null, _connKind = null;
+    try{
+        const wpCheck = _validateWallPortConnection(store.linkStart, tgt);
+        if(!wpCheck.ok){
+            _rejection = wpCheck.message;
+        } else if(!canAddConnection(store.linkStart)||!canAddConnection(tgt)){
+            const bp=!canAddConnection(store.linkStart)?store.linkStart:tgt;
+            _rejection = t('msg.rack.portMaxConnections',{port:bp,max:getPortMaxConnections(bp)});
+        } else {
+            // Tipo di connessione dagli estremi (lib/radio.js): una porta radio si
+            // collega SOLO a un'altra porta radio (associazione wireless = tipologia a
+            // sé). Mix radio↔porta-di-rete = non ammesso → blocca con messaggio.
+            const _srcRadio = typeof _isRadioPid==='function' && _isRadioPid(store.linkStart);
+            const _dstRadio = typeof _isRadioPid==='function' && _isRadioPid(tgt);
+            _connKind = (typeof win.linkKind==='function')
+                ? win.linkKind(_srcRadio, _dstRadio)
+                : (_srcRadio && _dstRadio ? 'wireless' : (!_srcRadio && !_dstRadio ? 'cable' : 'invalid'));
+            if(_connKind==='invalid') _rejection = t('radio.onlyRadio');
+        }
+    } finally {
+        if(_hasConcurrent){ store.state.links = _allLinks; _invalidateIdx(); }   // l'elenco vero, com'era
+    }
+    if(_rejection){
+        showAlert(_rejection);
+        _cancelLink(); renderAll(); return true;
+    }
+    pushHistory();   // con gli auto-link ancora al loro posto: e' lo stato a cui Ctrl+Z deve tornare
+    if(_hasConcurrent){
         store.state.links = store.state.links.filter(l => !_isConcurrentAuto(l));
         _invalidateIdx();
     }
-    const wpCheck = _validateWallPortConnection(store.linkStart, tgt);
-    if(!wpCheck.ok){
-        showAlert(wpCheck.message);
-        _cancelLink(); renderAll(); return true;
-    }
-    if(!canAddConnection(store.linkStart)||!canAddConnection(tgt)){
-        const bp=!canAddConnection(store.linkStart)?store.linkStart:tgt;
-        showAlert(t('msg.rack.portMaxConnections',{port:bp,max:getPortMaxConnections(bp)}));
-        _cancelLink(); renderAll(); return true;
-    }
-    // Tipo di connessione dagli estremi (lib/radio.js): una porta radio si
-    // collega SOLO a un'altra porta radio (associazione wireless = tipologia a
-    // sé). Mix radio↔porta-di-rete = non ammesso → blocca con messaggio.
-    const _srcRadio = typeof _isRadioPid==='function' && _isRadioPid(store.linkStart);
-    const _dstRadio = typeof _isRadioPid==='function' && _isRadioPid(tgt);
-    const _connKind = (typeof win.linkKind==='function')
-        ? win.linkKind(_srcRadio, _dstRadio)
-        : (_srcRadio && _dstRadio ? 'wireless' : (!_srcRadio && !_dstRadio ? 'cable' : 'invalid'));
-    if(_connKind==='invalid'){
-        showAlert(t('radio.onlyRadio'));
-        _cancelLink(); renderAll(); return true;
-    }
-    pushHistory();
     const _newLink=_createLinkRecord(store.linkStart,tgt);
     // Wireless = connessione radio↔radio (tipologia distinta dal cavo fisico).
     if(_connKind==='wireless') _newLink.wireless=true;
@@ -897,7 +926,7 @@ function handlePointerUp(e){
         //    single click sull'icona rack apre subito il pannello.
         if(store.dragRack){
             if(store._dragArmed){
-                markDirty();
+                _commitDragHistory();   // punto di annulla + «Salva» solo se l'icona si e' mossa davvero
             } else if(store._viewMode!=='topology'){
                 // Map: single click puro apre la rack window.
                 const _rid = store.dragRack;
@@ -931,13 +960,14 @@ function handlePointerUp(e){
                 // absorbNodeAsVm + toast con hint Ctrl+Z). NIENTE riposizionamento.
                 const _src=store.dragNode;
                 store.dragNode=null;
-                // Il tile torna alla posizione di PARTENZA prima di assorbirlo: lo stato che absorbNodeAsVm fotografa
-                // e' lo stesso del drag appena partito (nessun punto in piu'), e annullare l'assorbimento rimette il
-                // tile dov'era e non dove l'hai lasciato sotto il pannello.
+                // Il tile torna alla posizione di PARTENZA prima di assorbirlo: annullare l'assorbimento rimette il
+                // tile dov'era e non dove l'hai lasciato sotto il pannello. Il punto di annulla e' la foto di PARTENZA
+                // del gesto (_dragSnap), registrata da absorbNodeAsVm SOLO se l'assorbimento riesce: un rifiuto (e' gia'
+                // una VM, non e' idoneo) non lascia un punto, e trascinamento + assorbimento sono UN passo.
                 if(_dn && _floorDragOrigin){ _dn.x=_floorDragOrigin.x; _dn.y=_floorDragOrigin.y; }
-                // Rifiutato (e' gia' una VM, non e' idoneo): il tile resta dov'era. Il toast del perche' lo da'
-                // absorbNodeAsVm; qui si ridisegna soltanto.
-                if(!absorbNodeAsVm(_src, _drop.host) && nodeById(_src)) renderAll();
+                const _before=_dragSnap; _dragSnap=null;
+                // Rifiutato: il tile resta dov'era. Il toast del perche' lo da' absorbNodeAsVm; qui si ridisegna soltanto.
+                if(!absorbNodeAsVm(_src, _drop.host, _before) && nodeById(_src)) renderAll();
             } else if(_isFloorDrag && !_drop.onFloor && _floorDragOrigin){
                 // Device floor rilasciato FUORI dalla planimetria e NON sulla zona import
                 // → torna alla posizione di partenza + avviso (niente tile "perso" sotto
@@ -946,17 +976,19 @@ function handlePointerUp(e){
                 // o senza identità di rete) → spiega il PERCHÉ invece del rifiuto muto.
                 const _n=nodeById(store.dragNode);
                 if(_n){ _n.x=_floorDragOrigin.x; _n.y=_floorDragOrigin.y; }
+                _dragSnap=null;        // tornato a casa: il progetto e' quello di prima, niente da registrare
                 store.dragNode=null;   // (resizeNode è già null in un node-drag)
                 renderAll();
                 _showToast(t(_drop.onDz ? 'hv.vmNotEligible' : 'hv.vmImportMissed'), _drop.onDz ? 'warn' : 'info');
             } else {
                 const _wasRackDrag=!!(_dn&&TYPES[_dn.type]?.isRack);
-                // Commit del drag (resolveOverlap, pushHistory, markDirty, rerender)
+                // Commit del drag (resolveOverlap, punto di annulla, markDirty, rerender)
                 // solo se davvero ci si e' mossi oltre il threshold. Su un click
-                // breve evitiamo history entries vuoti e renderAll() inutili.
+                // breve evitiamo history entries vuoti e renderAll() inutili — e lo stesso
+                // se il trascinamento e' finito dov'era partito (v. _commitDragHistory).
                 if(store._dragArmed){
                     if(_wasRackDrag) _resolveRackOverlap(_dn);
-                    markDirty();   // la foto «prima» l'ha gia' fatta il drag quando e' partito
+                    _commitDragHistory();   // la foto «prima» l'ha presa il drag quando e' partito
                 }
                 const wasResize=!!store.resizeNode;
                 store.dragNode=null; store.resizeNode=null;

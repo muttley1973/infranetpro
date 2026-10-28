@@ -10,7 +10,7 @@ import { store } from "./store.js";   // currentProjectId per persistAuditEntrie
 import { _invalidateIdx } from "./app.js";   // ciclo benigno: uso solo a runtime
 import { renderAll } from "./app-render-core.js";
 import { saveProject } from "./app-core.js";   // ciclo benigno: solo a runtime (autosave debounced)
-import { record, undo as _undoStep, redo as _redoStep, canUndo, canRedo } from "../lib/undo-history.js";   // il modello di annulla/ripeti (puro, provato a parte)
+import { photo, outsidePhoto, rebuild, record, undo as _undoStep, redo as _redoStep, canUndo, canRedo } from "../lib/undo-history.js";   // il modello di annulla/ripeti (puro, provato a parte)
 // Bare globals (no-undef OFF): _history/_histIdx/state/_isDirty/selId/selType/highPath
 // (proxy store) - renderRackTabs/updateTransforms (window, app-search-zoom-rack) -
 // appendAudit (lib/audit-log.js) - _currentUser (store).
@@ -22,21 +22,13 @@ import { record, undo as _undoStep, redo as _redoStep, canUndo, canRedo } from "
 // ⚠️ Un chiamante che fotografasse DOPO la modifica rompe l'ordine: la foto e' lo stato nuovo, e annullare
 // non toglie niente. (Il trascinamento lo faceva: ora fotografa quando il drag parte, v. app-pointer.js.)
 
-// La foto dello stato com'e' ADESSO.
-// bgImage è base64 (spesso >1 MB): escluso dagli snapshot per non saturare la RAM.
-// Undo/redo riagganciano sempre il bgImage corrente — l'immagine di sfondo
-// non è un'operazione annullabile (ha il proprio pulsante "Rimuovi mappa").
-// auditLog è append-only: escluso dagli snapshot così l'undo non lo riscrive
-// (la storia "chi/quando/cosa" sopravvive a undo/redo).
+// La foto dello stato com'e' ADESSO (lib/undo-history.js: `photo`).
+// Ne restano fuori sfondo (base64, spesso >1 MB), giornale (append-only: la storia "chi/quando/cosa" sopravvive a
+// annulla e ripeti) e VISTA (pan, zoom, scheda del rack): non sono operazioni, e annulla/ripeti li riagganciano
+// SEMPRE dallo stato corrente. Con la vista dentro, un pan dopo un Ctrl+Z era «una modifica non registrata» e il
+// Ctrl+Z dopo toglieva solo lui, buttando il ripeti.
 function _snapshot() {
-    const bg = state.bgImage;
-    const audit = state.auditLog;
-    state.bgImage = null;
-    state.auditLog = undefined;
-    const snap = JSON.stringify(state);
-    state.bgImage = bg;
-    state.auditLog = audit;
-    return snap;
+    return photo(state);
 }
 
 // «Dopo l'ultimo punto e' successo qualcosa»: serve SOLO ai pulsanti (a Ctrl+Z decide il confronto vero, in
@@ -44,28 +36,67 @@ function _snapshot() {
 let _pending = false;
 let _restoring = false;   // dentro annulla/ripeti: il markDirty() che accende «Salva» non e' una modifica nuova
 
-export function pushHistory() {
-    const r = record(_history, _histIdx, _snapshot());
+// Le cose fuori foto (sfondo, giornale, vista) di certi punti. Servono SOLO a un'operazione che SOSTITUISCE il
+// progetto intero (importa JSON): li' lo sfondo e il giornale di adesso sono quelli del file importato, e annullare
+// deve rimettere quelli di prima — non riagganciare i nuovi a un progetto che non e' il loro. Per ogni altro punto
+// il progetto e' lo stesso e vale lo stato corrente. Chiave: la foto del punto (la stringa e' gia' nella storia).
+const _outside = new Map();
+
+// Fuori dalla mappa i punti che la storia non ha piu' (tetto, ripeti buttato, progetto cambiato): portano uno sfondo.
+function _pruneOutside() {
+    if (!_outside.size) return;
+    for (const k of _outside.keys()) if (_history.indexOf(k) < 0) _outside.delete(k);
+}
+
+// Se il punto a cui si va ha con se' le sue cose fuori foto, anche lo stato che si LASCIA le porta via: ripeti
+// (o annulla) di nuovo, e le ritrova.
+function _carryOutside(leaving, target) {
+    if (_outside.has(target)) _outside.set(leaving, outsidePhoto(state));
+}
+
+function _record(snap, withOutside) {
+    const r = record(_history, _histIdx, snap);
     _history = r.points; _histIdx = r.idx;
+    if (withOutside) _outside.set(snap, outsidePhoto(state));
     _pending = true;
     _updateHistoryBtns();
 }
 
-// Rimette in piedi uno stato (annulla e ripeti): riaggancia lo sfondo e il giornale, che non stanno nelle foto.
+/**
+ * «Sto per modificare»: ricorda lo stato com'e' ora.
+ * `{ withOutside:true }` solo per un'operazione che sostituisce il progetto intero (importa JSON): il punto si
+ * porta dietro lo sfondo e il giornale di adesso, e l'annulla li rimette.
+ */
+export function pushHistory(opts) {
+    _record(_snapshot(), !!(opts && opts.withOutside));
+}
+
+// La foto di adesso, da tenere in mano: per chi non sa ancora se l'operazione cambiera' qualcosa (il trascinamento:
+// parte a 5 px, ma puo' finire dov'era, fuori dalla planimetria o rifiutato) e la registra solo se cambia davvero.
+export function takeSnapshot() {
+    return _snapshot();
+}
+
+/** «Prima di questa operazione lo stato era `snap`»: pushHistory() con una foto presa PRIMA (takeSnapshot). */
+export function recordSnapshot(snap) {
+    _record(snap, false);
+}
+
+// Rimette in piedi uno stato (annulla e ripeti): le cose fuori foto — sfondo, giornale, vista — si riagganciano
+// dallo stato CORRENTE, tranne quelle di un punto che le porta con se' (v. _outside).
 function _restoreSnapshot(snap) {
-    const bg = state.bgImage;                  // preserva il background corrente
-    const audit = state.auditLog;              // append-only: non si annulla
-    state = JSON.parse(snap);
-    state.bgImage = bg;                        // riaggancia (non è in snapshot)
-    state.auditLog = audit;
+    const kept = _outside.get(snap);
+    state = rebuild(snap, kept ? Object.assign({}, state, kept) : state);   // `kept` vince sulle cinque chiavi; l'ordine resta quello dello stato vivo
     _invalidateIdx();
     _resetSelection(); renderRackTabs(); updateTransforms(); renderAll();
 }
 
 export function undo() {
-    const r = _undoStep(_history, _histIdx, _snapshot());
+    const cur = _snapshot();
+    const r = _undoStep(_history, _histIdx, cur);
     if (!r) { _pending = false; _updateHistoryBtns(); return; }      // niente prima: il pulsante non resta acceso a vuoto
     _history = r.points; _histIdx = r.idx;
+    _carryOutside(cur, r.restore);
     _restoring = true;
     try {
         _restoreSnapshot(r.restore);
@@ -78,9 +109,13 @@ export function undo() {
 }
 
 export function redo() {
-    const r = _redoStep(_history, _histIdx);
+    // Lo stato corrente va confrontato col punto: una modifica non registrata dopo l'annulla (un campo del pannello, un
+    // giro silenzioso del monitor) la tiene da parte il modello, come fa undo(), invece di sovrascriverla.
+    const cur = _snapshot();
+    const r = _redoStep(_history, _histIdx, cur);
     if (!r) return;
-    _histIdx = r.idx;
+    _history = r.points; _histIdx = r.idx;
+    _carryOutside(cur, r.restore);
     _restoring = true;
     try {
         _restoreSnapshot(r.restore);
@@ -93,6 +128,7 @@ export function redo() {
 }
 
 export function _updateHistoryBtns() {
+    _pruneOutside();   // passa di qui ogni volta che la storia cambia o si azzera (carica/crea/ripristina un progetto)
     const u = document.getElementById('btn-undo'), r = document.getElementById('btn-redo');
     if (u) u.disabled = !canUndo(_history, _histIdx, _pending);
     if (r) r.disabled = !canRedo(_history, _histIdx);

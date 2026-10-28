@@ -207,8 +207,8 @@ store._history=[]; store._histIdx=-1;   // var: reset dal bundle app-core (loadP
 // STORICO/DIRTY/AUDIT estratti in ./app-history.js (split app.js #3). Import+re-export:
 // import per i molti call-site interni (markDirty/pushHistory/logAudit/undo/redo) e
 // re-export per i consumatori ESM che importano queste fn da ./app.js.
-import { pushHistory, undo, redo, _updateHistoryBtns, _resetSelection, markDirty, _clearDirty, dirtyEpoch, isDirty, logAudit } from "./app-history.js";
-export { pushHistory, undo, redo, _updateHistoryBtns, _resetSelection, markDirty, _clearDirty, dirtyEpoch, isDirty, logAudit };
+import { pushHistory, takeSnapshot, recordSnapshot, undo, redo, _updateHistoryBtns, _resetSelection, markDirty, _clearDirty, dirtyEpoch, isDirty, logAudit } from "./app-history.js";
+export { pushHistory, takeSnapshot, recordSnapshot, undo, redo, _updateHistoryBtns, _resetSelection, markDirty, _clearDirty, dirtyEpoch, isDirty, logAudit };
 
 // ============================================================
 // API CLIENT
@@ -944,7 +944,9 @@ function importJSON(input) {
                 ? projectFormat.isProjectState(imported) : !!(imported && imported.nodes && imported.racks);
             if (!valid) throw new Error('struttura non valida');
             createSnapshot('', 'pre-import');   // rete di sicurezza: cattura lo stato PRIMA di rimpiazzarlo
-            pushHistory();
+            // Il progetto viene sostituito per INTERO: il punto di annulla si porta dietro lo sfondo e il giornale di
+            // adesso, o Ctrl+Z riporterebbe il documento di prima con quelli del file importato.
+            pushHistory({ withOutside: true });
             state = _migrateState(imported);
             resetProjectRuntime();
             _restoreTopoSession();

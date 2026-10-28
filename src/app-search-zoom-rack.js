@@ -925,4 +925,9 @@ registerFocusActions({
 });
 registerKeydownActions({
     'global-search': (el, ev) => handleSearchKey(ev),
+    // Invio conferma l'altezza e il campo cede il fuoco: <input type=number> e' un campo di testo per
+    // isTextEditingTarget, e dopo Invio lo teneva — il Ctrl+Z successivo andava al campo (che non ha piu' niente da
+    // annullare) e non al progetto. Solo Invio: le frecce della rotella emettono un `change` a ogni scatto, e togliere
+    // il fuoco al primo ne impedirebbe i successivi. blur() fa scattare il `change` (rack-size) se il valore e' nuovo.
+    'rack-size-key': (el, ev) => { if(ev && ev.key === 'Enter' && el && el.blur) el.blur(); },
 });

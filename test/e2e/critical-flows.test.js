@@ -232,6 +232,25 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
     }
   };
 
+  // ── Annulla / Ripeti: helper dei sottotest che li provano ─────────────────────────────────────
+  // Riparte da un progetto con SOLO questi nodi (e questi cavi), storia vuota, niente da salvare.
+  const ripartiDa = (nodes, links) => page.evaluate(({ nodes, links }) => {
+    state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+    state.nodes.length = 0; state.links.length = 0; state.ports = {};
+    for (const n of nodes) state.nodes.push(n);
+    for (const l of (links || [])) state.links.push(l);
+    if (typeof _invalidateIdx === 'function') _invalidateIdx();
+    _history = []; _histIdx = -1; selId = null; selType = null;
+    _renderAllNow(); _updateHistoryBtns(); _clearDirty();
+    if (typeof updateTransforms === 'function') updateTransforms();   // la vista torna a 0,0: anche il DOM (un pan di prima lo teneva spostato)
+  }, { nodes, links });
+  // La foto del DOCUMENTO come la fa app-history (senza sfondo, giornale e vista: pan, zoom e scheda del rack non sono operazioni).
+  const fotoDoc = () => page.evaluate(() => { const c = Object.assign({}, state); for (const k of ['bgImage', 'auditLog', 'floorView', 'rackView', 'currentRack']) delete c[k]; return JSON.stringify(c); });
+  // Un tasto vero, dopo aver tolto il fuoco da dove stava (altrimenti sarebbe del campo).
+  const tasto = async (k) => { await page.evaluate(() => { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); }); await page.keyboard.press(k); await page.waitForTimeout(60); };
+  // Quanti punti ha la storia, se i pulsanti sono accesi, se c'e' qualcosa da salvare.
+  const storia = () => page.evaluate(() => ({ punti: _history.length, annulla: !document.getElementById('btn-undo').disabled, ripeti: !document.getElementById('btn-redo').disabled, daSalvare: !!_isDirty }));
+
   try {
     // La prima navigazione è il punto in cui si manifesta un server di prova
     // caduto: il browser dice ERR_CONNECTION_RESET, che sembra un difetto
@@ -3711,7 +3730,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
     await t.test('Ctrl+Z dentro un campo di testo lo annulla il CAMPO (browser), fuori da un campo annulla il progetto', async () => {
       // Prima il tasto era intercettato OVUNQUE e bloccato: nel campo non annullava il testo, e con passi in storia
       // annullava il progetto al posto del testo.
-      const nomi = ['campo testo', 'numero', 'ricerca', 'password', 'area di testo', 'contenteditable', 'casella', 'bottone', 'select'];
+      // 'data': un campo data (garanzia, fine vita...) non ha una storia di testo — il Ctrl+Z e' del progetto.
+      const nomi = ['campo testo', 'numero', 'ricerca', 'password', 'area di testo', 'contenteditable', 'casella', 'bottone', 'select', 'data'];
       const tipoTesto = new Set(['campo testo', 'numero', 'ricerca', 'password', 'area di testo', 'contenteditable']);
       const esiti = [];
       for (const nome of nomi) {
@@ -3731,6 +3751,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
             'area di testo': () => document.createElement('textarea'),
             'contenteditable': () => { const x = document.createElement('div'); x.contentEditable = 'true'; x.tabIndex = 0; return x; },
             'casella': () => inp('checkbox'),
+            'data': () => inp('date'),
             'bottone': () => document.createElement('button'),
             'select': () => document.createElement('select'),
           }[nome]();
@@ -3796,6 +3817,209 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(S1b, S0, 'lo stato e\' identico a prima del gesto');
       assert.equal(SstillB, S0, 'e un secondo Ctrl+Z non cambia niente: il trascinamento e l\'assorbimento sono UN passo solo, non due');
       assert.equal(redoJ, S1, 'Ctrl+Shift+Z: assorbito di nuovo, identico a dopo il gesto');
+    });
+
+    await t.test('Annulla / Ripeti non perdono il ripeti per un pan, un cambio di scheda o una modifica non registrata', async () => {
+      // La foto conteneva la vista: dopo un Ctrl+Z, un pan (o un cambio di scheda del rack) era «una modifica non registrata»,
+      // e il Ctrl+Z dopo toglieva SOLO la vista e buttava il ripeti. E il ripeti sovrascriveva in silenzio una modifica non
+      // registrata dopo l'annulla (annulla invece la tiene da parte).
+      await ripartiDa([{ id: 'lab', type: 'homelab', name: 'NUC-01', x: 400, y: 150, ports: 1 }]);
+      await page.evaluate(() => { state.racks.push({ id: 'rk2', name: 'Rack 2', sizeU: 42 }); renderRackTabs(); });
+      await page.evaluate(() => { addVm('lab'); addVm('lab'); addVm('lab'); });
+      const vms = () => page.evaluate(() => (nodeById('lab').vms || []).length);
+      const fx = () => page.evaluate(() => state.floorView.x);
+      assert.equal(await vms(), 3, 'setup: tre operazioni');
+      await tasto('Control+z');
+      assert.equal(await vms(), 2);
+      const fx0 = await fx();
+      // un pan VERO: Spazio + trascinamento sulla planimetria
+      const fp = await page.locator('#floorplan').boundingBox();
+      await page.keyboard.down('Space');
+      await page.mouse.move(fp.x + 60, fp.y + fp.height - 90); await page.mouse.down();
+      await page.mouse.move(fp.x + 220, fp.y + fp.height - 40, { steps: 8 }); await page.mouse.up();
+      await page.keyboard.up('Space');
+      const fx1 = await fx();
+      assert.notEqual(fx1, fx0, 'setup: il pan ha spostato la vista');
+      await tasto('Control+z');
+      assert.equal(await vms(), 1, 'il secondo Ctrl+Z toglie la SECONDA operazione, non il pan');
+      assert.equal(await fx(), fx1, 'e la vista resta dov\'e\': non torna indietro con l\'operazione');
+      // la scheda del rack cambia come per l'utente: l'evento `change` del <select> (il select puo' essere nascosto, a seconda del pannello)
+      await page.evaluate(() => { const sel = document.getElementById('rack-select'); sel.value = 'rk2'; sel.dispatchEvent(new Event('change', { bubbles: true })); });
+      assert.equal(await page.evaluate(() => state.currentRack), 'rk2', 'setup: scheda del rack cambiata');
+      await tasto('Control+z');
+      assert.equal(await vms(), 0, 'anche dopo un cambio di scheda del rack il Ctrl+Z toglie un\'operazione');
+      assert.equal(await page.evaluate(() => state.currentRack), 'rk2', 'e la scheda resta quella');
+      const avanti = [];
+      for (let i = 0; i < 3; i++) { await tasto('Control+Shift+Z'); avanti.push(await vms()); }
+      assert.deepEqual(avanti, [1, 2, 3], 'Ctrl+Maiusc+Z arriva alla TERZA operazione (prima il pan aveva buttato il ripeti)');
+      assert.equal(await fx(), fx1, 'la vista non e\' tornata indietro con il ripeti');
+      // una modifica non registrata dopo l'annulla (un campo del pannello, un giro silenzioso): il ripeti NON la sovrascrive
+      await tasto('Control+z');
+      assert.equal(await vms(), 2);
+      await page.evaluate(() => { nodeById('lab').name = 'MODIFICATO'; markDirty(); });
+      await tasto('Control+Shift+Z');
+      assert.deepEqual(await page.evaluate(() => ({ vms: nodeById('lab').vms.length, name: nodeById('lab').name })), { vms: 3, name: 'NUC-01' }, 'il ripeti arriva allo stato che aveva');
+      await tasto('Control+z');
+      assert.deepEqual(await page.evaluate(() => ({ vms: nodeById('lab').vms.length, name: nodeById('lab').name })), { vms: 2, name: 'MODIFICATO' }, 'e Ctrl+Z ridà la modifica che il ripeti aveva scavalcato (prima andava persa)');
+    });
+
+    await t.test('Un trascinamento che non cambia niente non lascia un punto di annulla (ritorno al punto, fuori dalla planimetria, assorbimento rifiutato)', async () => {
+      // Il punto si registrava quando il trascinamento SI ARMAVA: se finiva dov'era, fuori dalla planimetria (il tile torna
+      // a casa) o rifiutato, restava lì — «Annulla» acceso a vuoto, il ripeti buttato, e «Salva» acceso.
+      const nodi = () => [
+        { id: 'lab', type: 'homelab', name: 'NUC-01', x: 140, y: 140, ports: 1, mac: 'AA:BB:CC:00:00:01',
+          vms: [{ id: 'v1', name: 'App', nics: [{ id: 'nic1', mac: 'AA:BB:CC:00:00:55', ip: '10.0.0.55' }] }] },
+        { id: 'pcvm', type: 'pc', name: 'PC-App', x: 60, y: 60, ports: 1, mac: 'AA:BB:CC:00:00:55', ip: '10.0.0.55' },
+      ];
+      const apriPannello = () => page.evaluate(() => {
+        if (typeof switchRightTab === 'function') switchRightTab('props');
+        if (typeof setPropsSectionState === 'function') { setPropsSectionState('device-homelab', true); setPropsSectionState('hv-vms', true); }
+        selType = 'node'; selId = 'lab'; renderProps();
+      });
+      const pos = () => page.evaluate(() => { const p = nodeById('pcvm'); return p ? { x: p.x, y: p.y } : null; });
+      const centro = async () => { const r = await rectStabile('[data-id="pcvm"]'); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; };
+      const spento = { punti: 0, annulla: false, ripeti: false, daSalvare: false };
+
+      // (a) trascinato lontano e RIPORTATO al punto di partenza nello stesso gesto
+      await ripartiDa(nodi()); await apriPannello();
+      let c = await centro();
+      await page.mouse.move(c.x, c.y); await page.mouse.down();
+      await page.mouse.move(c.x + 140, c.y + 90, { steps: 6 }); await page.mouse.move(c.x, c.y, { steps: 6 }); await page.mouse.up();
+      await page.waitForTimeout(80);
+      assert.deepEqual(await pos(), { x: 60, y: 60 }, '(a) setup: il tile e\' dov\'era');
+      assert.deepEqual(await storia(), spento, '(a) riportato al punto: nessun punto, «Annulla» spento, niente da salvare');
+
+      // (b) rilasciato FUORI dalla planimetria: il tile torna a casa
+      await ripartiDa(nodi()); await apriPannello();
+      c = await centro();
+      const fuori = await page.evaluate(() => {
+        for (const [x, y] of [[1480, 900], [1450, 880], [1400, 700]]) { const el = document.elementFromPoint(x, y); if (el && !el.closest('#floorplan') && !el.closest('[data-vm-dropzone]')) return { x, y }; }
+        return null;
+      });
+      assert.ok(fuori, '(b) setup: un punto fuori dalla planimetria');
+      await page.mouse.move(c.x, c.y); await page.mouse.down();
+      await page.mouse.move(fuori.x, fuori.y, { steps: 8 }); await page.mouse.up();
+      await page.waitForTimeout(100);
+      assert.deepEqual(await pos(), { x: 60, y: 60 }, '(b) il tile e\' tornato a casa');
+      assert.deepEqual(await storia(), spento, '(b) fuori dalla planimetria: nessun punto');
+
+      // (c) assorbimento RIFIUTATO (la VM con quel MAC c'e' gia'): il tile resta dov'era
+      await ripartiDa(nodi()); await apriPannello();
+      const zona = await page.evaluate(() => { const dz = document.querySelector('[data-vm-dropzone][data-host-id="lab"]').getBoundingClientRect(); return { x: dz.left + dz.width / 2, y: dz.top + dz.height / 2 }; });
+      c = await centro();
+      await page.mouse.move(c.x, c.y); await page.mouse.down();
+      await page.mouse.move(zona.x, zona.y, { steps: 8 }); await page.mouse.up();
+      await page.waitForTimeout(100);
+      assert.deepEqual(await page.evaluate(() => ({ tile: !!nodeById('pcvm'), vms: nodeById('lab').vms.length })), { tile: true, vms: 1 }, '(c) setup: l\'assorbimento e\' stato rifiutato');
+      assert.deepEqual(await pos(), { x: 60, y: 60 }, '(c) il tile e\' dov\'era');
+      assert.deepEqual(await storia(), spento, '(c) rifiutato: nessun punto');
+
+      // controllo positivo: un trascinamento vero e' UN punto, annullabile, e sporca
+      await ripartiDa(nodi()); await apriPannello();
+      const S0 = await fotoDoc();
+      c = await centro();
+      await page.mouse.move(c.x, c.y); await page.mouse.down();
+      await page.mouse.move(c.x + 120, c.y + 80, { steps: 6 }); await page.mouse.up();
+      await page.waitForTimeout(80);
+      const p1 = await pos();
+      assert.ok(p1.x !== 60 || p1.y !== 60, '(d) setup: il tile si e\' mosso');
+      assert.deepEqual(await storia(), { punti: 1, annulla: true, ripeti: false, daSalvare: true }, '(d) un punto, «Annulla» acceso, da salvare');
+      await tasto('Control+z');
+      assert.deepEqual(await pos(), { x: 60, y: 60 }, '(d) Ctrl+Z rimette il tile dov\'era partito');
+      assert.equal(await fotoDoc(), S0, '(d) stato identico a prima del gesto');
+    });
+
+    await t.test('Cavo manuale su una porta con un auto-collegamento: rifiutato non toglie niente, accettato si annulla e li ridà', async () => {
+      // Gli auto-collegamenti concorrenti si cancellavano PRIMA delle regole e PRIMA di pushHistory(): un cavo rifiutato li faceva
+      // sparire senza punto di annulla ne' «Salva», e anche a cavo accettato Ctrl+Z non li ridava.
+      const mk = (id, x, y) => ({ id, type: 'pc', name: id.toUpperCase(), x, y, ports: 1 });
+      await ripartiDa([mk('pca', 120, 300), mk('pcb', 320, 300), mk('pcc', 520, 300), mk('pcd', 120, 500), mk('pce', 320, 500)], [
+        { id: 'la', src: 'pca-1', dst: 'pcb-1', autoLinked: true },   // dedotto dal Sync, su pca
+        { id: 'lm', src: 'pcd-1', dst: 'pce-1' },                      // manuale: la porta di pcd e' PIENA
+      ]);
+      const cavi = () => page.evaluate(() => JSON.stringify(state.links.map((l) => [l.id, l.src, l.dst, !!l.autoLinked]).sort()));
+      // tasto destro sulla porta di partenza e poi su quella di arrivo
+      const disegna = async (a, b) => {
+        for (const pid of [a, b]) {
+          // la porta SULLA planimetria: lo stesso data-pid puo' stare anche in un pannello (v. memoria «ancore data-pid»)
+          const r = await rectStabile(`#floorplan [data-pid="${pid}"]`);
+          const sopra = await page.evaluate(({ x, y }) => { const el = document.elementFromPoint(x, y); const p = el && el.closest('[data-pid]'); return p ? p.dataset.pid : (el ? '<' + el.tagName + (el.id ? '#' + el.id : '') + '.' + String(el.className).slice(0, 40) + '>' : null); }, { x: r.x + r.width / 2, y: r.y + r.height / 2 });
+          assert.equal(sopra, pid, 'setup: sul punto del clic c\'è la porta ' + pid + ' (e non altro: ' + sopra + ')');
+          await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2, { button: 'right' });
+          await page.waitForTimeout(60);
+        }
+        await page.waitForTimeout(80);
+      };
+      // i toast dei sottotest di prima (il tile tornato a casa, l'assorbimento rifiutato) restano a schermo e coprono le porte
+      await page.evaluate(() => document.querySelectorAll('.toast-x').forEach((b) => b.click()));
+      await page.waitForFunction(() => !document.querySelector('.toast-x'), null, { timeout: 5000 }).catch(() => {});
+      const prima = await cavi();
+
+      await disegna('pca-1', 'pcd-1');   // rifiutato: la porta di pcd-1 e' piena
+      await page.evaluate(() => modalResolve(true));
+      assert.equal(await cavi(), prima, 'rifiutato: gli auto-collegamenti sono ancora tutti li\' (prima sparivano comunque)');
+      assert.deepEqual(await storia(), { punti: 0, annulla: false, ripeti: false, daSalvare: false }, 'rifiutato: nessun punto, niente da salvare');
+
+      const S0 = await fotoDoc();
+      await disegna('pca-1', 'pcc-1');   // accettato: la porta di pcc-1 e' libera → il cavo manuale SOSTITUISCE quello dedotto
+      const dopo = await page.evaluate(() => state.links.map((l) => [l.src, l.dst, !!l.autoLinked]));
+      assert.ok(dopo.some(([s, d, a]) => s === 'pca-1' && d === 'pcc-1' && !a), 'accettato: il cavo manuale c\'e\': ' + JSON.stringify(dopo));
+      assert.ok(!dopo.some(([s, d]) => s === 'pca-1' && d === 'pcb-1'), 'e ha sostituito quello dedotto');
+      assert.deepEqual(await storia(), { punti: 1, annulla: true, ripeti: false, daSalvare: true }, 'un punto solo');
+      await tasto('Control+z');
+      assert.equal(await cavi(), prima, 'Ctrl+Z ridà l\'auto-collegamento e toglie il cavo manuale');
+      assert.equal(await fotoDoc(), S0, 'stato identico a prima del cavo');
+    });
+
+    await t.test('Dopo Invio nel campo altezza del rack il Ctrl+Z e\' del progetto (e le frecce non tolgono il fuoco)', async () => {
+      // <input type=number> e' un campo di testo per isTextEditingTarget: dopo Invio teneva il fuoco, e il Ctrl+Z successivo
+      // andava al campo (senza niente da annullare) e non al progetto.
+      await ripartiDa([{ id: 'lab', type: 'homelab', name: 'NUC-01', x: 400, y: 150, ports: 1 }]);
+      await page.evaluate(() => { if (typeof switchRightTab === 'function') switchRightTab('rack'); });
+      await page.locator('[data-act="rack-menu-toggle"]').first().click();   // il campo sta nel menu del rack
+      const inp = page.locator('#rack-size-input');
+      const altezza = () => page.evaluate(() => getRackById(state.currentRack).sizeU);
+      const fuoco = () => page.evaluate(() => document.activeElement && document.activeElement.id);
+      assert.equal(await altezza(), 42, 'setup');
+      await inp.focus();
+      await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown');
+      assert.equal(await fuoco(), 'rack-size-input', 'le frecce emettono un `change` a ogni scatto: dopo, il campo ha ancora il fuoco');
+      await inp.fill('36'); await page.keyboard.press('Enter'); await page.waitForTimeout(80);
+      assert.equal(await altezza(), 36, 'Invio conferma l\'altezza');
+      assert.notEqual(await fuoco(), 'rack-size-input', 'e il campo cede il fuoco');
+      await page.keyboard.press('Control+z'); await page.waitForTimeout(80);
+      assert.notEqual(await altezza(), 36, 'Ctrl+Z subito dopo Invio annulla il PROGETTO (prima restava al campo)');
+    });
+
+    await t.test('Importa JSON: Ctrl+Z riporta anche lo sfondo e il giornale di PRIMA, e Ctrl+Maiusc+Z quelli del file', async () => {
+      // La foto non contiene sfondo ne' giornale, e l'annulla riagganciava quelli CORRENTI: dopo un import erano quelli del file
+      // importato, attaccati al progetto di prima.
+      const VECCHIO = 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+      const NUOVO = 'data:image/gif;base64,R0lGODlhAgACAAAAACw=';
+      await ripartiDa([{ id: 'lab', type: 'homelab', name: 'NUC-01', x: 400, y: 150, ports: 1 }]);
+      await page.evaluate((v) => { state.bgImage = v; state.auditLog = [{ ts: 1, user: 'prima', action: 'device-add', summary: 'giornale di prima' }]; }, VECCHIO);
+      const json = await page.evaluate((n) => {
+        const s = JSON.parse(JSON.stringify(Object.assign({}, state, { bgImage: null })));
+        s.nodes = [{ id: 'pc9', type: 'pc', name: 'IMPORTATO', x: 100, y: 100, ports: 1 }];
+        s.links = []; s.ports = {};
+        s.bgImage = n; s.auditLog = [{ ts: 2, user: 'file', action: 'device-add', summary: 'giornale del file' }];
+        return JSON.stringify(s);
+      }, NUOVO);
+      await page.setInputFiles('#json-upload', { name: 'p.json', mimeType: 'application/json', buffer: Buffer.from(json) });
+      await page.waitForFunction(() => state.nodes.some((n) => n.name === 'IMPORTATO'), null, { timeout: 5000 });
+      const dopoImport = await page.evaluate(() => ({ bg: state.bgImage, log: JSON.stringify(state.auditLog) }));
+      assert.notEqual(dopoImport.bg, VECCHIO, 'setup: dopo l\'import lo sfondo e\' quello del file');
+      await tasto('Control+z');
+      const u = await page.evaluate(() => ({ lab: !!nodeById('lab'), imp: state.nodes.some((n) => n.name === 'IMPORTATO'), bg: state.bgImage, log: JSON.stringify(state.auditLog) }));
+      assert.ok(u.lab && !u.imp, 'Ctrl+Z riporta il progetto di prima');
+      assert.equal(u.bg, VECCHIO, 'e lo sfondo di PRIMA (non quello del file importato)');
+      assert.match(u.log, /giornale di prima/, 'e il giornale di PRIMA');
+      assert.doesNotMatch(u.log, /giornale del file/);
+      await tasto('Control+Shift+Z');
+      const r = await page.evaluate(() => ({ imp: state.nodes.some((n) => n.name === 'IMPORTATO'), bg: state.bgImage, log: JSON.stringify(state.auditLog) }));
+      assert.ok(r.imp, 'Ctrl+Maiusc+Z ridà l\'importato');
+      assert.equal(r.bg, dopoImport.bg, 'con lo sfondo del file');
+      assert.equal(r.log, dopoImport.log, 'e il suo giornale');
     });
 
     await t.test('ASSE B — event delegation: menu utente (toggle/account/lingua/logout) via data-act, non su window', async () => {

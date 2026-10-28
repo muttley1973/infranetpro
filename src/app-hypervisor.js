@@ -21,7 +21,7 @@
 import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: selId/selType dopo l'assorbimento
 import { escapeHTML, normalizeMacAddress } from './app-util.js';
-import { nodeById, markDirty, pushHistory, _invalidateIdx, getNodeDisplayName, _showToast, _removeNodeById } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { nodeById, markDirty, pushHistory, recordSnapshot, _invalidateIdx, getNodeDisplayName, _showToast, _removeNodeById } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans, _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps, _buildDeviceBrandModelPreview, _propsSectionIsOpen, _buildInventoryFieldsHtml } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -522,7 +522,10 @@ export function applyVmSnmpValues(hostId, vmId){
 // (nome/IP/MAC) e rimuovendo il tile sciolto (col suo cavo di discovery). Il MAC
 // rende la VM "documentata" nel Drift → non riappare come non-documentata.
 // Manual-first: parte SOLO da un gesto dell'utente; undo via pushHistory.
-export function absorbNodeAsVm(srcId, hostId){
+// `before`: la foto del progetto presa all'INIZIO del gesto (takeSnapshot, v. app-pointer). Se c'e', e' lei il punto di
+// annulla — registrato solo ora che l'assorbimento e' riuscito, senza fotografare di nuovo il progetto. Senza (chiamata
+// da codice) si fotografa qui, subito prima di modificare.
+export function absorbNodeAsVm(srcId, hostId, before){
     const host = nodeById(hostId), src = nodeById(srcId);
     if(!host || !src || host.id === src.id) return false;
     const hostDef = TYPES[host.type], srcDef = TYPES[src.type];
@@ -550,7 +553,7 @@ export function absorbNodeAsVm(srcId, hostId){
         }), 'warn');
         return false;
     }
-    pushHistory();
+    if(typeof before === 'string') recordSnapshot(before); else pushHistory();
     if(!Array.isArray(host.vms)) host.vms = [];
     const name = getNodeDisplayName(src) || src.name || '';
     const ip = ((src.integration && src.integration.host) || src.ip || '').trim();

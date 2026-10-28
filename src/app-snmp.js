@@ -405,7 +405,11 @@ async function pollAllSNMP(opts){
     // lasciava il flag a true (ogni Sync successivo usciva subito) e il bottone
     // bloccato su "Topology...". Il ripristino stato vive ora nel finally.
     try{
-    pushHistory(); // un solo punto di undo per tutto il sync
+    // Un solo punto di undo per tutto il sync — ma NON per un giro che l'utente non ha chiesto: il monitoraggio
+    // automatico (dataOnly, o la Verifica programmata, silent) aggiorna i dati in silenzio. Un punto per ogni giro
+    // renderebbe il primo Ctrl+Z un annulla di un aggiornamento invisibile, e un giro dopo un annulla butterebbe il ripeti.
+    // (Come applyPollResult piu' sotto: noHistory.)
+    if(!(opts && (opts.silent || opts.dataOnly))) pushHistory();
 
     // Snapshot del DOCUMENTATO prima del poll (i campi base verranno sovrascritti):
     // serve a ricalcolare la PRESENZA dopo il Sync → i device assenti si ingrigiscono

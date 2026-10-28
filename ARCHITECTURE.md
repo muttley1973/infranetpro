@@ -1288,7 +1288,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,307 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,323 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
@@ -1920,16 +1920,34 @@ never records the same state twice (two calls in a row, or one right after an un
 point). `undo` keeps the current state after the points when it differs from the last point, so
 redo has somewhere to go — and a change nobody recorded (a panel field, a Sync run) can be undone
 and redone too; "differs" is decided by comparing, not by a flag (the flag in `app-history.js`
-only lights the buttons). The history is replaced, never edited in place, and keeps 60 points
+only lights the buttons). `redo` does the same comparison: a change made after an undo is kept as
+a point right after the one it came from, so redo moves on and Ctrl+Z after it comes back to the change. The history is replaced, never edited in place, and keeps 60 points
 (a snapshot is the whole project: hundreds of KB at 500 devices).
 
 What is not obvious from the code:
 
 - A caller that snapshots *after* changing breaks the order: the snapshot is the new state and
-  undo removes nothing. Dragging used to; it snapshots when the drag starts
-  (`app-pointer.js`), which also makes moving a rack icon and resizing a room undoable. A tile
-  dropped on the "import VM" zone is put back at its start *before* it is absorbed, so undoing
-  the absorption returns it there and the drag plus the absorption are one step.
+  undo removes nothing. Dragging used to; it takes the photo when the drag arms (`app-pointer.js`,
+  `takeSnapshot`) and records it at the end, and only if the project changed — which also makes
+  moving a rack icon and resizing a room undoable, and means a drag that ends where it started, is
+  dropped outside the floor plan (the tile goes home) or is refused leaves no point, no lit Undo
+  button and nothing to save. A tile dropped on the "import VM" zone is put back at its start
+  *before* it is absorbed, and the absorption records the photo taken at the start (`absorbNodeAsVm`
+  takes it as its third argument), so undoing it returns the tile there and the drag plus the
+  absorption are one step.
+- The photo (`photo()` in `lib/undo-history.js`) leaves out five top-level keys: `bgImage`,
+  `auditLog` and the view — `floorView`, `rackView`, `currentRack`. Where you are looking is not an
+  operation: with the view inside, a pan or a rack-tab change after a Ctrl+Z was "an unrecorded
+  change", the next Ctrl+Z undid only the view and threw the redo away. `rebuild()` re-attaches the
+  five from the *current* state when it restores a photo (the shown rack must exist in the restored
+  project, otherwise the first one opens). The one operation that replaces the whole project, JSON
+  import, calls `pushHistory({ withOutside: true })`: its point carries the background, journal and
+  view as they were, and undo/redo restore those instead of re-attaching the imported file's.
+- The automatic monitor's rounds (`dataOnly`, scheduled Verify with `silent`) do not call
+  `pushHistory()`: nobody asked for them, and a point per round would make the first Ctrl+Z undo an
+  invisible update. A manual cable validates (wall-port, full-port and radio rules) as if the
+  automatic cables on its two ports were gone, because it replaces them, but removes them only once
+  the cable is accepted and *after* `pushHistory()` — a refusal touches nothing and Ctrl+Z gives them back.
 - The shortcut letter is compared lower case — with Shift or Caps Lock the browser reports
   `"Z"`, and Ctrl+Shift+Z never worked on a real keyboard. Inside a text field, text area or
   contenteditable (not read-only, not disabled) the key is the browser's: it undoes the typing,
