@@ -537,11 +537,6 @@ export function closeRackMenu(){
     const d=document.getElementById('rack-menu-dropdown');
     if(d) d.style.display='none';
 }
-function toggleFloorMenu(){
-    const d=document.getElementById('floor-menu-dropdown');
-    if(!d) return;
-    d.style.display=d.style.display==='none'?'block':'none';
-}
 export function closeFloorMenu(){
     const d=document.getElementById('floor-menu-dropdown');
     if(d) d.style.display='none';
@@ -872,7 +867,7 @@ expose({
     // palette
     initPaletteUi,
     // menu rack/floor
-    toggleFloorMenu, closeFloorMenu,
+    closeFloorMenu,
     _updateFloorMenuState, _updateFloorToolbarVisibility,
     // rack management
     _updateRackFloorBtn, renderRackTabs,

@@ -353,34 +353,6 @@ export function _updateLagBanner(){
     b.classList.add('show');
 }
 
-function computeLagCarrierPids(){
-    const state = store.state;
-    const carriers = new Set();
-    for(const [pid,pi] of Object.entries(state.ports)){
-        if(!pi.lagGroup) continue;
-        const n = getNodeByPortId(pid);
-        if(!n || !TYPES[n.type]?.isActive) continue;
-        const visited = new Set([pid]);
-        const queue = [pid];
-        while(queue.length){
-            const curr = queue.shift();
-            for(const l of state.links){
-                for(const other of _linkAdjacentPorts(l, curr)){
-                    if(!other || visited.has(other)) continue;
-                    visited.add(other);
-                    const on = getNodeByPortId(other);
-                    if(!on) continue;
-                    if(TYPES[on.type]?.isPassive){
-                        carriers.add(other);
-                        queue.push(other);
-                    }
-                }
-            }
-        }
-    }
-    return carriers;
-}
-
 export function getPassivePortLagInfo(pid){
     const state = store.state;
     const visited = new Set([pid]);
@@ -759,7 +731,7 @@ expose({
     togglePortVlanLock,
     renderPortsTable, getLagGroupsForNode, startLagMode, _toggleLagPort,
     confirmLag, cancelLag, removePortFromLag, dissolveLag, renameLag, setLagMode, setLagVlan,
-    _updateLagBanner, computeLagCarrierPids, getPassivePortLagInfo,
+    _updateLagBanner, getPassivePortLagInfo,
     togglePortHidden, clearAllPortOverrides, _refreshPortRow, portTip,
     _portDisplayName, setPortField, clearPortField, setPortSpeed,
     _portLagGid, _samePortLag, _getLagMembersOf, _collectLagMemberPortsFromLink,

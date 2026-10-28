@@ -135,30 +135,6 @@ registerClickActions({
     'node-lock':         (el) => { toggleNodeLock(el.dataset.field); renderProps(); },
     'autolink-endpoint': () => _autoLinkEndpointUI(),
 });
-/** Toggle del menu kebab dell'header del pannello proprieta. */
-function _propsKebabToggle(e){
-    if(e) e.stopPropagation();
-    const m = document.getElementById('props-kebab-menu');
-    if(!m) return;
-    const open = m.style.display === 'block';
-    m.style.display = open ? 'none' : 'block';
-    if(!open){
-        // chiusura sul click fuori (one-shot)
-        setTimeout(()=>{
-            const off = (ev)=>{
-                if(!ev.target.closest('.props-kebab-wrap')){
-                    _propsKebabClose();
-                    document.removeEventListener('click', off);
-                }
-            };
-            document.addEventListener('click', off);
-        }, 10);
-    }
-}
-function _propsKebabClose(){
-    const m = document.getElementById('props-kebab-menu');
-    if(m) m.style.display = 'none';
-}
 
 // ============================================================
 // PROPERTIES PANEL FRONTEND
@@ -616,7 +592,6 @@ export function renderProps(){
 expose({
     renderProps, _propsSectionIsOpen, setPropsSectionState,
     _propsExpandAll, _propsCollapseAll, _propsResetSections,
-    _propsKebabToggle, _propsKebabClose,
     _buildInventoryFieldsHtml, _buildDeviceBrandModelPreview, _buildPatchPanelPreview,
     _buildNetAccessHtml, _powerLiveHtml, _propsIconForType, _buildPropsHeader,
 });

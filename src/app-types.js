@@ -217,13 +217,9 @@ export function _nodeSpecView(node){
 }
 
 // Wrapper underscore-prefixed: la logica vive in lib/frontpanel.js
-// (caricato come UMD-lite, espone `win.frontPanelState` e `win.frontPanelLegacyState`
-// come globali su window). Qui aggiungiamo solo il lookup TYPES-specifico per
-// `mgmtEligible` perche' la lib resta pura e non conosce il catalogo TYPES.
-function _frontPanelLegacyState(fp = {}, portCount = 0){
-    return win.frontPanelLegacyState(fp, portCount);
-}
-
+// (caricato come UMD-lite, espone `win.frontPanelState` come globale su window).
+// Qui aggiungiamo solo il lookup TYPES-specifico per `mgmtEligible` perche' la
+// lib resta pura e non conosce il catalogo TYPES.
 export function _frontPanelState(node, portCount){
     const mgmtEligible = !!(node && TYPES[node.type] && TYPES[node.type].mgmtEligible);
     return win.frontPanelState(node, portCount, mgmtEligible);
@@ -278,33 +274,6 @@ export function _frontPanelRows(node, portCount){
 
 export function _frontPanelIsUplink(node, portNum, portCount){
     return _frontPanelSfpPorts(node, portCount).includes(portNum);
-}
-
-function _frontPanelShortIfName(v){
-    const raw = String(v || '').trim();
-    if(!raw) return '';
-    const compact = raw.replace(/\s+/g, '');
-    let m = compact.match(/^GigabitEthernet(.+)$/i);
-    if(m) return `Gi${m[1]}`;
-    m = compact.match(/^FastEthernet(.+)$/i);
-    if(m) return `Fa${m[1]}`;
-    m = compact.match(/^TenGigabitEthernet(.+)$/i);
-    if(m) return `Te${m[1]}`;
-    m = compact.match(/^TwentyFiveGigE(.+)$/i);
-    if(m) return `Twe${m[1]}`;
-    m = compact.match(/^FortyGigabitEthernet(.+)$/i);
-    if(m) return `Fo${m[1]}`;
-    m = compact.match(/^HundredGigE(.+)$/i);
-    if(m) return `Hu${m[1]}`;
-    m = compact.match(/^Ethernet(.+)$/i);
-    if(m) return `Eth${m[1]}`;
-    m = compact.match(/^Port-?channel(.+)$/i);
-    if(m) return `Po${m[1]}`;
-    m = compact.match(/^Eth-?Trunk(.+)$/i);
-    if(m) return `Trk${m[1]}`;
-    m = compact.match(/^lag(.+)$/i);
-    if(m) return `LAG${m[1]}`;
-    return compact;
 }
 
 export function _frontPanelPortLabel(node, portNum, portCount){
@@ -392,6 +361,6 @@ expose({
     isVlanAware, bridgesOwnPorts,
     NODE_ID_PREFIX,
     _fixedRackLabel, _isNodeSpecField, _ensureNodeSpec, _compactNodeSpec, _nodeSpecView,
-    _frontPanelLegacyState, _frontPanelState, _frontPanelSfpPorts, _frontPanelSfpGroups,
-    _frontPanelRows, _frontPanelIsUplink, _frontPanelSharedSlots, _frontPanelShortIfName, _frontPanelPortLabel,
+    _frontPanelState, _frontPanelSfpPorts, _frontPanelSfpGroups,
+    _frontPanelRows, _frontPanelIsUplink, _frontPanelSharedSlots, _frontPanelPortLabel,
 });

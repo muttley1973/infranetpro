@@ -168,9 +168,6 @@ function assignNodeSkin(skinId){
     renderAll(); markDirty(); renderProps();
 }
 
-/** Retro-compat: il vecchio pulsante "Rimuovi" stacca la skin dal device. */
-function clearPanelSkin(){ assignNodeSkin(''); }
-
 /** Elimina una skin dalla libreria (server) e la stacca da tutti i device. */
 async function deleteLibrarySkin(skinId){
     if(!skinId) return;
@@ -279,7 +276,7 @@ function _onSkinRadioPointerDown(ev, nodeId, ridx, pid){
 // l'E2E come globali e i chiamanti non migrati.
 expose({
     loadPanelSkinStore, _resolveNodeSkin, _panelSkinSectionHtml, _panelSkinRackHtml,
-    _onSkinRadioPointerDown, uploadPanelSkin, assignNodeSkin, clearPanelSkin,
+    _onSkinRadioPointerDown, uploadPanelSkin, assignNodeSkin,
     deleteLibrarySkin,
 });
 

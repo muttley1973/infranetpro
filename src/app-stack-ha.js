@@ -70,10 +70,6 @@ function removeNodeFromStack(){
     delete n.stackRole;
     renderAll(); markDirty();
 }
-// Helper UI: prossimo memberId libero per uno stack (delega alla lib).
-function nextStackMemberId(stackId){
-    return win.getNextMemberId(store.state.nodes, stackId);
-}
 // Stacking auto-detection (P7.3): accetta l'hint impostato da applyPollResult.
 // Promuove il nodo a master di uno stack auto-generato (memberId=1) e cancella
 // l'hint. L'utente deve poi creare manualmente gli altri membri (UX consapevole:
@@ -256,10 +252,10 @@ export {
     removeNodeFromHa, _defaultHaGroupName,
 };
 
-// Tutte le 14 funzioni erano globali (classic script) e sono chiamate da
+// Queste funzioni erano globali (classic script) e sono chiamate da
 // app-properties-node.js / app.js (handler onchange + helper di render).
 expose({
-    setNodeStack, setNodeStackMemberId, removeNodeFromStack, nextStackMemberId,
+    setNodeStack, setNodeStackMemberId, removeNodeFromStack,
     acceptStackHint, dismissStackHint,
     setNodeHaPair, setNodeHaCluster, setNodeHaRole, setNodeHaMode, setNodeHaSync,
     removeNodeFromHa, _defaultHaGroupName, _defaultStackName,

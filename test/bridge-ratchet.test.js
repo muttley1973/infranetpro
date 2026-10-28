@@ -649,7 +649,7 @@ test('ponte: la coda funzioni A batch 2 non è più letta da win.*', () => {
 // da coprire, e sparisce con le sue guardie `typeof win.X==='function'`. Con
 // l'ultima se n'è andato anche l'import di `win` da app-hypervisor.js, che ora
 // non legge più il ponte.
-const MAX_WIN_REFS = 260;
+const MAX_WIN_REFS = 258;
 
 test('ponte: le letture win.* totali non superano il tetto a cricchetto', () => {
   const total = countInCode(/\bwin\./g);

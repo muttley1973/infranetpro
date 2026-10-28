@@ -10,7 +10,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML, normalizePortStatus, hasPortStatus } from './app-util.js';
 import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _showToast, switchRightTab, _linksForPort, getRackById, _getLinkPhysicalView } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderTopoOverlay } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { renderProps, setPropsSectionState } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
+import { setPropsSectionState } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll, isRackPort, renderNow } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { ensureNodeRackVisible, renderRackTabs, _updateFloorToolbarVisibility } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
@@ -49,29 +49,6 @@ registerClickActions({
 export function _findProjectLinkByPorts(a,b){
     if(!a||!b) return null;
     return store.state.links.find(l=>_linkHasPair(l, a, b))||null;
-}
-
-function _selectProjectLink(linkId, opts={}){
-    const l=store.state.links.find(x=>x.id===linkId);
-    if(!l) return;
-    closePop(); _hideTopoTip(); store.highPath.clear();
-    store._physicalTraceActive=false;
-    if(opts.trace !== false) store.highPath.add(linkId);
-    if(opts.showProps){
-        store.selType='link'; store.selId=linkId;
-    } else {
-        store.selType=null; store.selId=null;
-    }
-    const sn=getNodeByPortId(l.src), dn=getNodeByPortId(l.dst);
-    const rackId=TYPES[sn?.type]?.isRack?sn.rackId:(TYPES[dn?.type]?.isRack?dn.rackId:null);
-    if(rackId&&rackId!==store.state.currentRack){
-        store.state.currentRack=rackId;
-        renderRackTabs();
-    }
-    renderAll();
-    renderCables();
-    if(opts.showProps) renderProps();
-    renderTopoOverlay();
 }
 
 export function _showPhysicalCablePath(linkId){
