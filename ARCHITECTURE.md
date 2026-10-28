@@ -1926,7 +1926,7 @@ list until it is needed. `lib/undo-history.js` is the model. `record` drops the 
 never records the same state twice (two calls in a row, or one right after an undo, are one
 point). `undo` keeps the current state after the points when it differs from the last point, so
 redo has somewhere to go — and a change nobody recorded (a panel field, a Sync run) can be undone
-and redone too; "differs" is decided by comparing, not by a flag (the flag in `app-history.js`
+and redone too (see the last bullet below for what that means for a panel field); "differs" is decided by comparing, not by a flag (the flag in `app-history.js`
 only lights the buttons). `redo` does the same comparison: a change made after an undo is kept as
 a point right after the one it came from, so redo moves on and Ctrl+Z after it comes back to the change. The history is replaced, never edited in place, and keeps 60 points
 (a snapshot is the whole project: hundreds of KB at 500 devices).
@@ -1964,8 +1964,17 @@ What is not obvious from the code:
   sends (`Control+Shift+Z`, upper case). The suite once checked only that `undo` lit "Save", then
   a fake two-state history; both passed while the first operation after loading could not be
   undone and redo lost the last one.
-- Not recorded, by decision: the panel fields (`updateN`, `updateFloorId`, `updateVm`, `updateP`…), so
-  an edit made in a panel field is not undoable.
+- Not recorded, by decision: the panel fields (`updateN`, `updateFloorId`, `updateVm`, `updateP`…, and
+  `setPortTrunkVlans` and the like) call `markDirty()` and never `pushHistory()`, so an edit made in a
+  panel field is not a step of its own — but it is not lost to undo either, because undo goes back to the
+  last *recorded* point, not by one edit. In practice, measured in the real app:
+  · after an operation and a panel edit, ONE Ctrl+Z undoes both, and Ctrl+Y brings both back (the edit
+    is part of the state that redo restores);
+  · an edit made on a project just loaded, with no operation before it, cannot be undone at all — the
+    Undo button stays off and Ctrl+Z does nothing;
+  · an edit made after an undo is undone by itself by the next Ctrl+Z (undo keeps the current state
+    after the points and goes back to the one before), and redo then keeps it instead of overwriting it.
+  Giving each panel edit its own step would mean recording from `markDirty()`: a bigger change, not done.
 
 ### Touch input (tablet)
 
