@@ -452,6 +452,14 @@ lib/                   Shared browser + test modules (the heart of the app)
                     jacks and patch panels are out, and a device with several NICs
                     counts once — nodes, never MACs), SNMP health (ok/err/warn/none)
                     — same field defs as api-shape/app-drift  (pure)
+  snmp-target.js    "Is this device polled over SNMP?", for the whole project:
+                    `isSnmpDriver` / `hasSnmpDriver` (the driver alone: how a device is
+                    configured), `hasSnmpTarget` (driver AND an address: who gets polled,
+                    and the denominator of "N of N answer") and `snmpTargetHost` (the
+                    address the poller calls: `integration.host`, else the node's IP). The
+                    driver is read ignoring case and spaces, as the server does. Nobody
+                    else asks `startsWith('snmp')` — `test/snmp-target-unica-definizione`
+                    fails if they do  (pure)
   mac-class.js      What a MAC IS, for the whole project: `macKey` (canonical, to compare)
                     and `macFormat` (uppercase, to display); anything that is not a MAC
                     returns '' — a non-MAC used as a key is a string comparison in
@@ -1295,7 +1303,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,340 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,354 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

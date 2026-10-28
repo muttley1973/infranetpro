@@ -17,6 +17,7 @@ const dhcpDrivers = require('../dhcp-drivers');
 const { crawlNetwork, probeArpCandidates } = require('../crawl-bfs');
 const { targetList, hostOrName, targetError } = require('../scan-target');   // la lettura unica dei bersagli
 const { _parseIpv4Int } = require('../../lib/cidr.js');
+const { macKey } = require('../../lib/mac-class.js');   // la chiave di un MAC: una definizione sola, la stessa che il client usa per ritrovarlo
 const { REACHABILITY_BATCH, REACHABILITY_MAX_IPS } = require('../../lib/auto-monitor.js');   // ondata e tetto dello sweep: il client ne ricava la scadenza, UNA definizione
 
 // Concorrenza della fase deep/neighbor del crawl (probe+pollNeighbors di device GIA'
@@ -921,14 +922,14 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
   // l'utente lo conferma in import. Dedup cross-device per ip6. Non gate su scanSet
   // (IPv4): l'ND è IPv6, basta avere raccolto le tabelle.
   if (ndTables.length && !aborted) {
-    const _macHex = m => String(m || '').toLowerCase().replace(/[^0-9a-f]/g, '');
-    const nd6 = {};            // macHex -> primo ip6 global/ULA (mappa per il client)
-    const byMac = new Map();   // macHex -> prima riga device con quel MAC
-    for (const r of results) { const m = _macHex(r && r.mac); if (m && !byMac.has(m)) byMac.set(m, r); }
+    const nd6 = {};            // macKey -> primo ip6 global/ULA (mappa per il client, che usa la STESSA chiave)
+    const byMac = new Map();   // macKey -> prima riga device con quel MAC
+    for (const r of results) { const m = macKey(r && r.mac); if (m && !byMac.has(m)) byMac.set(m, r); }
     const seen6 = new Set();
     for (const { table, fromIp } of ndTables) {
       for (const c of buildNdCandidates(table, { fromIp })) {
-        const mh = _macHex(c.mac);
+        const mh = macKey(c.mac);
+        if (!mh) continue;                           // un vicino senza un MAC leggibile non ha una chiave: non entra nella mappa
         if (nd6[mh] || seen6.has(c.ip6)) continue;   // un solo ip6 per MAC (primo global/ULA)
         nd6[mh] = c.ip6;
         seen6.add(c.ip6);

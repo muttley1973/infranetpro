@@ -1366,6 +1366,22 @@ test('⑤ Sicurezza: SNMP v3 cifrato vs v1/v2c in chiaro; la community di defaul
   assert.equal(s.health.level, 'bad', 'una community indovinabile = porta aperta (rosso)');
 });
 
+test('⑤ Sicurezza: il driver SNMP vale in qualunque maiuscola (lo accetta il server), come per il resto dell\'app', () => {
+  // Prima il driver si cercava con un confronto esatto: `SNMP-V3` non era SNMP per la lente
+  // (apparato non contato) mentre la sotto-header, l'API e il poller lo trattavano da SNMP.
+  const s = buildOverview({
+    types: DR_TYPES,
+    nodes: [
+      { id: 'sw1', type: 'switch', integration: { driver: 'SNMP-V3', v3user: 'admin' } },     // v3 scritto in maiuscolo: cifrato
+      { id: 'sw2', type: 'switch', integration: { driver: ' Snmp-V2C ', community: 'S3cr3t!' } },   // v2c: in chiaro
+    ],
+  }).security;
+  const snmp = rowOf(s, 'secSnmp');
+  assert.equal(snmp.total, 2, 'entrambi hanno un accesso SNMP');
+  assert.equal(snmp.value, 1, 'solo sw1 e\' v3 (cifrato), anche se scritto in maiuscolo');
+  assert.deepEqual(snmp.items.map((i) => i.id), ['sw2'], 'sw2 e\' l\'unico v1/v2c');
+});
+
 test('⑤ community di default: SOLO l\'admin vede QUALE default (tag-enum); mai il valore di una custom', () => {
   const base = {
     types: DR_TYPES,

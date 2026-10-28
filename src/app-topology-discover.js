@@ -9,6 +9,7 @@ import { switchRack, updateTransforms } from './app-search-zoom-rack.js';   // r
 import { _applyViewMode, _hideTopoTip } from './app-popup.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _snmpFreshness, _lastSnmpSyncTs, _renderSyncFreshness } from './app-snmp.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { registerClickActions } from './app-delegation.js';   // ASSE B: bottoni del tooltip topologia (#topo-tip) via data-act
+import { hasSnmpTarget } from '../lib/snmp-target.js';   // «si interroga con SNMP?»: la definizione sta in un posto solo
 
 // ============================================================
 // TOPOLOGIA — discovery e grafo (glue estratto da app.js, R7)
@@ -115,10 +116,7 @@ export function _refreshTopoBtnState(){
     if(typeof _renderSyncFreshness === 'function') _renderSyncFreshness();  // chip toolbar (#1)
     if(_topoForcedRunning > 0) return;
     if(store._topoVisible){ _setTopoBtn('on'); return; }
-    const targets = store.state.nodes.filter(n => {
-        const cfg = n.integration || {};
-        return (cfg.driver||'').startsWith('snmp') && !!((cfg.host||n.ip||'').trim());
-    });
+    const targets = store.state.nodes.filter(n => hasSnmpTarget(n));
     if(!targets.length){ _setTopoBtn('stale'); return; }
     const now = Date.now();
     const cacheableTargets = targets.filter(n => n.snmpStatus !== 'err');
@@ -148,11 +146,7 @@ async function discoverTopology(force=false){
         return;
     }
 
-    const targets=store.state.nodes.filter(n=>{
-        const cfg=n.integration||{};
-        if(!(cfg.driver||'').startsWith('snmp')) return false;
-        return !!((cfg.host||n.ip||'').trim());
-    });
+    const targets=store.state.nodes.filter(n=>hasSnmpTarget(n));
     if(!store.state.racks.some(r=>r.x!==undefined)){
         _showToast(t('msg.net.placeRack'),'warn');
     }

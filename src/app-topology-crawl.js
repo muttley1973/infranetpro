@@ -20,6 +20,7 @@ import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: cata
 import { switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _discIndexNode, _discFindExistingDevice, _discBuildExistingIndexes, _discAttachMergeGuards, _discTouchNodeIdentity, _discMarkIpMacConflict } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { registerChangeActions, registerClickActions } from './app-delegation.js';   // ASSE B: checkbox "seleziona tutti" + bottoni modale via data-change/data-act
+import { hasSnmpDriver } from '../lib/snmp-target.js';   // «ha un driver SNMP?»: la definizione sta in un posto solo
 
 // ============================================================
 // TOPOLOGY CRAWL FRONTEND
@@ -30,7 +31,7 @@ let _tdResults = [];
 let _tdAbort   = null;
 
 function openTopoCrawl(){
-    const sample = store.state.nodes.find(n=>n.integration?.driver?.startsWith('snmp'));
+    const sample = store.state.nodes.find(n=>hasSnmpDriver(n));
     if(sample){
         const cfg = sample.integration;
         document.getElementById('td-driver').value    = cfg.driver==='snmp-v1' ? 'snmp-v2c' : (cfg.driver || 'snmp-v2c');

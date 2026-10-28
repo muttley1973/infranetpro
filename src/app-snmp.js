@@ -33,6 +33,7 @@ import { _refreshTopoBtnState } from './app-topology-discover.js';   // ritiro p
 import { registerClickActions } from './app-delegation.js';   // ASSE B: azione «Sincronizza ora» del popover Automazioni (owner di pollAllSNMP)
 import { snmpReadBudgetMs } from '../lib/auto-monitor.js';   // quanto aspettare UNA lettura prima di abbandonarla (lib pura)
 import { postJsonWithDeadline } from './app-util.js';   // POST con scadenza lato client (foglia: nessun ciclo)
+import { hasSnmpDriver, hasSnmpTarget, snmpTargetHost } from '../lib/snmp-target.js';   // «si interroga con SNMP?» e «a quale indirizzo?»: la definizione sta in un posto solo
 
 // POST di UNA lettura SNMP (`/api/poll`, `/api/poll-power`) con scadenza lato CLIENT.
 // Prima `fetch` non aveva né segnale né tetto: una sola risposta che non tornava mai
@@ -62,8 +63,7 @@ export async function postSnmpRead(url, body){
 const _HOST_RES_TYPES = ['server', 'pc', 'nas', 'homelab', 'switch', 'router', 'firewall', 'sdwan'];
 
 export function _hasSnmpIntegration(n){
-    const drv=String(n?.integration?.driver||'').toLowerCase();
-    return drv==='snmp-v1' || drv==='snmp-v2c' || drv==='snmp-v3';
+    return hasSnmpDriver(n);
 }
 
 // ---- Freschezza dati SNMP (chip toolbar + hint bottone Topologia) -----------
@@ -101,10 +101,7 @@ export function _lastSnmpSyncTs(){
     return tss.length ? Math.max(...tss) : 0;
 }
 function _hasSnmpTargets(){
-    return (store.state.nodes || []).some(n => {
-        const cfg = n.integration || {};
-        return (cfg.driver||'').startsWith('snmp') && !!((cfg.host||n.ip||'').trim());
-    });
+    return (store.state.nodes || []).some(n => hasSnmpTarget(n));
 }
 // Chip di FRESCHEZZA (#sync-fresh-chip), autonomo nella toolbar accanto a Verifica:
 // mostra l'ETÀ dell'ultima lettura SNMP, color-coded per freschezza. Il CONTEGGIO
@@ -227,7 +224,7 @@ function updateIntegration(nid, key, val){
 async function _pollPowerNode(nodeId){
     const n=nodeById(nodeId); if(!n) return;
     const cfg=n.integration||{};
-    const host=(cfg.host||n.ip||'').trim();
+    const host=snmpTargetHost(n);
     if(!host){ showAlert(t('msg.net.needHost')); return; }
     const btn=document.getElementById('snmp-poll-btn');
     if(btn){ btn.disabled=true; btn.className='toolbar-btn'; btn.innerHTML=`<i class="fas fa-spinner fa-spin"></i> ${t('sync.btn.polling')}`; }
@@ -281,7 +278,7 @@ async function pollSNMP(nodeId){
     // UPS/ATS: percorso power dedicato (valori live UPS-MIB / ATS).
     if(n.type==='ups' || n.type==='ats'){ return _pollPowerNode(nodeId); }
     const cfg=n.integration||{};
-    const host=(cfg.host||n.ip||'').trim();
+    const host=snmpTargetHost(n);
     if(!host){ showAlert(t('msg.net.needHost')); return; }
     const btn=document.getElementById('snmp-poll-btn');
     if(btn){ btn.disabled=true; btn.className='toolbar-btn'; btn.innerHTML=`<i class="fas fa-spinner fa-spin"></i> ${t('sync.btn.polling')}`; }
@@ -363,11 +360,7 @@ async function pollAllSNMP(opts){
     const deferPresence = !(opts && opts.deferPresence === false);
     // Raccoglie SOLO i nodi con driver SNMP (snmp-v1/v2c/v3) e host/IP configurato:
     // niente poll su device senza integrazione SNMP.
-    const targets=store.state.nodes.filter(n=>{
-        const cfg=n.integration||{};
-        if(!(cfg.driver||'').startsWith('snmp')) return false;
-        return !!((cfg.host||n.ip||'').trim());
-    });
+    const targets=store.state.nodes.filter(n=>hasSnmpTarget(n));
     if(!targets.length){
         showAlert(t('msg.net.noSnmpDevicesPanel'));
         return;
@@ -422,7 +415,7 @@ async function pollAllSNMP(opts){
     // Helper: interroga un singolo nodo SNMP e applica il risultato
     const _pollOne = async n => {
         const cfg=n.integration||{};
-        const host=(cfg.host||n.ip||'').trim();
+        const host=snmpTargetHost(n);
         const body=JSON.stringify({
             driver:      cfg.driver      ||'snmp-v2c',
             host, port:  cfg.port        ||161,

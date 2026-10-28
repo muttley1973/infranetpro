@@ -46,6 +46,16 @@ test('extractEntities: normalizza i MAC (lowercase, trattini → due punti)', ()
   assert.deepEqual(e.macs, ['aa:bb:cc:dd:ee:ff']);
 });
 
+test('extractEntities: un MAC alla Cisco o senza separatori e\' un MAC NOTO (la chiave e\' quella di mac-class)', () => {
+  const e = extractEntities({ devices: [{ id: 'x', mac: 'aabb.ccdd.eeff' }, { id: 'y', mac: '112233445566' }] });
+  assert.deepEqual([...e.macs].sort(), ['11:22:33:44:55:66', 'aa:bb:cc:dd:ee:ff']);
+});
+
+test('checkGrounding: citare con i due punti un MAC documentato alla Cisco NON e\' un\'invenzione', () => {
+  const r = checkGrounding('Lo switch ha il MAC aa:bb:cc:dd:ee:ff.', extractEntities({ devices: [{ id: 'x', name: 'SW', mac: 'aabb.ccdd.eeff' }] }));
+  assert.ok(!r.unknownRefs.some(u => u.kind === 'mac'), 'il MAC e\' nei dati: non va segnalato');
+});
+
 test('checkGrounding: cita il device nominato per NOME', () => {
   const r = checkGrounding('Lo switch SW-Core gestisce la VLAN 20.', extractEntities(ctx()));
   assert.ok(r.citations.some(c => c.kind === 'device' && c.id === 'n1'), 'SW-Core citato');

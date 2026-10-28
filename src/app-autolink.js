@@ -25,6 +25,7 @@ import { _normMacKey } from '../lib/netnames.js';   // Layer 4c: normalizzazione
 import { pduManagementPortCount } from '../lib/pdu-layout.js';
 import { directConnectionPairs } from '../lib/direct-connection.js';   // Layer 5: Direct Connection Theorem (pura, bundle-only)
 import { endpointAttachDecision } from '../lib/endpoint-attach.js';   // Layer 4: cosa fare di un endpoint foglia (pura, bundle-only)
+import { hasSnmpTarget, snmpTargetHost } from '../lib/snmp-target.js';   // «si interroga con SNMP?» e «a quale indirizzo?»: la definizione sta in un posto solo
 // ============================================================
 // AUTO-LINK DISCOVERY — algoritmo multi-layer trasparente
 //
@@ -222,19 +223,15 @@ async function _refreshTopoFdbCache(force=false){
         return { ok:true, refreshed:0, withFdb:0, cached:true };
     }
 
-    const targets = store.state.nodes.filter(n=>{
-        const cfg = n.integration || {};
-        if(!(cfg.driver || '').startsWith('snmp')) return false;
-        // Non limitare solo ai type="switch": durante discovery alcuni switch
-        // possono essere classificati come router/firewall.
-        return !!((cfg.host || n.ip || '').trim());
-    });
+    // Non limitare solo ai type="switch": durante discovery alcuni switch
+    // possono essere classificati come router/firewall.
+    const targets = store.state.nodes.filter(n=>hasSnmpTarget(n));
     if(!targets.length) return { ok:false, reason:'no-switch-targets', refreshed:0, withFdb:0 };
 
     let refreshed = 0, withFdb = 0;
     const _fetchFdb = async (n) => {
         const cfg = n.integration || {};
-        const host = (cfg.host || n.ip || '').trim();
+        const host = snmpTargetHost(n);
         try{
             const body = {
                 driver: cfg.driver,
@@ -274,11 +271,7 @@ async function _refreshTopoFdbCache(force=false){
 // Aggiorna inventario porte SNMP (ifName/alias/lag/trunk) per migliorare il
 // match ifName→porta durante auto-link endpoint (riduce i "port-not-found").
 async function _refreshSnmpPortInventory(force=false){
-    const targets = store.state.nodes.filter(n=>{
-        const cfg = n.integration || {};
-        if(!(cfg.driver || '').startsWith('snmp')) return false;
-        return !!((cfg.host || n.ip || '').trim());
-    });
+    const targets = store.state.nodes.filter(n=>hasSnmpTarget(n));
     if(!targets.length) return { ok:false, refreshed:0, skipped:0 };
 
     let refreshed=0, skipped=0;
@@ -286,7 +279,7 @@ async function _refreshSnmpPortInventory(force=false){
         const hasPorts = Object.keys(store.state.ports || {}).some(pid => getPortNodeId(pid)===n.id);
         if(hasPorts && !force){ skipped++; return; }
         const cfg = n.integration || {};
-        const host = (cfg.host || n.ip || '').trim();
+        const host = snmpTargetHost(n);
         try{
             const body = JSON.stringify({
                 driver: cfg.driver || 'snmp-v2c',
@@ -848,8 +841,7 @@ async function _autoDiscoverLinks(nodeIds){
     let _skippedDown = 0;
     const targets = store.state.nodes.filter(n => {
         if(nodeIds && !nodeIds.includes(n.id)) return false;
-        const cfg = n.integration || {};
-        if(!((cfg.driver || '').startsWith('snmp') && !!((cfg.host || n.ip || '').trim()))) return false;
+        if(!hasSnmpTarget(n)) return false;
         // Salta i device già risultati irraggiungibili al Sync precedente: una walk
         // topologia su un host morto costa ~10s di timeout a vuoto. snmpStatus è
         // aggiornato dal poll che precede sempre l'auto-discovery.
@@ -924,7 +916,7 @@ async function _autoDiscoverLinks(nodeIds){
     const _TOPO_FETCH_TIMEOUT_MS = 60000;
     const _fetchTopoFor = async n => {
         const cfg  = n.integration || {};
-        const host = (cfg.host || n.ip || '').trim();
+        const host = snmpTargetHost(n);
         const ctrl  = (typeof AbortController === 'function') ? new AbortController() : null;
         const timer = ctrl ? setTimeout(() => { try{ ctrl.abort(); }catch(_){} }, _TOPO_FETCH_TIMEOUT_MS) : null;
         try{

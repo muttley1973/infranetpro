@@ -33,6 +33,7 @@ import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/disco
 import { reconcileMiscabling } from './app-autolink.js';   // Proof-State: miscablaggio per-porta (l.miscabled) dai neighbor cache
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: pannello Drift (template dinamico) via event delegation
 import { aiExplainDrift } from './app-ai.js';   // ASSE B: bottone «Spiega» del Drift (delegato qui, definito in app-ai)
+import { hasSnmpTarget } from '../lib/snmp-target.js';   // «si interroga con SNMP?»: la definizione sta in un posto solo
 
 // _driftReport è stato condiviso cross-boundary (scritto anche da
 // app-drift-adopt.js) → vive su window, mai come binding di modulo.
@@ -321,7 +322,7 @@ async function runDriftCheck(opts = {}){
         if(!silent) _showToast(t(store._autoMonitorRunning ? 'msg.net.busyMonitor' : 'msg.net.busySync'), 'warn');
         return;
     }
-    const hasSnmp = state.nodes.some(n => String((n.integration||{}).driver||'').startsWith('snmp') && String((n.integration||{}).host||n.ip||'').trim());
+    const hasSnmp = state.nodes.some(n => hasSnmpTarget(n));
     // I lease DHCP sono una fonte valida anche senza SNMP (rete dietro firewall):
     // se ce ne sono, la Verifica gira lo stesso (il poll SNMP viene saltato).
     const hasLeases = Array.isArray(store._dhcpLeases) && store._dhcpLeases.length > 0;

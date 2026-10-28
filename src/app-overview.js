@@ -30,6 +30,7 @@ import { setPropsSectionState } from './app-properties.js';   // click «Subnet�
 import { _ipamAuditReport } from './app-l3.js';   // ② «Vero»: igiene IPAM (IP duplicati + overlap subnet), stesso modello dell'overlay L3 (include gli IP VM)
 import { wifiVlanCoherence } from './app-wifi.js';   // ⑤ «Sicurezza»: coerenza VLAN wireless (stesso motore del vecchio report, ora assorbito nella Dashboard)
 import { buildOverview, _rackFill } from '../lib/overview.js';
+import { macKey } from '../lib/mac-class.js';   // la chiave di un MAC: una definizione sola, la stessa che la lib usa per ritrovarlo
 import { computeHealthAlerts } from '../lib/health-alerts.js';   // ⑥ Salute live: soglie DOCUMENTATE una volta sola (le stesse che legge l'assistente AI)
 import { portActiveFromRead } from '../lib/spare-ports.js';   // «l'SNMP la vede attiva»: una definizione sola, condivisa con l'overlay delle porte libere
 import { numericPortCeiling, findOrphanPortRefs } from '../lib/port-inventory.js';   // ① Completo: capi di cavo su porte che l'apparato non ha (piu')
@@ -148,13 +149,12 @@ function _buildModel() {
     const liveHealth = [];
     const portMacNodeIds = new Set();
     const portMacById = Object.create(null);   // nodeId → primo MAC visto sulle sue interfacce
-    // MAC→id nodo (chiave esadecimale, STESSA norm della lib _macKey): serve a
-    // risolvere a nome i vicini LLDP/CDP che si annunciano solo col chassis-id
-    // MAC. Copre node.mac + MAC di porta + MAC di LAG (primo che vince).
+    // MAC→id nodo (chiave canonica: lib/mac-class `macKey`): serve a risolvere a
+    // nome i vicini LLDP/CDP che si annunciano solo col chassis-id MAC. Copre
+    // node.mac + MAC di porta + MAC di LAG (primo che vince).
     const macToNode = {};
     const ipToNode = {};   // IP→id nodo (primo che vince): risolve le observation di discovery al nodo per la presenza temporale (lente DR)
-    const _macKey = (v) => { const h = String(v || '').toLowerCase().replace(/[^0-9a-f]/g, ''); return h.length === 12 ? h : ''; };
-    const _rememberMac = (mac, id) => { const k = _macKey(mac); if (k && !(k in macToNode)) macToNode[k] = id; };
+    const _rememberMac = (mac, id) => { const k = macKey(mac); if (k && !(k in macToNode)) macToNode[k] = id; };
     let sfpTotal = 0;
     for (const n of nodes) {
         if (!n) continue;
@@ -292,7 +292,7 @@ function _buildModel() {
     const _lastSeenByNode = {};
     for (const o of _obs) {
         if (!o) continue;
-        const k = _macKey(o.mac);
+        const k = macKey(o.mac);
         let id = k ? macToNode[k] : null;
         if (!id) { const ipv = String(o.ip || '').trim(); if (ipv) id = ipToNode[ipv]; }
         if (!id) continue;

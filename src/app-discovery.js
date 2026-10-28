@@ -15,6 +15,8 @@ import { _discIndexNode, _discVendorFromMac, _discRememberVendor, _discIdentityS
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 import { registerChangeActions, registerClickActions } from './app-delegation.js';   // ASSE B: checkbox "seleziona tutti" Scopri via data-change; bottone "Nuova ricerca" via data-act
 import { enableColumnResize } from './app-col-resize.js';   // colonne della tabella Scopri trascinabili + scorrimento orizzontale
+import { hasSnmpDriver } from '../lib/snmp-target.js';   // «ha un driver SNMP?»: la definizione sta in un posto solo
+import { macKey } from '../lib/mac-class.js';   // la chiave di un MAC: una definizione sola, la stessa del server
 import { isJunkHostName } from '../lib/host-name.js';   // «dc-01» e' un nome, un UUID/MAC no: la regola sta in un posto solo, testata
 
 // Nome DISPLAY per la tabella Scopri e per il nome del nodo importato. L'utente legge la
@@ -251,7 +253,7 @@ function openDiscovery(prefillCidr){
         const sub = document.getElementById('disc-subnet');
         if(sub) sub.value = String(prefillCidr).trim();
     }
-    const sample = store.state.nodes.find(n=>n.integration?.driver?.startsWith('snmp'));
+    const sample = store.state.nodes.find(n=>hasSnmpDriver(n));
     if(sample && sample.integration.community){
         document.getElementById('disc-community').value = sample.integration.community;
     }
@@ -1135,15 +1137,16 @@ function _discApplyEdges(edges){
     return n;
 }
 
-// ND-SNMP: il server manda { macHex -> ip6 } (ipNetToPhysicalTable). Attacca l'IPv6
-// PROPOSTO alle righe per MAC (hex normalizzato: il server strippa i separatori).
+// ND-SNMP: il server manda { macKey -> ip6 } (ipNetToPhysicalTable, chiave di lib/mac-class
+// `macKey` su entrambi i lati). Attacca l'IPv6 PROPOSTO alle righe per MAC.
 // Manual-first: riempi solo se la riga non ha già un ip6. L'utente conferma in import.
+// Una riga senza un MAC leggibile non ha una chiave: non prende l'ip6 di nessuno.
 function _discApplyNd6(nd6){
     if(!nd6 || typeof nd6 !== 'object') return 0;
-    const hex = m => String(m || '').toLowerCase().replace(/[^0-9a-f]/g, '');
     let n = 0;
     for(const d of (store._discResults || [])){
-        const ip6 = nd6[hex(d.mac)];
+        const k = macKey(d.mac);
+        const ip6 = k ? nd6[k] : '';
         if(ip6 && !d.ip6){ d.ip6 = ip6; n++; }
     }
     return n;
