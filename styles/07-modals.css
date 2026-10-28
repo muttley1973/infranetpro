@@ -744,9 +744,14 @@
         .props-selected-title:has(.vm-head-actions) > span:first-child { flex:0 1 auto; }
         /* Le azioni (stato, frecce, ritorno) non si restringono mai sotto il loro contenuto: prima, su un pannello
            stretto, si comprimevano e i pulsanti uscivano dal bordo (tagliati, il ritorno all'host irraggiungibile).
-           Se titolo e azioni non stanno insieme, le azioni vanno a capo sotto il titolo invece di sparire. */
+           Se titolo e azioni non stanno insieme, le azioni vanno a capo sotto il titolo invece di sparire.
+           ⚠️ Niente `min-width:max-content`: con un contenitore PIU' STRETTO del contenuto (~234px) pretendeva piu'
+           spazio di quello che c'e' e il ritorno all'host usciva dal bordo di ~6px (min-width batte max-width, quindi
+           nemmeno un `max-width:100%` lo fermava). Basta il flex-basis automatico: il blocco va a capo SOTTO il titolo
+           quando titolo+azioni non stanno insieme (la stessa cosa di prima), e se nemmeno da solo sta in una riga
+           sono i pulsanti, dentro il blocco, ad andare a capo (`flex-wrap`) invece di uscire. */
         .props-selected-title:has(.vm-head-actions) { flex-wrap:wrap; row-gap:6px; }
-        .vm-head-actions { flex:1 1 auto; min-width:max-content; align-items:center; gap:6px; }
+        .vm-head-actions { flex:1 1 auto; flex-wrap:wrap; align-items:center; gap:6px; }
         .vm-head-actions .vm-state-chip { margin-left:auto; margin-right:auto; flex:none; }
         .vm-head-actions .toolbar-btn, .vm-head-actions .props-toggle-btn { flex:none; }
         /* Nota esplicativa dentro la scheda (stessa grammatica di .wifi-inherited). */

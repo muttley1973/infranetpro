@@ -998,7 +998,7 @@ function _discRenderTable(){
             ? snmpSilence(d, { documentedDriver: _discDocumentedDriver(d) })
             : null;
         const _silent = _sil
-            ? ` <span class="disc-badge snmp-silent" data-tip="${escapeHTML(_sil.why === 'neighbor'
+            ? ` <span class="disc-badge snmp-silent" role="img" aria-label="${escapeHTML(_dt('disc.silentLabel','SNMP: nessuna risposta'))}" data-tip="${escapeHTML(_sil.why === 'neighbor'
                 ? _dt('disc.tip.silentNeighbor','Annunciato da {from} via {proto}, ma non ha risposto SNMP con la community usata. Riprova con l\'altra community prima di concludere che non è gestito.', { from: d.viaFrom || '?', proto: (d.viaProtocol || 'LLDP/CDP') })
                 : _dt('disc.tip.silentDeclared','Il progetto lo documenta come apparato SNMP e l\'host è vivo, ma non ha risposto con la community usata. Riprova con la credenziale giusta.'))}"><i class="fas fa-volume-xmark"></i> ${escapeHTML(_dt('disc.silent','SNMP'))}</span>`
             : '';

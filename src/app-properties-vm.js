@@ -37,7 +37,7 @@ import { V3_AUTH, V3_PRIV, V3_LEVELS, V3_DEFAULTS } from '../lib/snmp-v3.js';   
 import { store } from './store.js';
 import { escapeHTML } from './app-util.js';
 import { nodeById, getNodeDisplayName, _enableManualValueInProps } from './app.js';
-import { _buildPropsHeader, _propsSectionIsOpen } from './app-properties.js';
+import { _buildPropsHeader, _propsSectionIsOpen, setPropsSectionState } from './app-properties.js';
 import { _nodeVms, _vmIntg } from './app-hypervisor.js';
 import { _mgmtBuildUrl, _mgmtProtoDef, _mgmtProtoOptionsHtml } from './app-management.js';
 import { vmNics, vmPrimaryIp } from '../lib/vm-nics.js';   // lib pura importata ESM (come lib/ipv6.js)
@@ -297,6 +297,12 @@ function _snmpSectionHtml(vm, ref){
         + `<div class="vm-hint"><i class="fas fa-circle-info"></i> ${t('hv.vmSnmpHint')}</div>`,
         _preview([drvLbl, stHtml]), 'vm-integration');
 }
+
+// Le sei fisarmoniche della scheda e le loro chiavi di memoria. Lo stato aperto/chiuso e' CONDIVISO da tutte le VM
+// (stesso archivio del pannello host): chiusa «Identita'» su una VM, una VM NUOVA si apriva con il campo Nome
+// nascosto. Una VM appena aggiunta e' vuota e tutto cio' che c'e' da compilare sta nelle sezioni: le si riapre.
+export const VM_SECTION_KEYS = ['vm-identity', 'vm-resources', 'vm-network', 'vm-nics', 'vm-integration', 'vm-handover'];
+export function openAllVmSections(){ for(const k of VM_SECTION_KEYS) setPropsSectionState(k, true); }
 
 // Una fisarmonica della scheda. `key` e' l'id con cui ricorda se e' aperta (stesso archivio
 // del pannello host: setPropsSectionState via data-toggle); `previewHtml` e' il riassunto che

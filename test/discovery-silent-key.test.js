@@ -104,6 +104,22 @@ test('il badge dice «SNMP» (con l\'icona del silenzio), e la spiegazione sta n
   assert.doesNotMatch(html, /muto a questa chiave/i, 'il vecchio nome lungo non compare più sulla riga');
 });
 
+test('chi non vede l\'icona sente «nessuna risposta»: il badge «silenzioso» ha un\'etichetta accessibile che quello positivo non ha', () => {
+  // Il testo visibile è «SNMP» come quello di chi HA risposto: a uno screen reader (o a chi non distingue l'icona)
+  // i due badge suonavano uguali. L'etichetta dice la differenza, in entrambe le lingue.
+  const riga = { ip: '10.0.0.2', _via: 'lldp', viaProtocol: 'LLDP', viaFrom: '10.0.0.1', viaPort: 'Gi1/0/24',
+    announcedName: 'SW-PIANO2', hostname: '', mac: '', vendor: '', snmpReachable: false, alive: false, snmpSilent: true };
+  const label = (html) => { const m = html.match(/<span class="disc-badge snmp-silent"[^>]*aria-label="([^"]*)"/); return m ? m[1] : null; };
+  const html = render([riga]);
+  assert.match(html, /<span class="disc-badge snmp-silent" role="img" aria-label=/, 'role="img": senza, aria-label su uno span non viene annunciato');
+  assert.equal(label(html), 'SNMP: nessuna risposta');
+  run(APP.ctx, "setLang('en')");
+  try { assert.equal(label(render([riga])), 'SNMP: no response', 'e in inglese'); }
+  finally { run(APP.ctx, "setLang('it')"); }
+  // il badge di chi ha risposto non ha quell'etichetta (non e' un badge «silenzioso»)
+  assert.doesNotMatch(render([{ ip: '10.0.0.3', _via: 'lldp', viaProtocol: 'LLDP', snmpReachable: true, alive: true, hostname: 'SW-OK' }]), /snmp-silent|nessuna risposta/);
+});
+
 test('chi ha risposto NON si prende il badge, e nemmeno un host qualunque senza SNMP', () => {
   const html = render([
     { ip: '10.0.0.3', _via: 'lldp', viaProtocol: 'LLDP', snmpReachable: true, alive: true, hostname: 'SW-OK' },

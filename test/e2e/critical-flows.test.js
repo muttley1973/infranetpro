@@ -4613,6 +4613,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const click = (sel) => { const b = document.querySelector(sel); if (!b) return false; b.click(); return true; };
           const all = (list, k, v) => list.length > 0 && list.every(x => x[k] === v);
 
+          // La scheda «Proprieta'» deve essere quella ATTIVA: con un altro pannello davanti, #props-panel e' nascosto e
+          // getBoundingClientRect() da' tutto zero — e la prova sui pulsanti «fuori dal bordo» passava senza misurare niente.
+          if (typeof switchRightTab === 'function') switchRightTab('props');
           openVmProps('lab', 'v1');
           const head = document.querySelector('#props-panel .props-selected-title');
           const hasExpand = !!(head && head.querySelector('[data-act="props-expand-all"]'));
@@ -4652,8 +4655,16 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           // l'intestazione non esce dal bordo: nessun elemento oltre il suo lato destro (a capo, non tagliato)
           const hd = document.querySelector('#props-panel .props-selected-title'); const hr = hd.getBoundingClientRect();
           const outside = [...hd.querySelectorAll('*')].filter(e => e.getBoundingClientRect().right > hr.right + 0.5).length;
+          const headVisible = hr.width > 0 && hr.height > 0;
+          // ... e anche con un pannello PIU' STRETTO del contenuto delle azioni (~234px): prima il ritorno all'host usciva
+          // dal bordo di ~6px (min-width:max-content pretendeva piu' spazio di quello che c'era).
+          const pn = document.getElementById('props-panel'); pn.style.width = '229px'; pn.style.boxSizing = 'border-box';
+          const hd2 = document.querySelector('#props-panel .props-selected-title'); const hr2 = hd2.getBoundingClientRect();
+          const outsideNarrow = [...hd2.querySelectorAll('button')].filter(b => b.getBoundingClientRect().right > hr2.right + 0.5).map(b => b.getAttribute('data-act'));
+          const narrowW = hr2.width;
+          pn.style.width = '';
           click('#props-panel [data-act="props-expand-all"]');
-          return { ok: true, hasExpand, hasCollapse, tips, stillChip, stillBack, opened0, closed, reopened, afterEdit, empty, hostile, hostileFired, neverRead, failed, outside,
+          return { ok: true, hasExpand, hasCollapse, tips, stillChip, stillBack, opened0, closed, reopened, afterEdit, empty, hostile, hostileFired, neverRead, failed, outside, headVisible, outsideNarrow, narrowW,
             allOpenAtEnd: all(prev(), 'open', true), n: closed.length, tipsOk: tips.length === 2 && tips.every(Boolean), allClosed: all(closed, 'open', false),
             allOpened0: all(opened0, 'open', true), allHidden0: all(opened0, 'shown', false), allReopened: all(reopened, 'open', true), allHiddenAgain: all(reopened, 'shown', false),
             allKeptClosed: all(afterEdit, 'open', false) };
@@ -4686,8 +4697,52 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.match(by(r.hostile, 'vm-identity'), /<img/, 'si legge com\'è stato scritto');
       assert.equal(by(r.neverRead, 'vm-integration'), 'SNMPv2c', 'mai letta: solo il driver, niente «OK» che nessuno ha misurato');
       assert.match(by(r.failed, 'vm-integration'), /SNMPv2c.*(errore|error)/i, 'una lettura fallita si vede nel riassunto, come nel pannello host');
+      assert.ok(r.headVisible, 'la testata e\' MISURABILE (la scheda Proprieta\' e\' quella attiva): senza, la prova che segue non misurerebbe niente');
       assert.equal(r.outside, 0, 'l\'intestazione non spinge nessun pulsante fuori dal bordo del pannello');
+      assert.ok(r.narrowW > 0 && r.narrowW < 235, 'setup: il pannello e\' stato stretto sotto il contenuto delle azioni (' + r.narrowW + 'px)');
+      assert.deepEqual(r.outsideNarrow, [], 'a pannello stretto i pulsanti vanno a capo, non escono dal bordo: ' + r.outsideNarrow.join(','));
       assert.ok(r.allOpenAtEnd, 'a fine prova tutto riaperto (lo stato è persistito: non lo si lascia sporco agli altri test)');
+    });
+
+    await t.test('Scheda VM: una VM appena aggiunta si apre con TUTTE le sezioni, e disegnare la scheda non scrive in localStorage', async () => {
+      // Lo stato aperto/chiuso e' CONDIVISO da tutte le VM: chiusa «Identita'» su una, una VM nuova si apriva col campo Nome
+      // nascosto. E ogni disegno della scheda (sei <details> aperti = sei eventi toggle) scriveva sei volte in localStorage.
+      const KEYS = ['vm-identity', 'vm-resources', 'vm-network', 'vm-nics', 'vm-integration', 'vm-handover'];
+      await ripartiDa([{ id: 'lab', type: 'homelab', name: 'NUC-01', x: 400, y: 150, ports: 1 }]);
+      const r = await page.evaluate(async (KEYS) => {
+        if (typeof switchRightTab === 'function') switchRightTab('props');
+        KEYS.forEach((k) => setPropsSectionState(k, true));
+        addVm('lab');                                                                    // la prima VM
+        document.querySelector('#props-panel [data-act="props-collapse-all"]').click();   // l'utente chiude tutte le sezioni
+        const secs = () => [...document.querySelectorAll('#props-panel details.props-collapsible')].map((d) => ({ sec: d.getAttribute('data-section'), open: d.open }));
+        const chiuse = secs();
+        const id2 = addVm('lab');                                                        // una VM NUOVA
+        const nuove = secs();
+        const nome = document.querySelector('#props-panel [data-vm-field="name"]');
+        const nomeVisibile = !!(nome && nome.getBoundingClientRect().height > 0);
+        // si parte da tutte aperte, e si ridisegna: niente scritture
+        document.querySelector('#props-panel [data-act="props-expand-all"]').click();
+        await new Promise((res) => setTimeout(res, 100));
+        const orig = Storage.prototype.setItem;
+        const conta = async (fn) => {
+          const calls = [];
+          Storage.prototype.setItem = function (k, v) { if (k === 'infranet.props.sections.v1') calls.push(v); return orig.apply(this, arguments); };
+          try { await fn(); await new Promise((res) => setTimeout(res, 150)); } finally { Storage.prototype.setItem = orig; }
+          return calls.length;
+        };
+        const aDisegno = await conta(() => { renderProps(); updateVm('lab', id2, 'name', 'nuova'); });
+        // un cambio vero SI ricorda, e una volta sola
+        const cambioVero = await conta(() => { const d = document.querySelector('#props-panel details[data-section="vm-resources"]'); d.open = false; d.dispatchEvent(new Event('toggle')); d.dispatchEvent(new Event('toggle')); });
+        KEYS.forEach((k) => setPropsSectionState(k, true));                              // non si lascia lo stato sporco agli altri test
+        return { chiuse, nuove, nomeVisibile, aDisegno, cambioVero };
+      }, KEYS);
+      assert.equal(r.aDisegno, 0, 'ridisegnare la scheda e scrivere un campo non scrive in localStorage (prima: sei scritture a disegno)');
+      assert.equal(r.cambioVero, 1, 'un cambio vero si ricorda, una volta sola');
+      assert.equal(r.chiuse.length, 6);
+      assert.ok(r.chiuse.every((x) => !x.open), 'setup: l\'utente ha chiuso tutte le sezioni');
+      assert.equal(r.nuove.length, 6);
+      assert.ok(r.nuove.every((x) => x.open), 'una VM NUOVA si apre con tutte le sezioni: ' + JSON.stringify(r.nuove));
+      assert.ok(r.nomeVisibile, 'e il campo Nome si vede');
     });
 
     await t.test('VM: import RIPETUTO (76ª) — la zona resta raggiungibile a ogni giro, non scivola fuori dallo scrollport', async () => {

@@ -15,6 +15,9 @@
 - **"Is this machine already a VM?" is one question, asked the same way everywhere.** The Verify adoption looked only at the MAC, the LLDP/CDP neighbour only at devices, the drop onto a host not at the name, and the crawl and the adoption did not know a gateway's MAC from a host's: a VM known only by its address or its name came back as a second tile, a neighbour that is a VM was recreated at every Sync, and a host behind a virtual gateway was taken for the gateway. They now ask with the whole row — MAC, name, address, management host — and the Verify no longer reports a MAC seen at the address of such a VM as unknown.
 - **A name alone no longer discards a physical machine.** A discovered server with the same name as a VM but another address is a different machine, and stays "New"; where nothing confirms or contradicts a name match, the row says "same name, nothing else confirms it".
 - **An import of rows that are all already VMs no longer lights Undo or Save**, and the "silent to this key" badge now also shows for a machine documented as a VM with SNMP.
+- **A VM you just added opens with all its sections.** The open/closed state of the VM card's sections is shared by every VM, so closing "Identity" on one made the next new VM open with its Name field hidden. Redrawing the card also wrote to the browser storage six times for nothing; it now writes only when a section really changes.
+- **On a narrow panel the VM card's back button no longer sticks out of the edge.** Below about 234 px the buttons next to the title overflowed by a few pixels; they now wrap.
+- **The "silent to this key" badge in Discover says "SNMP: no response" to a screen reader**, where it used to read the same "SNMP" as a device that answered.
 
 ## [2.11.19] — 2026-10-23
 

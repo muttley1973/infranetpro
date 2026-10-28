@@ -82,6 +82,10 @@ export function _propsSectionIsOpen(key){
 }
 
 export function setPropsSectionState(key, open){
+    // Esce se il valore non cambia. Un <details> che nasce GIA' aperto emette un evento 'toggle' al disegno, e il
+    // pannello VM ne ha sei: ogni disegno (ogni campo scritto) faceva sei scritture in localStorage per ricordare
+    // quello che era gia' ricordato. «Non cambia» = il valore effettivo (il default conta come ricordato).
+    if(_propsSectionIsOpen(key) === !!open) return;
     _propsSectionsState[key] = !!open;
     try{ localStorage.setItem(_PROPS_SECTIONS_PREF_KEY, JSON.stringify(_propsSectionsState)); }catch(_){}
 }

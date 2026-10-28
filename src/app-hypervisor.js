@@ -28,6 +28,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { TYPES } from './app-types.js';   // catalogo tipi (hostsVms/isPassive/hasIP) per l'assorbimento VM
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: lista VM + scheda VM senza handler inline
 import { _openMgmt } from './app-management.js';   // apertura console di management (stessa strategia dei device)
+import { openAllVmSections } from './app-properties-vm.js';   // una VM nuova si apre con tutte le sezioni (ciclo benigno: solo a runtime)
 import { vmNics, vmPrimaryIp, migrateVmNics, nextVmNicId, VM_FLAT_NET_FIELDS, VM_NIC_FIELDS, buildVmIdentityIndex, findVmForRow } from '../lib/vm-nics.js';   // vNIC: lib pura importata ESM (come lib/ipv6.js)
 import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS dal guest-OS della VM (lib pura)
 import { parseVlanList } from '../lib/vlan-trunk.js';   // il parser VLAN canonico, lo stesso di carriedVlans: una vNIC su un trunk puo' dichiararne piu' d'una
@@ -88,7 +89,9 @@ function addVm(nodeId){
     markDirty(); if(typeof renderAll === 'function') renderAll();
     // Una VM appena creata e' vuota: si apre subito la sua scheda, dove c'e' il
     // nome (nella lista comparirebbe come "(senza nome)"). openVmProps allinea
-    // gia' selezione+intent e ri-renderizza il pannello.
+    // gia' selezione+intent e ri-renderizza il pannello. Le sezioni si riaprono TUTTE: lo stato e' condiviso
+    // fra le VM, e con «Identita'» chiusa su un'altra il campo Nome della nuova non si vedeva.
+    openAllVmSections();
     openVmProps(nodeId, id);
     return id;
 }
