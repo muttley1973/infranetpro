@@ -20,6 +20,7 @@ import { nodeById, getPortNodeId, getNodeByPortId, _invalidateIdx, _createLinkRe
 import { _findPortByIfName } from './app-topology-discover.js';
 import { uid } from './app-util.js';
 import { markFilledFromRead } from '../lib/field-provenance.js';   // la regola: un nodo nato da una lettura marca i campi che questa ha scritto
+import { buildVmIdentityIndex, findVmForRow } from '../lib/vm-nics.js';   // «e' gia' una VM di un host?»: la stessa funzione di Scopri, crawl, adozione e assorbimento
 import { inferNeighborType, usableNeighborIp } from '../lib/neighbor-type.js';   // che COSA è il vicino: dalle capabilities/piattaforma che annuncia, non «sempre uno switch»
 import { t, expose } from './_bridge.js';
 
@@ -173,12 +174,17 @@ export function materializeTopologyNodes(pollResults) {
 
   let floorMade = 0;
   const made = [];   // identità dei nodi nati: chi riassume il giro non li conta più fra i «non agganciati»
+  // Le VM documentate sotto i loro host: un vicino che annuncia il MAC, il nome o l'indirizzo di una VM E' quella VM, e
+  // non un apparato nuovo (prima si controllavano solo i nodi: la VM veniva ricreata come tile a OGNI Sync, anche
+  // quello del monitoraggio automatico).
+  const vmIdx = buildVmIdentityIndex(store.state.nodes);
   for (const nn of (ops.materializeNeighbors || [])) {
     // Due nodi con lo stesso IP sono due identità in conflitto: se l'apparato esiste già
     // (nato poco fa in questo stesso giro, o non riconosciuto dal confronto per nome) non
     // se ne crea un secondo — il cavo lo disegnerà il prossimo Sync sul nodo che c'è.
     const _ip = usableNeighborIp(nn.ip);
     if (_ip && store.state.nodes.some(x => x && x.ip === _ip)) continue;
+    if (vmIdx.size && findVmForRow(vmIdx, { mac: nn.mac, hostname: nn.hostname, ip: _ip })) continue;
     const node = _createNeighborNode(nn, floorMade); nodes++;
     if (node.rackId == null) floorMade++;
     made.push({ nodeId: node.id, mac: node.mac || '', ip: node.ip || '', hostname: node.hostname || '' });

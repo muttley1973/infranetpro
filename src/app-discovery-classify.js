@@ -6,7 +6,8 @@ import { getNodeByPortId } from './app.js';   // ritiro ponte: funzioni del nucl
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _discExistingNode } from './app-discovery.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { registerChangeActions } from './app-delegation.js';   // ASSE B: checkbox scansione profonda via data-change
-import { buildVmIdentityIndex, findVmByIdentity } from '../lib/vm-nics.js';   // «è già una VM di un host?»: stessa risposta per Scopri, crawl, adozione e assorbimento
+import { buildVmIdentityIndex, findVmForRow, vmMacs } from '../lib/vm-nics.js';   // «è già una VM di un host?»: UNA funzione (findVmForRow) per Scopri, crawl, adozione, vicino LLDP e assorbimento
+import { prefixesOf } from '../lib/ipam-model.js';   // i gateway dichiarati: un gateway virtuale (pfSense) e' un next-hop come uno fisico
 
 // ============================================================
 // DISCOVERY CLASSIFICATION — OUI vendor map, identity matching,
@@ -159,8 +160,18 @@ function _discNodeMacs(n){
 // Cache costruita on-demand, invalidata quando i nodi cambiano (_discIndexNode)
 // e a ogni render della tabella (_discRenderTable).
 let _discIdxCache = null;
+let _discIdxState = null, _discIdxSig = '';
 export function _discInvalidateExistingIndexes(){ _discIdxCache = null; }
+// Che cosa ha letto l'indice, in poco: lo stato (annullare lo sostituisce intero) e quanti nodi e VM c'erano (togliere
+// una VM o un nodo non passa da _discIndexNode). Se cambia, il memo non e' piu' di questo progetto.
+function _discIdxSignature(){
+    const nodes = store.state.nodes || [];
+    let vms = 0;
+    for(const n of nodes) if(n && Array.isArray(n.vms)) vms += n.vms.length;
+    return nodes.length + '|' + vms;
+}
 function _discExistingIndexes(){
+    if(_discIdxCache && (_discIdxState !== store.state || _discIdxSig !== _discIdxSignature())) _discIdxCache = null;
     if(!_discIdxCache){
         _discIdxCache = _discBuildExistingIndexes();
         // F5: attacca le guardie di merge ANCHE all'indice di preview/render, non solo
@@ -168,6 +179,7 @@ function _discExistingIndexes(){
         // DeviceClass fondevano un host remoto sul nodo-gateway (stesso MAC next-hop) →
         // tipo-del-gateway ereditato + badge Nuovo/Aggiorna che mentivano vs l'import.
         _discAttachMergeGuards(_discIdxCache);
+        _discIdxState = store.state; _discIdxSig = _discIdxSignature();
     }
     return _discIdxCache;
 }
@@ -226,13 +238,29 @@ export function _discIndexNode(idx, n){
 // _l3GatewayNodeIds). Un gateway e' un next-hop: il suo MAC compare nell'ARP per
 // gli host remoti dietro di lui ma NON e' la loro impronta -> escluso dal merge
 // per-MAC (deterministico e manual-first, complementare all'euristica sharedMacs).
-function _discGatewayMacs(){
+function _discGatewayMacs(idx){
     try {
+        let out = new Set();
         const ids = (typeof _l3GatewayNodeIds === 'function') ? _l3GatewayNodeIds() : null;
-        if(!ids || !ids.size || typeof gatewayMacSet !== 'function') return new Set();
-        const byId = new Map((store.state.nodes || []).map(n => [String(n.id), n]));
-        const nodes = [...ids].map(id => byId.get(String(id))).filter(Boolean);
-        return gatewayMacSet(nodes, (n) => [..._discNodeMacs(n)], normalizeMacAddress);
+        if(ids && ids.size && typeof gatewayMacSet === 'function'){
+            const byId = new Map((store.state.nodes || []).map(n => [String(n.id), n]));
+            const nodes = [...ids].map(id => byId.get(String(id))).filter(Boolean);
+            out = gatewayMacSet(nodes, (n) => [..._discNodeMacs(n)], normalizeMacAddress);
+        }
+        // Un gateway VIRTUALE e' un next-hop come uno fisico: se l'indirizzo che un prefisso dichiara come gateway e' di una
+        // VM (pfSense/OPNsense sull'host), il MAC della sua scheda compare nell'ARP di ogni host che sta dietro, e senza
+        // questo una riga remota veniva fusa con la VM («Gia' presente») e spariva dall'import.
+        const vmIdx = (idx && idx.vms) || buildVmIdentityIndex(store.state.nodes);
+        if(vmIdx.size){
+            for(const p of prefixesOf(store.state)){
+                const gw = String((p && p.gateway) || '').trim().replace(/\/\d{1,3}$/, '');
+                const key = gw ? vmIdx.keys.addr(gw) : '';
+                for(const rec of ((key && vmIdx.byIp.get(key)) || [])){
+                    for(const m of vmMacs(rec.vm)){ const nm = normalizeMacAddress(m); if(nm) out.add(nm); }
+                }
+            }
+        }
+        return out;
     } catch(_){ return new Set(); }
 }
 
@@ -244,10 +272,11 @@ function _discGatewayMacs(){
 //   - sharedMacs : EURISTICO sull'INTERO batch di discovery (store._discResults, non i
 //                  soli selezionati): stesso MAC su piu' IP = next-hop. Sul batch pieno
 //                  cosi' un singolo host remoto non "perde" la condivisione del MAC.
-function _discAttachMergeGuards(idx){
+//   `batchRows`: l'intero batch su cui si decide (le righe del crawl, i candidati dell'adozione); senza, quello di Scopri.
+export function _discAttachMergeGuards(idx, batchRows){
     if(!idx || typeof idx !== 'object') return idx;
-    idx.gatewayMacs = (typeof _discGatewayMacs === 'function') ? _discGatewayMacs() : null;
-    const batch = (store && Array.isArray(store._discResults)) ? store._discResults : [];
+    idx.gatewayMacs = (typeof _discGatewayMacs === 'function') ? _discGatewayMacs(idx) : null;
+    const batch = Array.isArray(batchRows) ? batchRows : ((store && Array.isArray(store._discResults)) ? store._discResults : []);
     idx.sharedMacs = (batch.length && typeof sharedMacsInBatch === 'function')
         ? sharedMacsInBatch(batch, normalizeMacAddress) : null;
     return idx;
@@ -286,10 +315,22 @@ export function _discFindExistingDevice(row, idx = _discExistingIndexes()){
     // lo aggiorna (e fonderebbe la VM sull'host che la ospita). Un nodo con lo stesso MAC vince (sopra): il
     // tile gia' presente resta il riferimento, come prima. Il MAC e' l'identita' piu' forte, quindi si guarda
     // prima di nome e IP dei nodi; nome e IP delle VM si guardano in fondo, dopo i nodi.
+    // La riga arriva alla ricerca INTERA (findVmForRow), col MAC che vale: uno di next-hop e' gia' vuoto.
     const _vmIdx = idx.vms || null;
-    const _asVm = (hit) => ({ node:null, matchedBy:'vm-' + hit.by, vm:{ host:hit.host, vm:hit.vm } });
-    const _vmByMac = (_vmIdx && mac) ? findVmByIdentity(_vmIdx, { mac }) : null;
-    if(_vmByMac) return _asVm(_vmByMac);
+    const _vmRow = Object.assign({}, row, { mac });
+    const _asVm = (hit) => ({ node:null, matchedBy:'vm-' + hit.by, vm:{ host:hit.host, vm:hit.vm, by:hit.by, weak:!!hit.weak } });
+    // Un IP gia' di un NODO con un altro MAC e' un conflitto vero (apparato sostituito, IP riusato), e non lo si
+    // perde perche' il MAC combacia con una VM: sul nodo si guarda PRIMA di restituire la VM.
+    const _ipConflict = () => {
+        if(!(ip && idx.byIp.has(ip))) return null;
+        const node = idx.byIp.get(ip);
+        const nodeMacs = _discNodeMacs(node);
+        return (mac && nodeMacs.size > 0 && !nodeMacs.has(mac))
+            ? { node:null, matchedBy:'conflict', conflict:{ type:'ip-mac', existing:node, ip, oldMac:[...nodeMacs][0], newMac:mac } }
+            : null;
+    };
+    const _vmByMac = (_vmIdx && mac) ? findVmForRow(_vmIdx, _vmRow, { only:'mac' }) : null;
+    if(_vmByMac) return _ipConflict() || _asVm(_vmByMac);
 
     if(host && idx.byHost.has(host)){
         const node = idx.byHost.get(host);
@@ -300,21 +341,29 @@ export function _discFindExistingDevice(row, idx = _discExistingIndexes()){
 
     if(ip && idx.byIp.has(ip)){
         const node = idx.byIp.get(ip);
-        const nodeMacs = _discNodeMacs(node);
         // Stesso IP ma MAC diverso da TUTTI i MAC noti del nodo (chassis +
         // interfacce) → device SOSTITUITO, non lo stesso: segnala conflitto
         // (verrà importato come nuovo + marcato), non lo fonde col vecchio.
-        if(mac && nodeMacs.size > 0 && !nodeMacs.has(mac)){
-            return { node:null, matchedBy:'conflict', conflict:{ type:'ip-mac', existing:node, ip, oldMac:[...nodeMacs][0], newMac:mac } };
-        }
+        const conflict = _ipConflict();
+        if(conflict) return conflict;
         return { node, matchedBy:'ip' };
     }
 
     // Nessun nodo: per nome o per IP puo' essere una VM (con la stessa clausola dei nodi: il MAC non la smentisce).
-    const _vmHit = _vmIdx ? findVmByIdentity(_vmIdx, { mac, name:host, ips:[row?.ip, row?.ip6] }) : null;
+    const _vmHit = _vmIdx ? findVmForRow(_vmIdx, _vmRow) : null;
     if(_vmHit) return _asVm(_vmHit);
 
     return { node:null, matchedBy:'' };
+}
+
+// Solo la domanda sulle VM, per chi i NODI li tratta a modo suo (l'adozione dalla Verifica: per i nodi dedupe per MAC).
+// Stessa funzione, stesse guardie next-hop di _discFindExistingDevice: un MAC di gateway non identifica la riga.
+export function _discFindVm(row, idx = _discExistingIndexes()){
+    if(!idx || !idx.vms) return null;
+    const rawMac = normalizeMacAddress(row?.mac || '');
+    const mac = _discMacIsNextHop(rawMac, idx) ? '' : rawMac;
+    const hit = findVmForRow(idx.vms, Object.assign({}, row, { mac }));
+    return hit ? { host:hit.host, vm:hit.vm, by:hit.by, weak:!!hit.weak } : null;
 }
 
 export function _discMarkIpMacConflict(existing, row){
@@ -613,7 +662,7 @@ function _guessType(descr, objectId, vendor='', banner='', host=''){
 }
 expose({
     _discVendorFromMac, _discRememberVendor, _discRememberClassHint, _discInvalidateExistingIndexes,
-    _discBuildExistingIndexes, _discIndexNode, _discFindExistingDevice, _discGatewayMacs,
+    _discBuildExistingIndexes, _discIndexNode, _discFindExistingDevice, _discFindVm, _discGatewayMacs,
     _discAttachMergeGuards, _discMacIsNextHop,
     _discMarkIpMacConflict, _discTouchNodeIdentity, _discIdentitySource,
     _discIdentityLabel, _discSanitizeDeviceClass, _discConfidenceScore,

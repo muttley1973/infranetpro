@@ -28,7 +28,7 @@ import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funz
 import { TYPES } from './app-types.js';   // catalogo tipi (hostsVms/isPassive/hasIP) per l'assorbimento VM
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: lista VM + scheda VM senza handler inline
 import { _openMgmt } from './app-management.js';   // apertura console di management (stessa strategia dei device)
-import { vmNics, vmPrimaryIp, migrateVmNics, nextVmNicId, VM_FLAT_NET_FIELDS, VM_NIC_FIELDS, buildVmIdentityIndex, findVmByIdentity } from '../lib/vm-nics.js';   // vNIC: lib pura importata ESM (come lib/ipv6.js)
+import { vmNics, vmPrimaryIp, migrateVmNics, nextVmNicId, VM_FLAT_NET_FIELDS, VM_NIC_FIELDS, buildVmIdentityIndex, findVmForRow } from '../lib/vm-nics.js';   // vNIC: lib pura importata ESM (come lib/ipv6.js)
 import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS dal guest-OS della VM (lib pura)
 import { parseVlanList } from '../lib/vlan-trunk.js';   // il parser VLAN canonico, lo stesso di carriedVlans: una vNIC su un trunk puo' dichiararne piu' d'una
 
@@ -537,14 +537,14 @@ export function absorbNodeAsVm(srcId, hostId, before){
     // dichiara di saperle ospitare. I due tipi da RACK (nas, server) non
     // passavano comunque di qui: il percorso del drag pretende isFloor.
     if(srcDef && (srcDef.hostsVms || (srcDef.isPassive && !srcDef.hasIP))) return false; // no host-in-host / passivi senza IP
-    // UNA MACCHINA, UN POSTO. Se questo MAC (o questo IP, senza un MAC che lo smentisca) e' gia' una VM di un host —
-    // questo o un altro — assorbire il tile ne farebbe due: l'IPAM le accuserebbe subito come lo stesso indirizzo
-    // su due apparati, e il tile (col suo cavo) sarebbe sparito per niente. Si rifiuta SENZA toccare niente, e si
-    // dice dove sta l'altra: se la macchina e' stata spostata, l'altra copia si elimina prima. Il chiamante a
+    // UNA MACCHINA, UN POSTO. Se questo MAC, questo nome o questo IP (senza un MAC che lo smentisca) e' gia' una VM
+    // di un host — questo o un altro — assorbire il tile ne farebbe due: l'IPAM le accuserebbe subito come lo stesso
+    // indirizzo su due apparati, e il tile (col suo cavo) sarebbe sparito per niente. Si rifiuta SENZA toccare niente,
+    // e si dice dove sta l'altra: se la macchina e' stata spostata, l'altra copia si elimina prima. Il chiamante a
     // gesto (app-pointer) riporta il tile dov'era. Ritorna false come ogni altro rifiuto.
-    const twin = findVmByIdentity(buildVmIdentityIndex(store.state.nodes), {
-        mac: src.mac, ips: [src.ip, src.ip6, src.integration && src.integration.host],
-    });
+    // Il tile passa INTERO a findVmForRow (la stessa funzione di Scopri, crawl e adozione): prima la sonda non portava il
+    // nome, e una VM omonima passava.
+    const twin = findVmForRow(buildVmIdentityIndex(store.state.nodes), src);
     if(twin){
         _showToast(t('hv.vmTwin', {
             name: getNodeDisplayName(src) || src.name || src.id || '',

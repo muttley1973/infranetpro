@@ -2,7 +2,7 @@ import { win, expose } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeMacAddress } from './app-util.js';
 import { recognizeModel } from './app-device-types.js';   // riconoscimento modello a scansione (proposta)
-import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId, _vlanIpam, logAudit, getNodeDisplayName } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { markDirty, pushHistory, takeSnapshot, recordSnapshot, renderCables, _showToast, _nextNodeId, _vlanIpam, logAudit, getNodeDisplayName } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { _ensureVlanColor, updateVlanIpam } from './app-vlan-autopoll.js';   // associazione VLAN↔subnet dallo scan (declare-first)
 import { prefixesOf } from '../lib/ipam-model.js';   // le VLAN note includono quelle citate da un prefisso
 import { markFromRead, fillFromRead, confirmFromRead, markFilledFromRead } from '../lib/field-provenance.js';   // la regola: chi scrive per conto di una lettura ne registra la provenienza
@@ -777,7 +777,7 @@ function _discSummaryHtml(results, extra={}){
     // non hanno risposto a questa chiave» fa rifare la scansione con l'altra
     // community invece di archiviare un parco come non gestito.
     const silent = (typeof countSnmpSilent === 'function')
-        ? countSnmpSilent(rows, d => _discExistingNode(d)?.integration?.driver || '')
+        ? countSnmpSilent(rows, d => _discDocumentedDriver(d))
         : 0;
     const mac = rows.filter(d=>d.mac).length;
     const web = rows.filter(d=>d.httpTitle || d.httpsTitle).length;
@@ -856,6 +856,16 @@ export function _discExistingNode(d){
     return _discFindExistingDevice(d).node || null;
 }
 
+// Il driver SNMP che il documento dichiara per questa riga: quello del nodo, o quello della VM (vm.integration, o il
+// vecchio vm.snmp). Una macchina documentata come VM e' un apparato SNMP come un altro: senza questo il badge «muto a
+// questa chiave» non compariva per lei, perche' _discExistingNode scarta le VM.
+export function _discDocumentedDriver(d){
+    const found = _discFindExistingDevice(d);
+    if(found.node) return found.node.integration?.driver || '';
+    const vm = found.vm && found.vm.vm;
+    return vm ? ((vm.integration || vm.snmp || {}).driver || '') : '';
+}
+
 function _discReconcileInfo(d, type){
     const found = _discFindExistingDevice(d);
     const existing = found.node || null;
@@ -863,9 +873,16 @@ function _discReconcileInfo(d, type){
     // (la VM non e' un nodo). Si dice DOVE sta, cosi' chi legge sa dove cercarlo.
     if(!existing && found.vm){
         const host = found.vm.host, vm = found.vm.vm;
-        return { label:_dt('disc.rec.same','Già presente'), cls:'same', title:_dt('disc.tip.existsAsVm',
-            'Esiste già come VM «{vm}» sull\'host «{host}»: non verrà creato un nuovo dispositivo.',
-            { vm: vm.name || vm.hostname || vm.id || '', host: getNodeDisplayName(host) || host.name || host.id || '' }) };
+        // Trovata per il solo NOME (nessun MAC o indirizzo la conferma, nessuno la smentisce): si dice, perche' potrebbe
+        // essere un'altra macchina con lo stesso nome — e chi legge sa che cosa controllare.
+        const byName = !!found.vm.weak;
+        return { label:_dt('disc.rec.same','Già presente'), cls:'same', title:byName
+            ? _dt('disc.tip.existsAsVmByName',
+                'Esiste una VM «{vm}» sull\'host «{host}» con lo stesso nome, ma nessun MAC o indirizzo lo conferma: non verrà creato un nuovo dispositivo. Se è un\'altra macchina, dai un indirizzo alla VM o cambiale nome.',
+                { vm: vm.name || vm.hostname || vm.id || '', host: getNodeDisplayName(host) || host.name || host.id || '' })
+            : _dt('disc.tip.existsAsVm',
+                'Esiste già come VM «{vm}» sull\'host «{host}»: non verrà creato un nuovo dispositivo.',
+                { vm: vm.name || vm.hostname || vm.id || '', host: getNodeDisplayName(host) || host.name || host.id || '' }) };
     }
     if(!existing) return { label:_dt('disc.rec.new','Nuovo'), cls:'new', title:_dt('disc.tip.willCreate','Verrà creato un nuovo dispositivo') };
     const changes = [];
@@ -978,7 +995,7 @@ function _discRenderTable(){
         // autorizzava ad aspettarci una risposta: un vicino che l'ha dichiarato,
         // o il documento che lo registra come apparato SNMP.
         const _sil = (typeof snmpSilence === 'function')
-            ? snmpSilence(d, { documentedDriver: _discExistingNode(d)?.integration?.driver || '' })
+            ? snmpSilence(d, { documentedDriver: _discDocumentedDriver(d) })
             : null;
         const _silent = _sil
             ? ` <span class="disc-badge snmp-silent" data-tip="${escapeHTML(_sil.why === 'neighbor'
@@ -1293,7 +1310,9 @@ async function importDiscovered(){
     }
 
     try{
-        pushHistory();
+        // La foto PRIMA di toccare, tenuta in mano: se tutte le righe erano «gia' VM» o già presenti, non cambia niente e
+        // non si registra un punto di annulla ne' si sporca il documento (v. A3: stessa regola del trascinamento).
+        const _before = takeSnapshot();
         // Driver di FALLBACK per i device importati che NON hanno risposto a SNMP
         // (quelli che rispondono usano d.snmpDriver concreto, v1/v2c/v3). Il dialogo
         // non ha più un selettore versione (scan universale): default v2c.
@@ -1560,7 +1579,8 @@ async function importDiscovered(){
             }
         }
 
-        markDirty(); renderAll(); renderCables();
+        if(takeSnapshot() !== _before){ recordSnapshot(_before); markDirty(); }
+        renderAll(); renderCables();
         // Fine import: gli avvistamenti appena registrati vanno nel loro archivio
         // subito, senza aspettare che qualcuno prema Salva (sono una misura).
         if(imported > 0 || updated > 0) _persistObservations();
@@ -1606,7 +1626,7 @@ async function importDiscovered(){
 expose({
     openDiscovery, closeDiscovery, _closeDiscoveryOverlayClick, runDiscovery,
     importDiscovered,
-    _discExistingNode, _discRenderTable, _discCrawlRow, _discArpRow, _discVendorLabel,
+    _discExistingNode, _discDocumentedDriver, _discRenderTable, _discCrawlRow, _discArpRow, _discVendorLabel,
     _discApplyEdges, _discDisplayName,
 });
 

@@ -5782,6 +5782,124 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       }
     });
 
+    await t.test('«Questa macchina c\'è già?» è UNA funzione: adozione, vicino LLDP/CDP e assorbimento guardano MAC, nome e indirizzo della riga', async () => {
+      // Ogni percorso decideva da sé quali campi guardare, e ognuno ne dimenticava uno: l'adozione cercava la VM per solo MAC
+      // (una VM con IP o nome e senza MAC veniva creata una seconda volta, tile accanto), il vicino LLDP/CDP controllava solo i
+      // nodi (la VM tornava come tile a OGNI Sync), l'assorbimento non portava il nome.
+      const PVE = () => ({ id: 'pve', type: 'homelab', name: 'PVE', x: 200, y: 120, ports: 1, mac: 'AA:BB:CC:00:00:01', ip: '10.0.0.2', vms: [
+        { id: 'dc', name: 'dc01', nics: [{ id: 'nic1', ip: '10.0.0.5' }] },     // conosciuta per IP (e nome), senza MAC
+        { id: 'solo', name: 'plex', nics: [] },                                   // conosciuta per il solo nome
+      ] });
+      // ── l'adozione dalla Verifica ──
+      await ripartiDa([PVE()]);
+      const ad = await page.evaluate(() => {
+        const res = _adoptCreateNodes([
+          { cand: { mac: 'AA:BB:CC:DD:EE:01', ip: '10.0.0.5', hostname: 'dc01' }, type: 'pc' },     // la VM dc01 (IP+nome, senza MAC)
+          { cand: { mac: 'AA:BB:CC:DD:EE:02', ip: '10.0.0.77', hostname: 'dc01' }, type: 'pc' },    // un server fisico omonimo, altro indirizzo
+          { cand: { mac: 'AA:BB:CC:DD:EE:03', ip: '10.0.0.99', hostname: 'altro' }, type: 'pc' },   // sconosciuto
+        ], false);
+        return { added: res.added, skipped: res.skipped, ips: state.nodes.filter((n) => n.type === 'pc').map((n) => n.ip).sort() };
+      });
+      assert.deepEqual([ad.added, ad.skipped], [2, 1], 'l\'adozione salta la VM (IP+nome, senza MAC) e adotta il server omonimo con un altro indirizzo');
+      assert.deepEqual(ad.ips, ['10.0.0.77', '10.0.0.99'], 'nessun tile con l\'IP della VM');
+
+      // ── il vicino LLDP/CDP che e' una VM documentata ──
+      await ripartiDa([PVE(), { id: 'e2eSw', type: 'switch', name: 'E2E SW', rackId: null, ports: 24 }]);
+      const POLL = [{ nodeId: 'e2eSw', fdbTable: {}, suggestedSharedSegments: [], neighbors: [
+        { localPort: 'Gi1', remoteDevice: 'dc01', remoteMac: '', remoteIP: '10.0.0.5', protocol: 'LLDP' },                          // la VM, per indirizzo
+        { localPort: 'Gi2', remoteDevice: 'plex', remoteMac: 'aa:00:00:00:20:02', remoteIP: '', protocol: 'LLDP' },                 // la VM, per solo nome
+        { localPort: 'Gi3', remoteDevice: 'altro-sw', remoteMac: 'aa:00:00:00:20:03', remoteIP: '10.0.0.88', protocol: 'LLDP' },    // uno nuovo
+      ] }];
+      await page.evaluate(() => { for (const k of [1, 2, 3]) state.ports['e2eSw-' + k] = { ifName: 'Gi' + k }; _invalidateIdx(); });
+      const mat = await page.evaluate((poll) => {
+        const r1 = materializeTopologyNodes(poll);
+        const r2 = materializeTopologyNodes(poll);
+        return { first: r1.nodes, second: r2.nodes, names: state.nodes.filter((n) => n.inferred).map((n) => n.hostname).sort() };
+      }, POLL);
+      assert.equal(mat.first, 1, 'nasce solo il vicino nuovo: le due VM documentate non si ricreano');
+      assert.deepEqual(mat.names, ['altro-sw']);
+      assert.equal(mat.second, 0, 'e al giro dopo (anche quello del monitoraggio automatico) niente di nuovo');
+
+      // ── l'assorbimento guarda anche il NOME ──
+      await ripartiDa([PVE(),
+        { id: 't1', type: 'pc', name: 'dc01', x: 60, y: 60, ports: 1 },                                                 // solo il nome, come la VM
+        { id: 't2', type: 'pc', name: 'dc01', x: 60, y: 160, ports: 1, ip: '10.0.0.77', mac: 'AA:BB:CC:DD:EE:02' },    // omonimo ma ALTRO indirizzo
+        { id: 't3', type: 'pc', name: 'diverso', x: 60, y: 260, ports: 1, ip: '10.0.0.5' }]);                          // altro nome, stesso IP
+      const ab = await page.evaluate(() => ({ t1: absorbNodeAsVm('t1', 'pve'), t3: absorbNodeAsVm('t3', 'pve'), t2: absorbNodeAsVm('t2', 'pve'), vms: nodeById('pve').vms.length }));
+      assert.equal(ab.t1, false, 'lo stesso nome di una VM (nessun indirizzo che la smentisca): rifiutato');
+      assert.equal(ab.t3, false, 'lo stesso IP: rifiutato, come prima');
+      assert.equal(ab.t2, true, 'un omonimo con un altro indirizzo e\' un\'altra macchina: si assorbe');
+      assert.equal(ab.vms, 3);
+    });
+
+    await t.test('Scopri e crawl: un import di sole righe «già VM» non lascia un punto di annulla né sporca; il match per solo nome lo dice', async () => {
+      // pushHistory() all'inizio dell'import e markDirty() alla fine scattavano anche quando tutte le righe erano «già VM»: Annulla
+      // acceso a vuoto e il documento da salvare per niente. Il tooltip di una riga trovata per il solo nome dice che e' solo per nome.
+      const LAB = () => ({ id: 'lab', type: 'homelab', name: 'MacPro5,1', x: 200, y: 120, ports: 1, mac: 'E8:06:88:CB:DC:AA', ip: '192.168.1.150', vms: [
+        { id: 'v1', name: 'UNL', nics: [{ id: 'nic1', ip: '192.168.1.234', mac: '50:23:5F:00:2B:00' }] },
+        { id: 'solo', name: 'plex', nics: [] }] });
+      await ripartiDa([LAB()]);
+      const r = await page.evaluate(async () => {
+        openDiscovery();
+        window._discResults = [
+          { ip: '192.168.1.234', mac: '50:23:5f:00:2b:00', hostname: 'UNL', alive: true, deviceClass: 'pc', vendor: '', sources: [{ id: 'arp', label: 'ARP' }], confidence: { score: 80, level: 'high' } },
+          { ip: '192.168.1.60', hostname: 'plex', alive: true, deviceClass: 'pc', vendor: '', sources: [{ id: 'arp', label: 'ARP' }], confidence: { score: 80, level: 'high' } },
+        ];
+        _discRenderTable();
+        const tips = [...document.querySelectorAll('#disc-tbody tr')].map((tr) => { const b = tr.querySelector('.disc-badge[class*="rec-"]'); return { cls: b ? b.className : '', tip: b ? (b.getAttribute('data-tip') || '') : '' }; });
+        document.querySelectorAll('#disc-tbody .disc-chk').forEach((c) => { c.checked = true; });
+        _history = []; _histIdx = -1; _clearDirty(); _updateHistoryBtns();
+        const before = state.nodes.length;
+        await importDiscovered();
+        return { tips, before, after: state.nodes.length, punti: _history.length, daSalvare: !!_isDirty, undo: !document.getElementById('btn-undo').disabled };
+      });
+      assert.equal(r.after, r.before, 'niente di nuovo');
+      assert.deepEqual([r.punti, r.daSalvare, r.undo], [0, false, false], 'Scopri, sole righe «già VM»: nessun punto di annulla, niente da salvare');
+      assert.ok(r.tips[0].cls.includes('rec-same') && r.tips[1].cls.includes('rec-same'), 'entrambe «Già presente»: ' + JSON.stringify(r.tips));
+      assert.ok(!/stesso nome|same name/.test(r.tips[0].tip), 'quella confermata da MAC e IP NON dice «solo per nome»');
+      assert.ok(/stesso nome|same name/.test(r.tips[1].tip), 'quella per solo nome lo dice: ' + r.tips[1].tip);
+      // controllo positivo: con una riga davvero nuova, UN punto e da salvare
+      const c = await page.evaluate(async () => {
+        openDiscovery();
+        window._discResults = [{ ip: '192.168.1.99', mac: 'EC:71:DB:11:22:33', hostname: 'nuovo-pc', alive: true, deviceClass: 'pc', vendor: '', sources: [{ id: 'arp', label: 'ARP' }], confidence: { score: 80, level: 'high' } }];
+        _discRenderTable();
+        document.querySelectorAll('#disc-tbody .disc-chk').forEach((x) => { x.checked = true; });
+        _history = []; _histIdx = -1; _clearDirty();
+        await importDiscovered();
+        return { punti: _history.length, daSalvare: !!_isDirty, nodi: state.nodes.filter((n) => n.ip === '192.168.1.99').length };
+      });
+      assert.deepEqual(c, { punti: 1, daSalvare: true, nodi: 1 }, 'una riga nuova: un punto, da salvare');
+
+      // lo stesso per l'import del crawl
+      const ROTTA = '**/api/discover/topology';
+      await page.route(ROTTA, async (route) => {
+        const ev = [
+          { type: 'found', total: 1, device: { ip: '192.168.1.234', hostname: 'UNL', mac: '50:23:5F:00:2B:00', descr: 'Linux UNL 5.4', depth: 1 } },
+          { type: 'done', total: 1 },
+        ];
+        await route.fulfill({ status: 200, contentType: 'text/event-stream', body: ev.map((e) => 'data: ' + JSON.stringify(e) + '\n\n').join('') });
+      });
+      try {
+        await ripartiDa([LAB()]);
+        const k = await page.evaluate(async () => {
+          openTopoCrawl();
+          document.getElementById('td-seed').value = '192.168.1.1';
+          document.querySelector('[data-act="topo-crawl-run"]').click();
+          let tries = 0;
+          while ((document.querySelectorAll('#td-tbody tr').length < 1 || document.getElementById('td-import-btn').style.display === 'none') && tries++ < 80) await new Promise((res) => setTimeout(res, 50));
+          _history = []; _histIdx = -1; _clearDirty(); _updateHistoryBtns();
+          const before = state.nodes.length;
+          document.querySelector('[data-act="topo-crawl-import"]').click();
+          return { rows: document.querySelectorAll('#td-tbody tr').length, before, after: state.nodes.length, punti: _history.length, daSalvare: !!_isDirty };
+        });
+        assert.equal(k.rows, 1);
+        assert.equal(k.after, k.before, 'niente di nuovo');
+        assert.deepEqual([k.punti, k.daSalvare], [0, false], 'crawl, sole righe «già VM»: nessun punto di annulla, niente da salvare');
+      } finally {
+        await page.unroute(ROTTA);
+      }
+    });
+
     await t.test('app-drift migrato: snapshot DOC + render pannello + azioni 1-click nel browser reale', async () => {
       // Copertura della glue Drift (ex lib/app-drift.js) nel bundle ESM. Esercita:
       //  • _driftBuildDocSnapshot (precedenza override statusOvr/vlanOvr);

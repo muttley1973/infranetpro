@@ -12,6 +12,9 @@
 - **A refused cable no longer deletes the automatic cables on its ports, and an accepted one can be undone.** A manual cable replaces the automatic ones on its two ports; they were removed before the checks and before the Undo point, so a refusal lost them silently and Ctrl+Z could not bring them back.
 - **Ctrl+Z works after Enter in the rack height field and in date fields.** Both kept the keyboard focus, so the key went to the field instead of the project.
 - **Undoing a JSON import brings back the background and the change history from before it**, not the ones of the imported file.
+- **"Is this machine already a VM?" is one question, asked the same way everywhere.** The Verify adoption looked only at the MAC, the LLDP/CDP neighbour only at devices, the drop onto a host not at the name, and the crawl and the adoption did not know a gateway's MAC from a host's: a VM known only by its address or its name came back as a second tile, a neighbour that is a VM was recreated at every Sync, and a host behind a virtual gateway was taken for the gateway. They now ask with the whole row — MAC, name, address, management host — and the Verify no longer reports a MAC seen at the address of such a VM as unknown.
+- **A name alone no longer discards a physical machine.** A discovered server with the same name as a VM but another address is a different machine, and stays "New"; where nothing confirms or contradicts a name match, the row says "same name, nothing else confirms it".
+- **An import of rows that are all already VMs no longer lights Undo or Save**, and the "silent to this key" badge now also shows for a machine documented as a VM with SNMP.
 
 ## [2.11.19] — 2026-10-23
 

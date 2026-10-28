@@ -19,7 +19,7 @@ import { markDirty, pushHistory, renderCables, _showToast, _invalidateIdx, _next
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { _isLeafEndpoint, _autoLinkEndpoint } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
-import { _discIndexNode, _discVendorFromMac, _discFindExistingDevice, _discBuildExistingIndexes } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _discIndexNode, _discVendorFromMac, _discFindExistingDevice, _discFindVm, _discBuildExistingIndexes, _discAttachMergeGuards } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 import { closeReportMenu } from './app-auth.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: modale Adotta (template dinamico) via event delegation
@@ -171,6 +171,9 @@ function _adoptCreateNodes(picks, autoLink){
 
     const usedNodeIds = new Set((store.state.nodes || []).map(n => String(n.id || '')));
     const existingIdx = (typeof _discBuildExistingIndexes === 'function') ? _discBuildExistingIndexes() : null;
+    // Guardie next-hop, come Scopri: il MAC di un gateway (anche virtuale) o condiviso da piu' IP fra i candidati non
+    // identifica la riga. L'adozione non le attaccava, e un candidato dietro un pfSense veniva scambiato con la VM.
+    if(existingIdx && typeof _discAttachMergeGuards === 'function') _discAttachMergeGuards(existingIdx, picks.map(p => p.cand));
 
     // Placement: rack corrente (creane uno se serve) per gli infra; floor centrato per gli endpoint.
     let rackId = store.state.currentRack;
@@ -195,8 +198,10 @@ function _adoptCreateNodes(picks, autoLink){
         // Dedup: se il MAC è già documentato, non duplicare.
         if(existingIdx){
             const match = _discFindExistingDevice({ mac: macN }, existingIdx);
-            // Ne' un nodo ne' una VM di un host: lo stesso MAC non si documenta due volte.
-            if(match && (match.node || match.vm)){ skipped++; return; }
+            if(match && match.node){ skipped++; return; }
+            // Una VM di un host si cerca con la riga INTERA (MAC, hostname, IP del lease): una VM documentata con il solo
+            // indirizzo o il solo nome — senza MAC — veniva creata una seconda volta, tile accanto alla VM.
+            if(_discFindVm({ mac: macN, ip: cand.ip, hostname: cand.hostname }, existingIdx)){ skipped++; return; }
         }
         const name = cand.hostname || cand.vendor || macN || def.name;   // il nome dal lease (se c'è) vince
         const nid = (typeof _nextNodeId === 'function') ? _nextNodeId(type, usedNodeIds) : uid(type);

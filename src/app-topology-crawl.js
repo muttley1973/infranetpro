@@ -14,11 +14,11 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizeNumber, normalizeMacAddress } from './app-util.js';
 import { markFilledFromRead } from '../lib/field-provenance.js';   // la regola: un nodo nato da una lettura marca i campi che questa ha scritto
-import { markDirty, pushHistory, renderCables, _showToast, _nextNodeId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { markDirty, takeSnapshot, recordSnapshot, renderCables, _showToast, _nextNodeId } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { switchRack } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
-import { _discIndexNode, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity, _discMarkIpMacConflict } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { _discIndexNode, _discFindExistingDevice, _discBuildExistingIndexes, _discAttachMergeGuards, _discTouchNodeIdentity, _discMarkIpMacConflict } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { registerChangeActions, registerClickActions } from './app-delegation.js';   // ASSE B: checkbox "seleziona tutti" + bottoni modale via data-change/data-act
 
 // ============================================================
@@ -239,7 +239,9 @@ function importTopoCrawl(){
         return;
     }
 
-    pushHistory();
+    // La foto PRIMA di toccare, tenuta in mano: se tutte le righe erano «gia' VM» non cambia niente, e non si registra
+    // un punto di annulla ne' si sporca il documento.
+    const _before = takeSnapshot();
     const driver = document.getElementById('td-driver')?.value || 'snmp-v2c';
     const community = document.getElementById('td-community')?.value || 'public';
     const usedNodeIds = new Set((store.state.nodes || []).map(n=>String(n.id || '')));
@@ -252,6 +254,9 @@ function importTopoCrawl(){
     }
 
     const existingIdx = _discBuildExistingIndexes();
+    // Guardie next-hop sull'indice, come Scopri: un MAC di gateway (anche virtuale) o condiviso da piu' IP del batch non
+    // identifica la riga. Il commento di _discTouchNodeIdentity piu' sotto le dava per attive; qui nessuno le attaccava.
+    _discAttachMergeGuards(existingIdx, _tdResults);
 
     let imported = 0;
     let updated = 0;
@@ -349,7 +354,7 @@ function importTopoCrawl(){
         imported++;
     });
 
-    markDirty();
+    if(takeSnapshot() !== _before){ recordSnapshot(_before); markDirty(); }
     renderAll();
     renderCables();
     closeTopoCrawl();

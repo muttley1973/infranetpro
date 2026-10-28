@@ -10,8 +10,8 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="4,323 tests, 0 failing" src="https://img.shields.io/badge/tests-4%2C323%20%C2%B7%200%20failing-3fb950"></a>
-  <a href="#testing"><img alt="154 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-154%20real--browser%20flows-3fb950"></a>
+  <a href="#testing"><img alt="4,337 tests, 0 failing" src="https://img.shields.io/badge/tests-4%2C337%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="156 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-156%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#discovery--classification-engines"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
   <img alt="No database" src="https://img.shields.io/badge/database-none-8b949e">
@@ -503,7 +503,7 @@ RUN_E2E=1 npm run e2e # headless end-to-end in a real Chrome — off by default
 
 Current local quality baseline:
 - `npm run check` parses every JS source of the product — **576** of them.
-- `npm test` runs the full regression suite (currently **4,323 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **154 flows**).
+- `npm test` runs the full regression suite (currently **4,337 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **156 flows**).
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that lists something, and the test count measured against what the suite really prints.
 
 **CI** ([GitHub Actions](.github/workflows/ci.yml)) runs `npm run check` and `npm test` on every push and pull request to `main`, on Node 18 and 20.

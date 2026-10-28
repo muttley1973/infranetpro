@@ -139,3 +139,65 @@ test('senza chiavi iniettate funziona lo stesso (MAC canonico, indirizzo in minu
   assert.equal(findVmByIdentity(i, { mac: '5023.5F00.2B00' }).vm.id, 'v1');
   assert.equal(findVmByIdentity(i, { ips: ['192.168.1.234'] }).vm.id, 'v1');
 });
+
+// ── UNA funzione per tutti: findVmForRow prende la RIGA intera ────────────────────────────────────────────
+const { probeOfRow, findVmForRow } = require('../lib/vm-nics.js');
+
+// VM che il documento conosce per nome o per indirizzo, senza MAC (il caso di B1) — e una con solo il nome.
+const hostC = {
+  id: 'pve', name: 'PVE', vms: [
+    { id: 'dc', name: 'dc01', nics: [{ id: 'nic1', ip: '10.0.0.5' }] },                // solo IP (e nome)
+    { id: 'solo', name: 'plex', nics: [] },                                            // solo il nome
+    { id: 'cidr', name: 'gw', nics: [{ id: 'nic1', ip: '10.0.1.1/24' }] },             // IP scritto con la lunghezza del prefisso
+    { id: 'mgmt', name: 'monitor', nics: [{ id: 'nic1', ip: '10.0.2.10' }] },
+  ],
+};
+const rowFind = (row, opts) => findVmForRow(buildVmIdentityIndex([hostC], KEYS), row, opts);
+
+test('probeOfRow: ricava MAC, nomi e indirizzi dalla riga intera, qualunque ne sia la forma', () => {
+  const p = probeOfRow({ mac: ' AA:BB:CC:00:00:01 ', hostname: 'H', netbiosName: 'N', name: 'Nome', ip: '10.0.0.5', ip6: '2001:db8::1', currentIp: '10.0.0.6', integration: { host: '10.0.0.7' } });
+  assert.equal(p.mac, 'AA:BB:CC:00:00:01');
+  assert.deepEqual(p.names, ['H', 'N', 'Nome']);
+  assert.deepEqual(p.ips, ['10.0.0.5', '2001:db8::1', '10.0.0.6', '10.0.0.7']);
+  assert.deepEqual(probeOfRow(null), { mac: '', names: [], ips: [] });
+  assert.deepEqual(probeOfRow({ ip: null, integration: 'x' }), { mac: '', names: [], ips: [] });
+});
+
+test('una VM con IP e senza MAC si riconosce dalla riga: per IP, per hostname, per integration.host', () => {
+  assert.equal(rowFind({ mac: 'AA:BB:CC:DD:EE:01', ip: '10.0.0.5', hostname: 'dc01' }).vm.id, 'dc', 'MAC sconosciuto alla VM ma la VM non ne ha: non la smentisce');
+  assert.equal(rowFind({ mac: 'AA:BB:CC:DD:EE:01', ip: '10.0.0.5' }).by, 'ip');
+  assert.equal(rowFind({ integration: { host: '10.0.0.5' } }).vm.id, 'dc', 'l\'host di gestione SNMP della riga conta come indirizzo');
+  assert.equal(rowFind({ netbiosName: 'DC01' }).vm.id, 'dc', 'anche il nome NetBIOS');
+});
+
+test('solo per NOME: il match c\'è se niente lo smentisce, ma è «debole»; un indirizzo che non è il suo lo smentisce', () => {
+  const solo = rowFind({ hostname: 'plex', ip: '10.0.9.9' });
+  assert.equal(solo.vm.id, 'solo', 'la VM non ha indirizzi da confrontare: il nome è l\'unica identità che ha');
+  assert.equal(solo.by, 'name');
+  assert.equal(solo.weak, true, 'nessun MAC o indirizzo lo conferma');
+  // Il server fisico «dc01» con un altro indirizzo NON è la VM «dc01» (che ha 10.0.0.5): non lo si scarta come già documentato.
+  assert.equal(rowFind({ hostname: 'dc01', ip: '10.0.0.77', mac: 'AA:BB:CC:DD:EE:77' }), null);
+  // Con l'indirizzo giusto il nome è CONFERMATO, non debole.
+  const ok = rowFind({ hostname: 'dc01', ip: '10.0.0.5' });
+  assert.equal(ok.vm.id, 'dc');
+  assert.equal(ok.weak, false);
+  // Nome senza indirizzo (un nome mDNS): niente lo smentisce, ma niente lo conferma.
+  assert.equal(rowFind({ hostname: 'dc01' }).weak, true);
+});
+
+test('un IP scritto con la lunghezza del prefisso (10.0.1.1/24) è lo stesso indirizzo, da una parte e dall\'altra', () => {
+  assert.equal(rowFind({ ip: '10.0.1.1' }).vm.id, 'cidr', 'vNIC con /24, riga senza');
+  assert.equal(rowFind({ ip: '10.0.1.1/24' }).vm.id, 'cidr', 'e riga con /24');
+  assert.equal(rowFind({ ip: '10.0.1.2' }), null, 'un altro indirizzo non combacia');
+});
+
+test('only:\'mac\' cerca solo per MAC (il primo passo di chi poi guarda i nodi)', () => {
+  const i = buildVmIdentityIndex([hostA, hostB], KEYS);
+  assert.equal(findVmForRow(i, { mac: '50:23:5F:00:2B:00', ip: '1.1.1.1' }, { only: 'mac' }).vm.id, 'v1');
+  assert.equal(findVmForRow(i, { ip: '192.168.1.234', hostname: 'UNL' }, { only: 'mac' }), null, 'IP e nome non contano in questo passo');
+});
+
+test('più nomi sulla riga: basta uno; il nome si confronta intero e senza badare alle maiuscole', () => {
+  assert.equal(rowFind({ hostname: 'altro', name: 'PLEX' }).vm.id, 'solo');
+  assert.equal(rowFind({ hostname: 'ple' }), null);
+});

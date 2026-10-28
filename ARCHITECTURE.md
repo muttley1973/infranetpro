@@ -236,12 +236,19 @@ lib/                   Shared browser + test modules (the heart of the app)
                     run, not its alphabet  (pure)
   vm-nics.js        a VM's network cards, read tolerantly (`vm.nics[]`, or the old flat fields
                     as one implicit card), and "is this machine already a VM?":
-                    `buildVmIdentityIndex` / `findVmByIdentity` — the MAC of any vNIC, then the
-                    name, then the IP of any vNIC (`addrKey`, never the raw string). Name and
-                    IP count only when the MAC does not contradict them (a different MAC on the
-                    same IP is another machine, for the IPAM audit to flag); a next-hop MAC is
-                    not an identity. Discover, the topology crawl, the Verify adoption and the
-                    drop onto a host all ask it, so they cannot disagree  (pure)
+                    `buildVmIdentityIndex` / `findVmForRow` — ONE function that takes the whole
+                    row (`probeOfRow`: MAC; hostname, NetBIOS name, name; ip, ip6, last seen IP,
+                    `integration.host`) and answers with the MAC of any vNIC, then the name, then
+                    the IP of any vNIC (`addrKey`, never the raw string; a `/24` is not part of
+                    the address). Name and IP count only when the MAC does not contradict them (a
+                    different MAC on the same IP is another machine, for the IPAM audit to flag),
+                    and a name is also contradicted by an address that is not the VM's: a
+                    physical "dc01" next to the VM "dc01" is not discarded. A name that nothing
+                    confirms and nothing contradicts is `weak`, and Discover says so in the
+                    tooltip. A next-hop MAC is not an identity — a gateway VM (the address a
+                    prefix declares as its gateway) counts like a physical gateway. Discover, the
+                    topology crawl, the Verify adoption, the LLDP/CDP neighbour and the drop onto
+                    a host all ask it, so they cannot disagree  (pure)
   undo-history.js   the model of undo/redo — `record` / `undo` / `redo` / `canUndo` / `canRedo`
                     over a list of snapshots and an index — plus `shortcutAction` and
                     `isTextEditingTarget` (see "Undo: the snapshot is taken before the change")  (pure)
@@ -1288,7 +1295,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,323 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,337 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

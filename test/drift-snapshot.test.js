@@ -694,3 +694,43 @@ test('snmpSnap → report: una porta dichiarata a mano su un apparato che rispon
   assert.equal(r.counts.consistent, 1, 'solo la porta letta');
   assert.deepEqual(r.portUnverified.map(x => x.pid), ['sw1-1']);
 });
+
+test('docSnap knownIps: gli indirizzi delle VM senza MAC contano, quelli con MAC no (il MAC sta già in deviceSigs)', () => {
+  // Una VM conosciuta solo per indirizzo è la stessa cosa di un apparato in ipOnly: il MAC con cui la rete la mostra
+  // non lo abbiamo mai scritto, e la Verifica la accusava di essere sconosciuta.
+  const d = buildDocSnapshot({
+    nodes: [
+      { id: 'pve', type: 'hypervisor', mac: 'AA:BB:CC:00:00:01', ip: '10.0.0.2', vms: [
+        { id: 'dc', name: 'dc01', nics: [{ id: 'nic1', ip: '10.0.0.5' }] },                                   // solo IP → conosciuto
+        { id: 'cidr', name: 'gw', nics: [{ id: 'nic1', ip: '10.0.1.1/24', ip6: '2001:db8::1/64' }] },         // la lunghezza del prefisso non fa parte dell'indirizzo
+        { id: 'mac', name: 'web', nics: [{ id: 'nic1', ip: '10.0.0.9', mac: 'BB:BB:BB:00:00:09' }] },         // con MAC → resta fuori, il MAC è in deviceSigs
+        { id: 'multi', name: 'fw', nics: [{ id: 'nic1', ip: '10.0.3.1', mac: 'BB:BB:BB:00:00:0A' }, { id: 'nic2', ip: '10.0.4.1' }] },   // per scheda
+        { id: 'old', name: 'old', ip: '10.0.5.5' },                                                             // vecchio record piatto
+      ] },
+    ],
+    normMac: lower,
+  });
+  assert.deepEqual(d.knownIps.slice().sort(), ['10.0.0.5', '10.0.1.1', '10.0.4.1', '10.0.5.5', '2001:db8::1'].sort());
+  assert.ok(d.deviceSigs.includes('bb:bb:bb:00:00:09'), 'il MAC della vNIC che ce l\'ha è fra le firme');
+  assert.ok(!d.knownIps.includes('10.0.0.9'), 'un indirizzo con un MAC dichiarato resta fuori');
+});
+
+test('round-trip: un MAC che l\'ARP colloca all\'IP di una VM senza MAC NON è «non documentato»', () => {
+  const MAC = 'de:ad:be:ef:00:05';
+  const mk = (withVm) => {
+    const nodes = [{ id: 'pve', type: 'hypervisor', mac: 'AA:BB:CC:00:00:01', ip: '10.0.0.2',
+      vms: withVm ? [{ id: 'dc', name: 'dc01', nics: [{ id: 'nic1', ip: '10.0.0.5' }] }] : [] }];
+    const doc = buildDocSnapshot({ nodes, normMac: lower });
+    const real = buildSnmpSnapshot({
+      nodes, docPorts: doc.ports, ports: {}, normMac: lower,
+      fdb: { sw1: { [MAC]: 'Gi0/5' } },                    // la FDB vede il MAC…
+      arpTable: { '10.0.0.5': MAC },                        // …e l'ARP lo colloca a 10.0.0.5
+      isVirtualMac: () => false, isRandomizedMac: () => false, countMacsPerPort: () => ({}), fdbSeenLabel: () => 'sw1/Gi0/5',
+    });
+    return buildDriftReport(real, doc, [], {});
+  };
+  const conVm = (mk(true).undocumented || []).filter(u => lower(u.mac) === MAC);
+  assert.equal(conVm.length, 0, 'la VM è documentata per indirizzo: il suo MAC non è un intruso');
+  // E senza la VM, lo stesso MAC È un intruso (la prova che il test misura qualcosa).
+  assert.equal((mk(false).undocumented || []).filter(u => lower(u.mac) === MAC).length, 1);
+});
