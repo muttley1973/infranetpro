@@ -91,10 +91,18 @@ function _restoreSnapshot(snap) {
     _resetSelection(); renderRackTabs(); updateTransforms(); renderAll();
 }
 
-export function undo() {
-    const cur = _snapshot();
-    const r = _undoStep(_history, _histIdx, cur);
-    if (!r) { _pending = false; _updateHistoryBtns(); return; }      // niente prima: il pulsante non resta acceso a vuoto
+// Lo stato di ADESSO, per il confronto che decide annulla e ripeti (lib/undo-history.js). Serializzare il progetto
+// costa (centinaia di KB a 500 apparati) e a ogni pressione era il doppio di prima: se dopo l'ultimo punto non e'
+// successo niente — _pending spento: lo accendono pushHistory() e markDirty(), e annulla/ripeti lo spengono — lo
+// stato E' il punto, e non c'e' niente da serializzare. Con la storia vuota (idx -1) il punto non c'e': il modello
+// ritorna null prima di guardare questo valore.
+function _currentForCompare() {
+    return _pending ? _snapshot() : _history[_histIdx];
+}
+
+// Il passo che annulla e ripeti hanno in comune: il modello ha deciso (r), qui si SPOSTA la storia e si rimette in
+// piedi lo stato. cur e' lo stato che si lascia (serve a chi porta con se' sfondo e giornale).
+function _moveTo(r, cur) {
     _history = r.points; _histIdx = r.idx;
     _carryOutside(cur, r.restore);
     _restoring = true;
@@ -108,22 +116,29 @@ export function undo() {
     _updateHistoryBtns();
 }
 
+export function undo() {
+    const cur = _currentForCompare();
+    const r = _undoStep(_history, _histIdx, cur);
+    if (!r) { _pending = false; _updateHistoryBtns(); return; }      // niente prima: il pulsante non resta acceso a vuoto
+    _moveTo(r, cur);
+}
+
 export function redo() {
     // Lo stato corrente va confrontato col punto: una modifica non registrata dopo l'annulla (un campo del pannello, un
     // giro silenzioso del monitor) la tiene da parte il modello, come fa undo(), invece di sovrascriverla.
-    const cur = _snapshot();
+    const cur = _currentForCompare();
     const r = _redoStep(_history, _histIdx, cur);
     if (!r) return;
-    _history = r.points; _histIdx = r.idx;
-    _carryOutside(cur, r.restore);
-    _restoring = true;
-    try {
-        _restoreSnapshot(r.restore);
-        // Lo stato ripristinato è DIVERSO da quello salvato: «Salva» si accende e
-        // l'autosave riparte (smoke 06/09: Ctrl+S, Ctrl+Z, il bottone restava pulito).
-        markDirty();
-    } finally { _restoring = false; }
+    _moveTo(r, cur);
+}
+
+// La storia riparte da zero: un progetto caricato, creato, duplicato o ripristinato da un'istantanea non ha niente da
+// annullare. Azzera ANCHE «dopo l'ultimo punto e' successo qualcosa» (prima restava quello del progetto di prima) e i
+// punti che portavano uno sfondo.
+export function resetHistory() {
+    _history = []; _histIdx = -1;
     _pending = false;
+    _outside.clear();
     _updateHistoryBtns();
 }
 

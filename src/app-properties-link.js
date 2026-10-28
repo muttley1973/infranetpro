@@ -8,7 +8,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
 import { getNodeByPortId, getNodeDisplayName, getWallPortLabel, _getLinkPhysicalView, _enableManualValueInProps, _activatePropsTab, _cableAutoLabel, promoteLinkToManual, setCableLabel, setLinkProp, deleteLink } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
-import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
+import { renderProps, _propsSectionIsOpen, _buildPropsHeader, _propsToggleButtonsHtml } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { TYPES, _frontPanelPortLabel, _frontPanelIsUplink } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor, setLinkNativeVlan, setLinkColor, setLinkMode, setLinkTrunkVlans } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
 import { _portDisplayName } from './app-ports.js';   // ritiro ponte: funzioni foglia UI/vlan/popup (ex win.*)
@@ -331,7 +331,7 @@ export function _renderLinkProps(panel){
                 linkHeaderTitle,
                 linkHeaderSubtitle,
                 'fa-link',
-                `<span class="props-toggles"><button class="props-toggle-btn" data-act="props-expand-all" data-tip="${t('props.expandAll')}"><i class="fas fa-angles-down"></i></button><button class="props-toggle-btn" data-act="props-collapse-all" data-tip="${t('props.collapseAll')}"><i class="fas fa-angles-up"></i></button><button class="props-toggle-btn" data-act="props-reset-sections" data-tip="${t('props.resetSections')}"><i class="fas fa-rotate"></i></button><button class="props-toggle-btn danger" data-act="link-del" data-lid="${escapeHTML(l.id)}" data-tip="${_linkDeleteTip}"><i class="fas fa-trash"></i></button></span>`
+                `<span class="props-toggles">${_propsToggleButtonsHtml({ reset: true })}<button class="props-toggle-btn danger" data-act="link-del" data-lid="${escapeHTML(l.id)}" data-tip="${_linkDeleteTip}"><i class="fas fa-trash"></i></button></span>`
             )}
             <div class="prop-row2">
               <div class="prop-group" style="flex:1 1 0;min-width:64px"><label>${t('common.type')}</label><input disabled style="width:100%;text-overflow:ellipsis" value="${escapeHTML(l.wireless?'Wireless':t('cable.cable'))}${l.autoLinked?' (auto)':''}"></div>

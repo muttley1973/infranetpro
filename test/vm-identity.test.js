@@ -10,10 +10,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { buildVmIdentityIndex, findVmByIdentity } = require('../lib/vm-nics.js');
-const { addrKey } = require('../lib/cidr.js');
-
-// Le chiavi che il browser ha come globali (`addrKey` di lib/cidr.js): nei test si iniettano.
-const KEYS = { addr: addrKey };
 
 const hostA = {
   id: 'lab', name: 'MacPro5,1', vms: [
@@ -29,7 +25,7 @@ const hostB = {
     { id: 'v3', name: 'ESKO-LIC-22', nics: [{ id: 'nic1', ip: '192.168.1.192', mac: '02:11:32:2D:28:2B' }] },
   ],
 };
-const idx = () => buildVmIdentityIndex([hostA, hostB, { id: 'sw', name: 'Switch' }], KEYS);
+const idx = () => buildVmIdentityIndex([hostA, hostB, { id: 'sw', name: 'Switch' }]);
 const find = (probe, opts) => findVmByIdentity(idx(), probe, opts);
 
 test('per MAC: stessa macchina in qualunque scrittura del MAC', () => {
@@ -62,7 +58,7 @@ test('per IP: un MAC che CONTRADDICE la VM vuol dire un\'altra macchina, non la 
   // Senza MAC da una parte (cross-subnet: l'ARP non attraversa il router), l'IP basta.
   assert.equal(find({ ips: ['192.168.1.234'] }).vm.id, 'v1');
   // E se è la VM a non avere MAC, il MAC della riga non la contraddice.
-  const senzaMac = buildVmIdentityIndex([{ id: 'h', vms: [{ id: 'x', name: 'x', nics: [{ id: 'nic1', ip: '10.9.9.9' }] }] }], KEYS);
+  const senzaMac = buildVmIdentityIndex([{ id: 'h', vms: [{ id: 'x', name: 'x', nics: [{ id: 'nic1', ip: '10.9.9.9' }] }] }]);
   assert.equal(findVmByIdentity(senzaMac, { mac: '11:22:33:44:55:66', ips: ['10.9.9.9'] }).vm.id, 'x');
 });
 
@@ -90,35 +86,36 @@ test('lo stesso nome su due host: sceglie la VM che NON contraddice il MAC', () 
   const dup = buildVmIdentityIndex([
     { id: 'h1', vms: [{ id: 'a', name: 'web', nics: [{ id: 'nic1', mac: 'AA:AA:AA:00:00:01' }] }] },
     { id: 'h2', vms: [{ id: 'b', name: 'web', nics: [{ id: 'nic1', mac: 'AA:AA:AA:00:00:02' }] }] },
-  ], KEYS);
+  ]);
   assert.equal(findVmByIdentity(dup, { name: 'web', mac: 'aa:aa:aa:00:00:02' }).vm.id, 'b', 'per MAC prima di tutto');
   assert.equal(findVmByIdentity(dup, { name: 'web', mac: 'aa:aa:aa:00:00:99' }), null, 'nessuna delle due: MAC di un\'altra macchina');
 });
 
-test('un MAC bloccato (next-hop: gateway, VRRP) vale come assente', () => {
-  // Il MAC di un gateway compare nell'ARP degli host che stanno dietro: non identifica la riga.
-  const blocked = (k) => k === 'aa:bb:cc:00:00:01';
-  assert.equal(find({ mac: 'AA:BB:CC:00:00:01' }, { ignoreMac: blocked }), null, 'MAC bloccato: nessun match per MAC');
-  assert.equal(find({ mac: 'AA:BB:CC:00:00:01', ips: ['10.0.0.1'] }, { ignoreMac: blocked }).vm.id, 'v2', 'ma l\'IP ripiega, senza essere smentito dal MAC');
-  assert.equal(find({ mac: 'AA:BB:CC:00:00:01' }).vm.id, 'v2', 'senza il blocco il MAC identifica');
+test('un MAC di next-hop (gateway, VRRP) lo toglie dalla riga chi lo sa: senza MAC si ripiega sull\'IP', () => {
+  // Il MAC di un gateway compare nell'ARP degli host che stanno dietro: non identifica la riga. Chi lo sa (Scopri, con le
+  // guardie next-hop) lo toglie PRIMA di chiedere; qui si prova che, tolto, la VM si trova ancora dal suo indirizzo —
+  // senza essere smentita dal MAC che non c'e' piu' — e che senza il blocco il MAC identifica.
+  assert.equal(find({ mac: '', ips: ['10.0.0.9'] }), null, 'senza MAC e con un indirizzo che non e\' suo: niente');
+  assert.equal(find({ mac: '', ips: ['10.0.0.1'] }).vm.id, 'v2', 'senza MAC, l\'IP della VM la trova');
+  assert.equal(find({ mac: 'AA:BB:CC:00:00:01' }).vm.id, 'v2', 'col MAC (non bloccato) identifica');
 });
 
 test('una chiave vuota non combacia mai con un\'altra chiave vuota', () => {
   // VM senza MAC né IP, riga senza MAC né IP: «entrambi vuoti» non è un'identità.
-  const vuota = buildVmIdentityIndex([{ id: 'h', vms: [{ id: 'z', name: '', nics: [{ id: 'nic1' }] }, { id: 'y' }] }], KEYS);
+  const vuota = buildVmIdentityIndex([{ id: 'h', vms: [{ id: 'z', name: '', nics: [{ id: 'nic1' }] }, { id: 'y' }] }]);
   assert.equal(findVmByIdentity(vuota, { mac: '', name: '', ips: ['', '  ', null] }), null);
   assert.equal(findVmByIdentity(vuota, { mac: 'non un mac', ips: ['non un ip'] }), null);
 });
 
 test('le VM col vecchio record piatto (senza nics[]) si trovano lo stesso', () => {
-  const vecchio = buildVmIdentityIndex([{ id: 'h', vms: [{ id: 'old', name: 'old', ip: '10.1.1.1', mac: '00:11:22:33:44:55' }] }], KEYS);
+  const vecchio = buildVmIdentityIndex([{ id: 'h', vms: [{ id: 'old', name: 'old', ip: '10.1.1.1', mac: '00:11:22:33:44:55' }] }]);
   assert.equal(findVmByIdentity(vecchio, { mac: '001122334455' }).vm.id, 'old');
   assert.equal(findVmByIdentity(vecchio, { ips: ['10.1.1.1'] }).vm.id, 'old');
 });
 
 test('ingressi sbagliati non lanciano e non trovano niente', () => {
   for (const nodes of [null, undefined, 'x', 5, {}, [null, undefined, 3, { id: 'h', vms: 'no' }, { id: 'h2', vms: [null, 7] }]]) {
-    const i = buildVmIdentityIndex(nodes, KEYS);
+    const i = buildVmIdentityIndex(nodes);
     assert.equal(findVmByIdentity(i, { mac: 'AA:BB:CC:00:00:01', ips: ['10.0.0.1'], name: 'x' }), null);
   }
   assert.equal(findVmByIdentity(null, { mac: 'AA:BB:CC:00:00:01' }), null);
@@ -129,15 +126,25 @@ test('ingressi sbagliati non lanciano e non trovano niente', () => {
 test('non muta i nodi: sola lettura', () => {
   const nodes = JSON.parse(JSON.stringify([hostA, hostB]));
   const before = JSON.stringify(nodes);
-  const i = buildVmIdentityIndex(nodes, KEYS);
+  const i = buildVmIdentityIndex(nodes);
   findVmByIdentity(i, { mac: '50:23:5F:00:2B:00', ips: ['192.168.1.234'], name: 'UNL' });
   assert.equal(JSON.stringify(nodes), before);
 });
 
-test('senza chiavi iniettate funziona lo stesso (MAC canonico, indirizzo in minuscolo)', () => {
+test('le chiavi sono quelle delle lib del progetto (macKey, addrKey): nessuna copia, anche in Node', () => {
   const i = buildVmIdentityIndex([hostA]);
+  const { macKey } = require('../lib/mac-class.js');
+  const { addrKey } = require('../lib/cidr.js');
+  assert.deepEqual([typeof i.keys.mac, typeof i.keys.addr], ['function', 'function'], 'le chiavi stanno sull\'indice');
+  for (const raw of ['5023.5F00.2B00', '50-23-5f-00-2b-00', '50235F002B00', 'non un mac', '']) {
+    assert.equal(i.keys.mac(raw), macKey(raw), 'MAC «' + raw + '»: la stessa chiave di lib/mac-class.js');
+  }
+  for (const raw of ['192.168.001.234', '2001:DB8:0:20:0:0:0:1', '2001:db8:0:20::1', 'fe80::1', 'non un ip']) {
+    assert.equal(i.keys.addr(raw), addrKey(raw), 'indirizzo «' + raw + '»: la stessa chiave di lib/cidr.js');
+  }
+  // e in Node, senza globali, un IPv6 in un'altra scrittura e' lo stesso indirizzo (il ripiego toLowerCase() non lo capiva)
+  assert.equal(findVmByIdentity(i, { ips: ['2001:db8:0:20::1'] }).vm.id, 'v2');
   assert.equal(findVmByIdentity(i, { mac: '5023.5F00.2B00' }).vm.id, 'v1');
-  assert.equal(findVmByIdentity(i, { ips: ['192.168.1.234'] }).vm.id, 'v1');
 });
 
 // ── UNA funzione per tutti: findVmForRow prende la RIGA intera ────────────────────────────────────────────
@@ -152,7 +159,7 @@ const hostC = {
     { id: 'mgmt', name: 'monitor', nics: [{ id: 'nic1', ip: '10.0.2.10' }] },
   ],
 };
-const rowFind = (row, opts) => findVmForRow(buildVmIdentityIndex([hostC], KEYS), row, opts);
+const rowFind = (row, opts) => findVmForRow(buildVmIdentityIndex([hostC]), row, opts);
 
 test('probeOfRow: ricava MAC, nomi e indirizzi dalla riga intera, qualunque ne sia la forma', () => {
   const p = probeOfRow({ mac: ' AA:BB:CC:00:00:01 ', hostname: 'H', netbiosName: 'N', name: 'Nome', ip: '10.0.0.5', ip6: '2001:db8::1', currentIp: '10.0.0.6', integration: { host: '10.0.0.7' } });
@@ -192,7 +199,7 @@ test('un IP scritto con la lunghezza del prefisso (10.0.1.1/24) è lo stesso ind
 });
 
 test('only:\'mac\' cerca solo per MAC (il primo passo di chi poi guarda i nodi)', () => {
-  const i = buildVmIdentityIndex([hostA, hostB], KEYS);
+  const i = buildVmIdentityIndex([hostA, hostB]);
   assert.equal(findVmForRow(i, { mac: '50:23:5F:00:2B:00', ip: '1.1.1.1' }, { only: 'mac' }).vm.id, 'v1');
   assert.equal(findVmForRow(i, { ip: '192.168.1.234', hostname: 'UNL' }, { only: 'mac' }), null, 'IP e nome non contano in questo passo');
 });

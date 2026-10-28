@@ -879,10 +879,10 @@ function _discReconcileInfo(d, type){
         return { label:_dt('disc.rec.same','Già presente'), cls:'same', title:byName
             ? _dt('disc.tip.existsAsVmByName',
                 'Esiste una VM «{vm}» sull\'host «{host}» con lo stesso nome, ma nessun MAC o indirizzo lo conferma: non verrà creato un nuovo dispositivo. Se è un\'altra macchina, dai un indirizzo alla VM o cambiale nome.',
-                { vm: vm.name || vm.hostname || vm.id || '', host: getNodeDisplayName(host) || host.name || host.id || '' })
+                { vm: vm.name || vm.hostname || vm.id || '', host: getNodeDisplayName(host) })
             : _dt('disc.tip.existsAsVm',
                 'Esiste già come VM «{vm}» sull\'host «{host}»: non verrà creato un nuovo dispositivo.',
-                { vm: vm.name || vm.hostname || vm.id || '', host: getNodeDisplayName(host) || host.name || host.id || '' }) };
+                { vm: vm.name || vm.hostname || vm.id || '', host: getNodeDisplayName(host) }) };
     }
     if(!existing) return { label:_dt('disc.rec.new','Nuovo'), cls:'new', title:_dt('disc.tip.willCreate','Verrà creato un nuovo dispositivo') };
     const changes = [];

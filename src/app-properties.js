@@ -555,6 +555,20 @@ export function _propsIconForType(type){
     return TYPES[type]?.icon || 'fa-cube';
 }
 
+// I bottoni «espandi tutto / comprimi tutto» (e, con reset, «ripristina apertura predefinita») dell'intestazione di un
+// pannello: le azioni sono quelle delegate piu' sopra (props-expand-all/-collapse-all/-reset-sections). Erano QUATTRO copie
+// della stessa stringa — pannello progetto, cavo, apparato, scheda VM — e solo l'ultima aveva type="button" e aria-label.
+// I suggerimenti si possono passare (il pannello dell'apparato usa le sue chiavi pnl.node.*, con la stessa lingua).
+export function _propsToggleButtonsHtml(opts){
+    const o = opts || {};
+    const ex = o.expandTip || t('props.expandAll'), co = o.collapseTip || t('props.collapseAll'), re = o.resetTip || t('props.resetSections');
+    // Tre bottoni scritti per esteso, non una freccia che li compone: cosi' ogni suggerimento passa da escapeHTML dove
+    // viene stampato e il cricchetto dell'escaping (test/html-escaping.test.js) riconosce questa funzione come builder.
+    return `<button type="button" class="props-toggle-btn" data-act="props-expand-all" data-tip="${escapeHTML(ex)}" aria-label="${escapeHTML(ex)}"><i class="fas fa-angles-down"></i></button>`
+        + `<button type="button" class="props-toggle-btn" data-act="props-collapse-all" data-tip="${escapeHTML(co)}" aria-label="${escapeHTML(co)}"><i class="fas fa-angles-up"></i></button>`
+        + (o.reset ? `<button type="button" class="props-toggle-btn" data-act="props-reset-sections" data-tip="${escapeHTML(re)}" aria-label="${escapeHTML(re)}"><i class="fas fa-rotate"></i></button>` : '');
+}
+
 export function _buildPropsHeader(title, subtitle, iconClass, actionsHtml='', titleClass='', osIconHtml=''){
     // titleClass (opzionale) = modificatore sul titolo. Applicato SOLO se passato, cosi'
     // gli altri pannelli (nome device, porta, cavo) restano byte-identici. Il Contesto

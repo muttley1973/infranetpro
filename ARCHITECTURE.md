@@ -1295,7 +1295,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,338 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,340 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
@@ -1926,8 +1926,9 @@ list until it is needed. `lib/undo-history.js` is the model. `record` drops the 
 never records the same state twice (two calls in a row, or one right after an undo, are one
 point). `undo` keeps the current state after the points when it differs from the last point, so
 redo has somewhere to go — and a change nobody recorded (a panel field, a Sync run) can be undone
-and redone too (see the last bullet below for what that means for a panel field); "differs" is decided by comparing, not by a flag (the flag in `app-history.js`
-only lights the buttons). `redo` does the same comparison: a change made after an undo is kept as
+and redone too (see the last bullet below for what that means for a panel field); "differs" is decided by comparing, not by a flag. The flag in `app-history.js`
+(`_pending`, lit by `pushHistory` and `markDirty`, cleared by undo, redo and `resetHistory`) lights the buttons and decides only whether the comparison needs a
+fresh snapshot: with nothing pending the current state *is* the last point, and nothing is serialised. `redo` does the same comparison: a change made after an undo is kept as
 a point right after the one it came from, so redo moves on and Ctrl+Z after it comes back to the change. The history is replaced, never edited in place, and keeps 60 points
 (a snapshot is the whole project: hundreds of KB at 500 devices).
 

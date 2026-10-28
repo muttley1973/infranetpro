@@ -16,7 +16,7 @@ import { escapeHTML, normalizeNumber } from './app-util.js';
 import { nodeById, getNodeDisplayName, selected, _patchPanelOffset, _enableManualValueInProps, _activatePropsTab, getNodeRackSize, _patchPanelChainOptions, isRackTopNumbered, rackUToVisible, updateN, updateFrontPanel, getPortNodeId, deleteNode, visibleUToRackU, markDirty, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // P4: re-render dopo adozione/scarto del retype proposto
 import { TYPES, typeName, _nodeSpecView, _fixedRackLabel, _frontPanelState } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
-import { _propsSectionIsOpen, _buildNetAccessHtml, renderProps, _buildPropsHeader, _propsIconForType, _buildPatchPanelPreview } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
+import { _propsSectionIsOpen, _buildNetAccessHtml, renderProps, _buildPropsHeader, _propsToggleButtonsHtml, _propsIconForType, _buildPatchPanelPreview } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS (accento colorato nell'intestazione device)
 import { pduManagementPortCount } from '../lib/pdu-layout.js';
 import { V3_AUTH, V3_PRIV, V3_LEVELS, V3_DEFAULTS } from '../lib/snmp-v3.js';   // le scelte SNMPv3 sono quelle del driver: un elenco solo
@@ -251,7 +251,7 @@ export function _renderNodeProps(panel){
             n.name || n.hostname || n.ip || d.name,
             d.name,
             _propsIconForType(n.type),
-            `<span class="props-toggles"><button class="props-toggle-btn" data-act="props-expand-all" data-tip="${t('pnl.node.expandAll')}"><i class="fas fa-angles-down"></i></button><button class="props-toggle-btn" data-act="props-collapse-all" data-tip="${t('pnl.node.collapseAll')}"><i class="fas fa-angles-up"></i></button><button class="props-toggle-btn" data-act="props-reset-sections" data-tip="${t('pnl.node.resetSections')}"><i class="fas fa-rotate"></i></button><button class="props-toggle-btn danger" data-act="node-delete" data-tip="${_delTip}"><i class="fas fa-trash"></i></button></span>`,
+            `<span class="props-toggles">${_propsToggleButtonsHtml({ reset: true, expandTip: t('pnl.node.expandAll'), collapseTip: t('pnl.node.collapseAll'), resetTip: t('pnl.node.resetSections') })}<button class="props-toggle-btn danger" data-act="node-delete" data-tip="${_delTip}"><i class="fas fa-trash"></i></button></span>`,
             '', _osIco
         );
         let h=`${_panelHeader}`;

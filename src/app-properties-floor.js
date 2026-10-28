@@ -19,7 +19,7 @@ import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeNumber } from './app-util.js';
 import { registerClickActions, registerChangeActions, registerInputActions } from './app-delegation.js';   // ASSE B: handler del pannello floor via event delegation (ex on* inline)
-import { _propsSectionIsOpen, _buildPropsHeader, setPropsSectionState, renderProps } from './app-properties.js';   // ritiro ponte: lettura/scrittura stato sezioni + resa (ex win.*)
+import { _propsSectionIsOpen, _buildPropsHeader, _propsToggleButtonsHtml, setPropsSectionState, renderProps } from './app-properties.js';   // ritiro ponte: lettura/scrittura stato sezioni + resa (ex win.*)
 import { _isVoiceVlan, _siteNativeVlan,
          clearAllVlans, clearAllNetworks, toggleGuestVlan, toggleMgmtVlan, toggleSiteNativeVlan,
          toggleVoiceVlan, _openVoiceAssignDialog, deleteVlanColor, addVlanColor,
@@ -477,7 +477,7 @@ export function _renderFloorProps(panel){
             t('floor.title'),
             t('floor.subtitle'),
             'fa-map',
-            `<span class="props-toggles"><button class="props-toggle-btn" data-act="props-expand-all" data-tip="${t('props.expandAll')}"><i class="fas fa-angles-down"></i></button><button class="props-toggle-btn" data-act="props-collapse-all" data-tip="${t('props.collapseAll')}"><i class="fas fa-angles-up"></i></button><button class="props-toggle-btn" data-act="props-reset-sections" data-tip="${t('props.resetSections')}"><i class="fas fa-rotate"></i></button></span>`,
+            `<span class="props-toggles">${_propsToggleButtonsHtml({ reset: true })}</span>`,
             'props-title-upper'
         );
         let h = _panelHeader;

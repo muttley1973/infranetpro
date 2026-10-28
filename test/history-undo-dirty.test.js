@@ -10,15 +10,38 @@ const path = require('node:path');
 
 const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'app-history.js'), 'utf8');
 
-function bodyOf(name) {
-  const m = new RegExp('export function ' + name + '\\([^)]*\\) \\{([\\s\\S]*?)\\n\\}', 'm').exec(src);
+function bodyOf(name, exported = true) {
+  const m = new RegExp((exported ? 'export ' : '') + 'function ' + name + '\\([^)]*\\) \\{([\\s\\S]*?)\\n\\}', 'm').exec(src);
   assert.ok(m, 'funzione ' + name + ' trovata in src/app-history.js');
   return m[1];
 }
 
-test('undo e redo chiamano markDirty()', () => {
-  assert.match(bodyOf('undo'), /\bmarkDirty\(\)/, 'undo accende «Salva»');
-  assert.match(bodyOf('redo'), /\bmarkDirty\(\)/, 'redo accende «Salva»');
+test('undo e redo accendono «Salva» (markDirty), tramite il passo che hanno in comune', () => {
+  // Il blocco che sposta la storia e rimette in piedi lo stato e' UNO solo (_moveTo): lo chiamano tutte e due.
+  assert.match(bodyOf('_moveTo', false), /\bmarkDirty\(\)/, 'il passo comune accende «Salva»');
+  assert.match(bodyOf('undo'), /\b_moveTo\(/, 'undo passa da lì');
+  assert.match(bodyOf('redo'), /\b_moveTo\(/, 'redo passa da lì');
+  // …e nessuno dei due lo ricopia
+  assert.doesNotMatch(bodyOf('undo'), /_restoreSnapshot\(/);
+  assert.doesNotMatch(bodyOf('redo'), /_restoreSnapshot\(/);
+});
+
+test('annulla e ripeti serializzano il progetto SOLO se dopo l\'ultimo punto e\' successo qualcosa (_pending)', () => {
+  // Una foto e' tutto il progetto: a ogni pressione di Ctrl+Z era il doppio di prima della revisione.
+  assert.match(bodyOf('_currentForCompare', false), /_pending\s*\?\s*_snapshot\(\)\s*:\s*_history\[_histIdx\]/);
+  assert.doesNotMatch(bodyOf('undo'), /_snapshot\(\)/, 'undo non fotografa a ogni pressione');
+  assert.doesNotMatch(bodyOf('redo'), /_snapshot\(\)/, 'redo nemmeno');
+});
+
+test('caricare, creare, duplicare o ripristinare un progetto riparte da una storia pulita (resetHistory), non a mano', () => {
+  const body = bodyOf('resetHistory');
+  assert.match(body, /_pending\s*=\s*false/, '«dopo l\'ultimo punto e\' successo qualcosa» non resta quello del progetto di prima');
+  assert.match(body, /_history\s*=\s*\[\]/);
+  assert.match(body, /_histIdx\s*=\s*-1/);
+  assert.match(body, /_outside\.clear\(\)/, 'e i punti che portavano uno sfondo');
+  const core = fs.readFileSync(path.join(__dirname, '..', 'src', 'app-core.js'), 'utf8');
+  assert.equal((core.match(/\bresetHistory\(\)/g) || []).length, 4, 'i quattro punti (carica, ripristina, nuovo, duplica) lo chiamano');
+  assert.doesNotMatch(core, /store\._history\s*=\s*\[\]/, 'nessun azzeramento a mano che lasci _pending vecchio');
 });
 
 test('pushHistory NON chiama markDirty (è chi modifica a farlo, non lo snapshot)', () => {

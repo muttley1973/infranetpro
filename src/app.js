@@ -207,8 +207,8 @@ store._history=[]; store._histIdx=-1;   // var: reset dal bundle app-core (loadP
 // STORICO/DIRTY/AUDIT estratti in ./app-history.js (split app.js #3). Import+re-export:
 // import per i molti call-site interni (markDirty/pushHistory/logAudit/undo/redo) e
 // re-export per i consumatori ESM che importano queste fn da ./app.js.
-import { pushHistory, takeSnapshot, recordSnapshot, undo, redo, _updateHistoryBtns, _resetSelection, markDirty, _clearDirty, dirtyEpoch, isDirty, logAudit } from "./app-history.js";
-export { pushHistory, takeSnapshot, recordSnapshot, undo, redo, _updateHistoryBtns, _resetSelection, markDirty, _clearDirty, dirtyEpoch, isDirty, logAudit };
+import { pushHistory, takeSnapshot, recordSnapshot, resetHistory, undo, redo, _updateHistoryBtns, _resetSelection, markDirty, _clearDirty, dirtyEpoch, isDirty, logAudit } from "./app-history.js";
+export { pushHistory, takeSnapshot, recordSnapshot, resetHistory, undo, redo, _updateHistoryBtns, _resetSelection, markDirty, _clearDirty, dirtyEpoch, isDirty, logAudit };
 
 // ============================================================
 // API CLIENT

@@ -37,7 +37,7 @@ import { V3_AUTH, V3_PRIV, V3_LEVELS, V3_DEFAULTS } from '../lib/snmp-v3.js';   
 import { store } from './store.js';
 import { escapeHTML } from './app-util.js';
 import { nodeById, getNodeDisplayName, _enableManualValueInProps } from './app.js';
-import { _buildPropsHeader, _propsSectionIsOpen, setPropsSectionState } from './app-properties.js';
+import { _buildPropsHeader, _propsSectionIsOpen, _propsToggleButtonsHtml, setPropsSectionState } from './app-properties.js';
 import { _nodeVms, _vmIntg } from './app-hypervisor.js';
 import { _mgmtBuildUrl, _mgmtProtoDef, _mgmtProtoOptionsHtml } from './app-management.js';
 import { vmNics, vmPrimaryIp } from '../lib/vm-nics.js';   // lib pura importata ESM (come lib/ipv6.js)
@@ -355,8 +355,7 @@ export function _renderVmProps(panel){
     const osIco = osIconHtmlFor({ vmGuest: vm.guestOs }, { accent: true, size: 20 });
     // Le frecce «espandi tutto / comprimi tutto» sono quelle del pannello dell'host: stesse azioni delegate,
     // che lavorano su ogni <details> di #props-panel (qui le sei fisarmoniche della scheda).
-    const _tog = (act, tip, icon) => `<button type="button" class="props-toggle-btn" data-act="${_esc(act)}" data-tip="${_esc(tip)}" aria-label="${_esc(tip)}"><i class="fas ${_esc(icon)}"></i></button>`;
-    const arrows = _tog('props-expand-all', t('props.expandAll'), 'fa-angles-down') + _tog('props-collapse-all', t('props.collapseAll'), 'fa-angles-up');
+    const arrows = _propsToggleButtonsHtml();
     const header = _buildPropsHeader(vm.name || t('hv.vmUnnamed'), t('hv.vmOnHost', { host: hostName }), 'fa-display',
         `<span class="props-toggles vm-head-actions">${stateChip}${arrows}${back}</span>`, '', osIco);
 
@@ -381,7 +380,8 @@ export function _renderVmProps(panel){
     const network = _section('fa-link', t('sec.netAccess'),
         _f(ref, 'hostname', 'Hostname', vm.hostname, { ph: 'dc01.local' })
         + _mgmtRowVm(vm, ref),
-        _preview([_esc(vm.hostname), vm.mgmtProto ? _esc(String(vm.mgmtProto).toUpperCase()) : '']), 'vm-network');
+        // Il protocollo di gestione col nome che gli da' la lista (l'etichetta del selettore), non con l'id in maiuscolo.
+        _preview([_esc(vm.hostname), vm.mgmtProto ? _esc(_mgmtProtoDef(vm.mgmtProto).label) : '']), 'vm-network');
 
     // Porte vNIC: l'elenco delle interfacce di rete virtuali. Mostra sempre
     // almeno una scheda — digitare nella prima riga E' il gesto che la crea, cosi'
@@ -397,7 +397,10 @@ export function _renderVmProps(panel){
         // Riassunto: con piu' schede si dice QUANTE sono e l'indirizzo della prima; con una sola, indirizzo e MAC.
         _preview((() => {
             const first = nics.find(n => n.ip || n.ip6 || n.mac) || {};
-            const addr = _esc(first.ip || first.ip6 || '');
+            // L'indirizzo e' quello che dice vmPrimaryIp (il primo IPv4 di QUALUNQUE scheda: e' il valore che il resto
+            // della scheda — la riga Management, l'host SNMP — usa), non quello della prima scheda che ha qualcosa: con
+            // un MAC sulla prima e l'IP sulla seconda il riassunto non lo mostrava. Solo IPv6: il primo.
+            const addr = _esc(vmPrimaryIp(vm) || (nics.find(n => n.ip6) || {}).ip6 || '');
             return nics.length > 1 ? [_esc(t('hv.vmNicCount', { n: nics.length })), addr] : [addr, _esc(first.mac || '')];
         })()), 'vm-nics');
 

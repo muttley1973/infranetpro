@@ -6,7 +6,7 @@
 // ============================================================
 import { win, expose, t } from './_bridge.js';
 import { store, resetProjectRuntime } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { _invalidateIdx, logAudit, _clearDirty, dirtyEpoch, _migrateState, _updateHistoryBtns, _buildDefaultState, bindEventsOnce, _loadDefaultLocal, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { _invalidateIdx, logAudit, _clearDirty, dirtyEpoch, _migrateState, resetHistory, _buildDefaultState, bindEventsOnce, _loadDefaultLocal, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderRackTabs, updateTransforms, _updateFloorToolbarVisibility, initPaletteUi } from './app-search-zoom-rack.js';   // ritiro ponte: funzioni rack/zoom/search (ex win.*)
 import { _restoreTopoSession } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
@@ -135,7 +135,7 @@ async function loadProject(id) {
     if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
     store._prefixOpen.clear(); store._netsBad='';
     _invalidateIdx();
-    store._history=[]; store._histIdx=-1; _updateHistoryBtns();
+    resetHistory();
     _clearDirty();
     _startAutoMonitor();   // rearm del monitoraggio automatico sul progetto caricato (stop+start idempotente)
     renderRackTabs(); updateTransforms(); renderAll();
@@ -157,7 +157,7 @@ export function applyRestoredState(snapState){
     if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
     store._prefixOpen.clear(); store._netsBad='';
     _invalidateIdx();
-    store._history=[]; store._histIdx=-1; _updateHistoryBtns();   // l'undo riparte dallo stato ripristinato
+    resetHistory();   // l'undo riparte dallo stato ripristinato
     _startAutoMonitor();
     renderRackTabs(); updateTransforms(); renderAll();
 }
@@ -189,7 +189,7 @@ async function newProject() {
         if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
         store._prefixOpen.clear(); store._netsBad='';
         _invalidateIdx();
-        store._history=[]; store._histIdx=-1; _updateHistoryBtns();
+        resetHistory();
         _clearDirty();
         await loadProjectList();
         renderRackTabs(); updateTransforms(); renderAll();
@@ -240,7 +240,7 @@ async function duplicateProject() {
         resetProjectRuntime();
         if(typeof _restoreTopoSession === 'function') _restoreTopoSession();
         _invalidateIdx();
-        store._history=[]; store._histIdx=-1; _updateHistoryBtns();
+        resetHistory();
         _clearDirty();
         await loadProjectList();
         renderRackTabs(); updateTransforms(); renderAll();

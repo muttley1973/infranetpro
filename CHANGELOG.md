@@ -18,6 +18,9 @@
 - **A VM you just added opens with all its sections.** The open/closed state of the VM card's sections is shared by every VM, so closing "Identity" on one made the next new VM open with its Name field hidden. Redrawing the card also wrote to the browser storage six times for nothing; it now writes only when a section really changes.
 - **On a narrow panel the VM card's back button no longer sticks out of the edge.** Below about 234 px the buttons next to the title overflowed by a few pixels; they now wrap.
 - **The "silent to this key" badge in Discover says "SNMP: no response" to a screen reader**, where it used to read the same "SNMP" as a device that answered.
+- **The VM card's closed-section summaries say the right things.** The management protocol appears with its name from the list ("WinBox"), not its id in capitals, and the vNIC summary shows the first IPv4 of any card — with a MAC on the first and the IP on the second it showed no address.
+- **The expand-all and collapse-all arrows of every properties panel are real buttons with an accessible name.** Project, device, cable and VM panels each carried their own copy of the markup, and only the VM card's had `type="button"` and a label.
+- **Undo and redo do less work.** Every Ctrl+Z or Ctrl+Y serialised the whole project to compare it with the last point; it now does so only when something happened since (a recorded or unrecorded change). Loading, creating, duplicating or restoring a project starts the history clean, including the "something happened" flag of the project before.
 
 ## [2.11.19] — 2026-10-23
 

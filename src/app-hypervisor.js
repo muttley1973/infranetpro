@@ -550,15 +550,15 @@ export function absorbNodeAsVm(srcId, hostId, before){
     const twin = findVmForRow(buildVmIdentityIndex(store.state.nodes), src);
     if(twin){
         _showToast(t('hv.vmTwin', {
-            name: getNodeDisplayName(src) || src.name || src.id || '',
+            name: getNodeDisplayName(src),   // mai vuoto: ripiega da solo su nome-primo, poi id (v. app.js)
             vm: twin.vm.name || twin.vm.hostname || twin.vm.id || '',
-            host: getNodeDisplayName(twin.host) || twin.host.name || twin.host.id || '',
+            host: getNodeDisplayName(twin.host),
         }), 'warn');
         return false;
     }
     if(typeof before === 'string') recordSnapshot(before); else pushHistory();
     if(!Array.isArray(host.vms)) host.vms = [];
-    const name = getNodeDisplayName(src) || src.name || '';
+    const name = getNodeDisplayName(src);
     const ip = ((src.integration && src.integration.host) || src.ip || '').trim();
     const mac = normalizeMacAddress(String(src.mac || ''));
     const vm = { id: _newVmId(host.vms.length) };   // stato non dichiarato: "non specificato" (assente) finché non determinato
@@ -583,7 +583,7 @@ export function absorbNodeAsVm(srcId, hostId, before){
     markDirty();
     renderAll();
     renderProps();
-    _showToast(t('hv.vmAbsorbed', { name: name || mac || 'VM', host: getNodeDisplayName(host) || host.name || host.id }), 'ok');
+    _showToast(t('hv.vmAbsorbed', { name: name || mac || 'VM', host: getNodeDisplayName(host) }), 'ok');
     return true;
 }
 
