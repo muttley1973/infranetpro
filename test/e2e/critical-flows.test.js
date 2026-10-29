@@ -4807,6 +4807,42 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(await page.evaluate(() => nodeById('lab').name), 'NUC-01', 'la modifica non registrata si annulla (il confronto vero decide)');
     });
 
+    await t.test('Pannello Proprietà: i tooltip della riga del titolo si aprono SOTTO e restano dentro il pannello (non tagliati dal bordo alto)', async () => {
+      // La riga del titolo sta in cima al pannello, che taglia cio' che esce dal suo bordo: il tooltip di default si apre
+      // sopra l'elemento, quindi veniva tagliato a meta' (interruttore dello stato e icona della scheda VM, ritorno
+      // all'host, frecce). Si misura la posizione VERA dell'::after (offset calcolati + translate), non la si assume.
+      await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push({ id: 'hvt', type: 'server', name: 'HV-T', x: 100, y: 100, ports: 1, vms: [{ id: 'v1', name: 'UNL', state: 'stopped' }] });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        if (typeof switchRightTab === 'function') switchRightTab('props');
+        openVmProps('hvt', 'v1');
+      });
+      const misure = [];
+      for (const sel of ['.vm-state-sw', '.vm-state-ico', '[data-act="vm-back"]', '[data-act="props-expand-all"]']) {
+        await page.hover('#props-panel ' + sel);
+        await page.waitForTimeout(800);   // ritardo di 0,3 s + transizione di 0,15 s
+        misure.push(await page.evaluate((sel) => {
+          const el = document.querySelector('#props-panel ' + sel), panel = document.getElementById('props-panel');
+          const a = getComputedStyle(el, '::after'), r = el.getBoundingClientRect(), p = panel.getBoundingClientRect();
+          const w = parseFloat(a.width), h = parseFloat(a.height);
+          const tr = a.transform === 'none' ? new DOMMatrix() : new DOMMatrix(a.transform);
+          const left0 = parseFloat(a.left);
+          const left = (Number.isFinite(left0) ? r.left + left0 : r.right - parseFloat(a.right) - w) + tr.m41;
+          const top = r.top + parseFloat(a.top) + tr.m42;
+          return { sel, testo: a.content, left, right: left + w, top, bottom: top + h, pannello: { left: p.left, right: p.right, top: p.top, bottom: p.bottom }, elTop: r.top, elBottom: r.bottom };
+        }, sel));
+      }
+      for (const m of misure) {
+        assert.ok(m.testo && m.testo !== 'none' && m.testo !== 'normal', m.sel + ': ha un tooltip');
+        assert.ok(m.top >= m.elBottom - 1, m.sel + ': si apre SOTTO l\'elemento (top ' + m.top.toFixed(1) + ', elemento fino a ' + m.elBottom.toFixed(1) + ')');
+        assert.ok(m.top >= m.pannello.top, m.sel + ': non esce dal bordo alto del pannello');
+        assert.ok(m.left >= m.pannello.left - 0.5 && m.right <= m.pannello.right + 0.5,
+          m.sel + ': non esce di lato (' + m.left.toFixed(1) + '–' + m.right.toFixed(1) + ' nel pannello ' + m.pannello.left.toFixed(1) + '–' + m.pannello.right.toFixed(1) + ')');
+      }
+    });
+
     await t.test('VM: la Verifica guarda le VM — la prova sta accanto al dichiarato, «segui lo stato» è opt-in e annullabile, e una persona ha l\'ultima parola', async () => {
       // Il percorso VERO: runDriftCheck → sweep sugli IP delle vNIC (rotta finta, ma si legge cosa le viene chiesto) →
       // vm.proof → (solo con l'interruttore) vm.state. Prima la sweep partiva solo dagli IP dei nodi: una VM non veniva

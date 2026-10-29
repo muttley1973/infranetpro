@@ -451,6 +451,37 @@
 [data-tip][data-tip-pos="left"]:hover::after {
     transform: translateX(0) translateY(-50%);
 }
+/* RIGA DEL TITOLO del pannello Proprieta' (icona a sinistra, frecce e pulsanti a destra): sta in cima al pannello,
+   che ha overflow e taglia tutto cio' che esce dal suo bordo alto. Il tooltip di default si apre SOPRA l'elemento, quindi
+   qui veniva tagliato a meta' (la scheda VM: interruttore dello stato, icona, ritorno all'host; il ritorno e le frecce
+   lo avevano gia'). Qui apre SOTTO e si allinea al bordo del pannello da cui parte: a destra per i pulsanti, a sinistra
+   per l'icona, cosi' non esce nemmeno di lato. Chi ha già una sua posizione (data-tip-pos) la tiene. */
+.props-selected-title [data-tip]:not([data-tip-pos])::after {
+    bottom: auto;
+    top: calc(100% + 6px);
+    transform: translateX(-50%) translateY(-4px);
+}
+.props-selected-title [data-tip]:not([data-tip-pos]):hover::after,
+.props-selected-title [data-tip]:not([data-tip-pos]):focus-visible::after {
+    transform: translateX(-50%) translateY(0);
+}
+.props-selected-title .props-toggles [data-tip]:not([data-tip-pos])::after {
+    left: auto;
+    right: 0;
+    transform: translateY(-4px);
+}
+.props-selected-title .props-toggles [data-tip]:not([data-tip-pos]):hover::after,
+.props-selected-title .props-toggles [data-tip]:not([data-tip-pos]):focus-visible::after {
+    transform: translateY(0);
+}
+.props-selected-title .props-selected-main > [data-tip]:not([data-tip-pos])::after {
+    left: 0;
+    transform: translateY(-4px);
+}
+.props-selected-title .props-selected-main > [data-tip]:not([data-tip-pos]):hover::after,
+.props-selected-title .props-selected-main > [data-tip]:not([data-tip-pos]):focus-visible::after {
+    transform: translateY(0);
+}
 /* Tooltip disabilitato quando elemento ha display:none o disabilitato */
 [data-tip][disabled]::after,
 [data-tip][aria-disabled="true"]::after {

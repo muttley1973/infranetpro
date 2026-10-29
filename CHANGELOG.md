@@ -13,6 +13,7 @@
 
 ### Fixed
 
+- **The tooltips on the title row of the Properties panel are no longer cut in half.** That row sits at the top of the panel, which clips whatever leaves its upper edge, and a tooltip opens above its element: the buttons there (back to the host, expand and collapse all) and, in a VM's sheet, the state switch and icon showed only their lower half. They now open below, aligned to the edge they start from.
 - **A host found over TCP is no longer recorded as found by ping.** The sweep reports `tcp:<port>`, which matched no method, so the proof of a device seen that way said "ping".
 - **Opening a project no longer drops its LAG markers.** The check at load time that removes the LAG marker from a cable to a passive element (wall port, patch panel) looked the cable's ends up in the project that was open before — at start-up, the default one — so every end looked inactive and the markers of every project were dropped on opening, with a notice that blamed a passive element. It now reads the project being opened: a LAG between two switches stays, and only a cable that really ends on a passive element loses its marker.
 - **The "Routed by" list on a VLAN no longer offers "Custom…".** Choosing it wrote a placeholder as the gateway device, and the card then said the device no longer exists.
