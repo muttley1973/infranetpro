@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **The README and `package.json` now say Node.js 18 or newer, not 16.** They said 16 or newer, but the build step runs esbuild, which asks for Node 18, and the CI runs 18 and 20: they now say what is true.
+
 ## [2.12.0] — 2026-10-29
 
 The Verify run looks at virtual machines, a VM's state is the colour of its icon, and Undo and Redo keep what you did.

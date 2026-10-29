@@ -7,7 +7,7 @@
 // Vero, ma minore. Il problema vero, scoperto poche ore dopo, è che **un sorgente
 // `.ts` non può proprio esistere qui**:
 //
-//   · `package.json` dichiara `engines: { node: ">=16.0.0" }` — è un prodotto
+//   · `package.json` dichiara `engines: { node: ">=18.0.0" }` — è un prodotto
 //     self-hosted, gira su macchine altrui;
 //   · la CI gira su **Node 18.x e 20.x** (`.github/workflows/ci.yml`);
 //   · il type-stripping nativo di Node esiste solo da **22.18**;
@@ -41,7 +41,7 @@ const included = new Set((tsconfig.include || []).map(p => p.replace(/\\/g, '/')
 
 const libFiles = fs.readdirSync(path.join(ROOT, 'lib'));
 
-test('⭐ nessun sorgente .ts sotto lib/ — il prodotto gira anche su Node 16/18/20', () => {
+test('⭐ nessun sorgente .ts sotto lib/ — il prodotto gira anche su Node 18/20', () => {
   const ts = libFiles.filter(f => f.endsWith('.ts') && !f.endsWith('.d.ts')).sort();
   assert.deepStrictEqual(ts, [],
     'questi sono sorgenti TypeScript, e Node < 22.18 li legge come JavaScript (SyntaxError):\n  '

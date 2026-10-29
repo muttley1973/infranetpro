@@ -6,7 +6,7 @@
   <a href="https://github.com/muttley1973/infranetpro/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/muttley1973/infranetpro/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/muttley1973/infranetpro/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/muttley1973/infranetpro?label=release&color=00b3d6"></a>
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-1f6feb"></a>
-  <a href="https://nodejs.org/"><img alt="Node.js 16 or newer" src="https://img.shields.io/badge/Node.js-%E2%89%A5%2016-3fb950?logo=nodedotjs&logoColor=white"></a>
+  <a href="https://nodejs.org/"><img alt="Node.js 18 or newer" src="https://img.shields.io/badge/Node.js-%E2%89%A5%2018-3fb950?logo=nodedotjs&logoColor=white"></a>
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
@@ -273,7 +273,7 @@ The module-by-module layout, the data flow and the conventions are in [ARCHITECT
 
 ## Requirements
 
-- [Node.js](https://nodejs.org/) ≥ 16 and npm ≥ 8.
+- [Node.js](https://nodejs.org/) ≥ 18 and npm ≥ 8.
 - Network access: UDP 161 to the managed devices.
 - No external database. [Docker](#docker) is optional — bare-metal Node works exactly the same.
 
