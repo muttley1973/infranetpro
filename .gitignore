@@ -88,8 +88,10 @@ yarn-error.log*
 # -------------------------------------------------------
 # Auth — dati sensibili (non versionare)
 # -------------------------------------------------------
-# password hashate degli utenti
-users.json
+# password hashate degli utenti (auth.js → saveUsers)
+# `*` copre anche il .bak della scrittura atomica (contiene gli hash PRECEDENTI,
+# cioe' le vecchie password degli admin) e il .<pid>.<n>.tmp lasciato da un crash.
+users.json*
 # chiave sessione auto-generata
 .session-secret
 # token REST API (hash sha-256 dei token; segreti — vedi server/api-tokens.js)

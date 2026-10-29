@@ -108,17 +108,6 @@ test('E2E tocco: pan, pinch, tap e divisori col dito (tablet, Chrome emulato)', 
       await touch('touchEnd', []);
       await frames();
     };
-    // Pressione lunga + trascinamento: giu', si aspetta OLTRE i 300ms con cui l'app "afferra", poi i movimenti, su.
-    const holdThenDrag = async (from, to, steps = 8, holdMs = 380) => {
-      await touch('touchStart', [{ x: from.x, y: from.y, id: 1 }]);
-      await page.waitForTimeout(holdMs);
-      for (let i = 1; i <= steps; i++) {
-        await touch('touchMove', [{ x: from.x + (to.x - from.x) * i / steps, y: from.y + (to.y - from.y) * i / steps, id: 1 }]);
-        await frames();
-      }
-      await touch('touchEnd', []);
-      await frames();
-    };
     // Un punto sul CORPO di un apparato del rack (non su una porta), con la sua unita' di partenza.
     const findRackDevice = () => page.evaluate(() => {
       for (const el of document.querySelectorAll('#rack-viewport .rack-device')) {

@@ -509,6 +509,84 @@ function _rTable(doc, cols, rows, y0, title, projName, date, opts = {}) {
   return y + 6;
 }
 
+// Le colonne delle tabelle a tutta pagina, ognuna in UNA funzione: la somma deve fare
+// `_RW` (539 = 595 - 28*2) e una prova la misura (test/pdf-report.test.js), invece di
+// affidarsi a un `// 539` scritto a mano accanto ai numeri — una frase che nessun
+// cancello verifica. Il Registro asset ha la sua (`_assetRegisterCols`, in coda).
+const _TABLE_COLS = {
+  cables(L) {
+    return [
+      { label: _rt(L, 'col.num'),      w: 22  },
+      { label: _rt(L, 'col.label'),    w: 155, shrink: true, arrowAlign: true },
+      { label: _rt(L, 'col.from'),     w: 75, wrap: true },
+      { label: _rt(L, 'col.to'),       w: 75, wrap: true },
+      { label: 'VLAN',                 w: 70, shrink: true },
+      { label: _rt(L, 'col.medium'),   w: 40  },
+      { label: _rt(L, 'col.length'),   w: 30  },
+      { label: _rt(L, 'col.category'), w: 72, wrap: true },
+    ];
+  },
+  asBuilt(L) {
+    return [
+      { label: _rt(L, 'col.num'),    w: 22  },
+      { label: _rt(L, 'col.route'),  w: 333, wrap: true },
+      { label: 'VLAN',               w: 112, shrink: true },
+      { label: _rt(L, 'col.medium'), w: 72  },
+    ];
+  },
+  // `statusMap`: colore per stato, deciso da chi disegna la tabella (lo usa anche per le righe).
+  ports(L, statusMap) {
+    return [
+      { label: _rt(L, 'col.rack'),   w: 96, wrap: true },
+      { label: _rt(L, 'col.device'), w: 74, wrap: true },
+      { label: _rt(L, 'col.pnum'),   w: 24  },
+      { label: _rt(L, 'col.alias'),  w: 92, wrap: true },
+      { label: _rt(L, 'col.status'), w: 50, statusMap },
+      { label: _rt(L, 'col.speed'),  w: 42  },
+      { label: 'VLAN',               w: 70, shrink: true },
+      { label: _rt(L, 'col.connto'), w: 91, wrap: true },
+    ];
+  },
+  // 10 colonne = il massimo leggibile su A4 verticale a 7pt. Il MAC della VM
+  // resta FUORI dalla stampa (a 11 colonne ogni cella finiva troncata): in un
+  // documento di consegna conta cosa fa la VM, chi la gestisce e quanto pesa,
+  // non l'indirizzo della sua vNIC — che resta comunque nel progetto JSON,
+  // nell'API e nel confronto col Drift.
+  // VLAN e IP vanno A CAPO: una VM multi-vNIC (firewall virtuale WAN/LAN/DMZ)
+  // porta più valori nella stessa cella, e troncarli nasconderebbe proprio la
+  // gamba che manca al lettore. Larghezze ribilanciate a somma invariata.
+  vms(L) {
+    return [
+      { label: _rt(L, 'col.num'),    w: 14 },
+      { label: _rt(L, 'col.host'),   w: 56, wrap: true },
+      { label: _rt(L, 'col.vm'),     w: 64, wrap: true },
+      { label: _rt(L, 'col.role'),   w: 76, wrap: true },
+      { label: _rt(L, 'col.status'), w: 40 },
+      { label: 'VLAN',               w: 36, wrap: true },
+      { label: 'IP',                 w: 82, wrap: true },
+      { label: _rt(L, 'col.res'),    w: 85, shrink: true },
+      { label: _rt(L, 'col.owner'),  w: 52, wrap: true },
+      { label: _rt(L, 'col.crit'),   w: 34, shrink: true },
+    ];
+  },
+  recovery(L) {
+    return [
+      { label: _rt(L, 'col.num'),        w: 18  },
+      { label: _rt(L, 'col.device'),     w: 80, wrap: true },
+      { label: _rt(L, 'col.backupRef'),  w: 104, wrap: true },
+      { label: _rt(L, 'col.method'),     w: 42  },
+      { label: _rt(L, 'col.backupDate'), w: 74, wrap: true },
+      // Il seriale tiene la sua larghezza: ci deve stare anche il marcatore
+      // «(sostituito?)», che stretto oltre finiva a ellissi proprio dove serve
+      // leggerlo — e' l'avvertenza a chi ricompra.
+      { label: _rt(L, 'col.serial'),     w: 70, shrink: true },
+      { label: 'Firmware',               w: 58, wrap: true },
+      { label: _rt(L, 'col.lifecycle'),  w: 55, wrap: true },
+      { label: _rt(L, 'col.rack'),       w: 38, wrap: true },
+    ];
+  },
+};
+
 function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, lang = 'it') {
   const L = _rlang(lang);
   const opts = {
@@ -532,16 +610,7 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
     const T = _rt(L, 'title.inventory');
     let y = newPage(T);
     y = _rSub(doc, `${_lista(report.cables).length} ${_rt(L, 'sub.cables')}`, y);
-    const cols = [
-      { label: _rt(L, 'col.num'),      w: 22  },
-      { label: _rt(L, 'col.label'),    w: 155, shrink: true, arrowAlign: true },
-      { label: _rt(L, 'col.from'),     w: 75, wrap: true },
-      { label: _rt(L, 'col.to'),       w: 75, wrap: true },
-      { label: 'VLAN',                 w: 70, shrink: true },
-      { label: _rt(L, 'col.medium'),   w: 40  },
-      { label: _rt(L, 'col.length'),   w: 30  },
-      { label: _rt(L, 'col.category'), w: 72, wrap: true },
-    ]; // 539
+    const cols = _TABLE_COLS.cables(L);
     const rows = _lista(report.cables).map((c, i) => [
       i + 1, c.label || '-', c.from || '-', c.to || '-',
       // Un trunk porta piu' VLAN: si stampa la LISTA, non una sola col nome — su
@@ -561,12 +630,7 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
     const T = _rt(L, 'title.asbuilt');
     let y = newPage(T);
     y = _rSub(doc, `${_lista(report.asBuilt).length} ${_rt(L, 'sub.routes')}`, y);
-    const cols = [
-      { label: _rt(L, 'col.num'),    w: 22  },
-      { label: _rt(L, 'col.route'),  w: 333, wrap: true },
-      { label: 'VLAN',               w: 112, shrink: true },
-      { label: _rt(L, 'col.medium'), w: 72  },
-    ]; // 539
+    const cols = _TABLE_COLS.asBuilt(L);
     const rows = _lista(report.asBuilt).map((p, i) => [
       i + 1, _lista(p.steps).join(' -> '), p.vlan || '-', p.medium || '-',
     ]);
@@ -631,16 +695,7 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
     );
     y = _rSub(doc, `${allRows.length} ${_rt(L, 'sub.portsA')} ${_lista(report.portAssignment).length} ${_rt(L, 'sub.portsB')}`, y);
     const SC = { active: '#16a34a', fault: '#dc2626', inactive: '#6b7280' };
-    const cols = [
-      { label: _rt(L, 'col.rack'),   w: 96, wrap: true },
-      { label: _rt(L, 'col.device'), w: 74, wrap: true },
-      { label: _rt(L, 'col.pnum'),   w: 24  },
-      { label: _rt(L, 'col.alias'),  w: 92, wrap: true },
-      { label: _rt(L, 'col.status'), w: 50, statusMap: SC },
-      { label: _rt(L, 'col.speed'),  w: 42  },
-      { label: 'VLAN',               w: 70, shrink: true },
-      { label: _rt(L, 'col.connto'), w: 91, wrap: true },
-    ]; // 539
+    const cols = _TABLE_COLS.ports(L, SC);
     if (!allRows.length)
       doc.font('Helvetica').fontSize(8).fillColor('#94a3b8').text(_rt(L, 'empty.ports'), _RM, y);
     else
@@ -802,26 +857,7 @@ function _addReportPages(doc, report, projName, date, SVGtoPDF, options = {}, la
     const list = report.vms;
     let y = newPage(T);
     y = _rSub(doc, `${list.length} ${_rt(L, 'sub.vms')}`, y);
-    // 10 colonne = il massimo leggibile su A4 verticale a 7pt. Il MAC della VM
-    // resta FUORI dalla stampa (a 11 colonne ogni cella finiva troncata): in un
-    // documento di consegna conta cosa fa la VM, chi la gestisce e quanto pesa,
-    // non l'indirizzo della sua vNIC — che resta comunque nel progetto JSON,
-    // nell'API e nel confronto col Drift.
-    // VLAN e IP vanno A CAPO: una VM multi-vNIC (firewall virtuale WAN/LAN/DMZ)
-    // porta più valori nella stessa cella, e troncarli nasconderebbe proprio la
-    // gamba che manca al lettore. Larghezze ribilanciate a somma invariata.
-    const cols = [
-      { label: _rt(L, 'col.num'),    w: 14 },
-      { label: _rt(L, 'col.host'),   w: 56, wrap: true },
-      { label: _rt(L, 'col.vm'),     w: 64, wrap: true },
-      { label: _rt(L, 'col.role'),   w: 76, wrap: true },
-      { label: _rt(L, 'col.status'), w: 40 },
-      { label: 'VLAN',               w: 36, wrap: true },
-      { label: 'IP',                 w: 82, wrap: true },
-      { label: _rt(L, 'col.res'),    w: 85, shrink: true },
-      { label: _rt(L, 'col.owner'),  w: 52, wrap: true },
-      { label: _rt(L, 'col.crit'),   w: 34, shrink: true },
-    ]; // 539
+    const cols = _TABLE_COLS.vms(L);   // perche' 10 colonne e non 11: il commento su `_TABLE_COLS.vms`
     const rows = list.map((vm, i) => {
       // Risorse allocate in una sola colonna: e' come le legge un umano
       // ("4 vCPU / 8 GB / 100 GB") e lascia spazio alle colonne identitarie.
@@ -1182,7 +1218,7 @@ function _assetDeviceLabel(d, lang) {
 // Le colonne del Registro asset, DERIVATE: la somma deve fare `_RW` (539 = 595 - 28*2)
 // in tutt'e due i rami, e una prova la misura (test/pdf-handoff.test.js) invece di
 // affidarsi a un `// 539` scritto a mano accanto ai numeri — che e' una frase che
-// nessun cancello verifica, e sono sei in questo file.
+// nessun cancello verifica. Le altre tabelle a tutta pagina: `_TABLE_COLS`, in alto.
 //
 // ⭐ Il tenant compare SOLO se almeno un apparato ce l'ha: su un'installazione che non
 // ha importato da NetBox sarebbero 55pt di pagina spesi per una colonna di «-».
@@ -1366,21 +1402,7 @@ function _addRecoveryPages(doc, recovery, projName, date, lang = 'it', now = Dat
     doc.font('Helvetica').fontSize(8).fillColor('#94a3b8').text(_rt(L, 'empty.recovery'), _RM, y);
     return;
   }
-  const cols = [
-    { label: _rt(L, 'col.num'),        w: 18  },
-    { label: _rt(L, 'col.device'),     w: 80, wrap: true },
-    { label: _rt(L, 'col.backupRef'),  w: 104, wrap: true },
-    { label: _rt(L, 'col.method'),     w: 42  },
-    { label: _rt(L, 'col.backupDate'), w: 74, wrap: true },
-    // Il seriale tiene la sua larghezza: ci deve stare anche il marcatore
-    // «(sostituito?)», che stretto oltre finiva a ellissi proprio dove serve
-    // leggerlo — e' l'avvertenza a chi ricompra.
-    { label: _rt(L, 'col.serial'),     w: 70, shrink: true },
-    { label: 'Firmware',               w: 58, wrap: true },
-    { label: _rt(L, 'col.lifecycle'),  w: 55, wrap: true },
-    { label: _rt(L, 'col.rack'),       w: 38, wrap: true },
-  ]; // 18+80+104+42+74+70+58+55+38 = 539 (larghezza utile della pagina)
-  _rTable(doc, cols, rows, y, T, projName, date);
+  _rTable(doc, _TABLE_COLS.recovery(L), rows, y, T, projName, date);
 }
 
 // ── WAN INTER-SEDE: la mappa su carta e le schede di ripristino ─────────────
@@ -2080,4 +2102,4 @@ function _svgImageCallback(link) {
   return s;
 }
 
-module.exports = { _loadPdfDeps, _svgImageCallback, _rasterGuard, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _assetRegisterCols, _addRecoveryPages, _addWanPages, _wanMapSvg, _addOverviewPages, _assetDeviceLabel, _fmtRevised, _rt, _fit, _wrapFit };
+module.exports = { _loadPdfDeps, _svgImageCallback, _rasterGuard, _addReportPages, _addCoverPage, _addChangelogPages, _addSparePages, _addPduPages, _addAssetRegisterPages, _assetRegisterCols, _TABLE_COLS, _addRecoveryPages, _addWanPages, _wanMapSvg, _addOverviewPages, _assetDeviceLabel, _fmtRevised, _rt, _fit, _wrapFit };

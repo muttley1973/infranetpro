@@ -28,6 +28,8 @@
 
 - **The four vulnerabilities `npm audit` reported in the production dependencies are gone.** They were denials of service in the request-body parser, in the query-string parser and, through the rate limiter, in the IP address library. The lockfile — what `npm ci` and the Docker image install — now resolves the patched releases, and it catches up with the versions the tests had been running on, the SNMP library included (net-snmp 3.26 → 3.29), so what is tested is what is installed. Run `npm ci` and restart the server.
 
+- **The backup that the user store leaves beside `users.json` is no longer one `git add -A` away from being published.** Every save of the user list keeps the previous file as `users.json.bak`, and that file holds the earlier password hashes of the administrators; `.gitignore` covered `users.json` but not its neighbours, so the backup (and the temporary file a crash can leave) showed up as untracked after the first password change. The rule now covers them, and a test asks the real writer which files it leaves behind instead of repeating a list of names.
+
 ## [2.11.19] — 2026-10-23
 
 The dossier lives inside Export PDF, the catalogue update works again, and the manuals describe the interface as it is.

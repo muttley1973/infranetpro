@@ -70,7 +70,7 @@ function _startTouchHold(e){
         _holdTimer = 0;
         if(!(store.dragNode || store.dragRack)) return;   // il gesto non c'e' piu' (pinch, panoramica, rilascio)
         _holdReady = true;
-        let el = null;
+        let el;
         if(store.dragRack) el = document.querySelector(`.floor-rack[data-rackid="${store.dragRack}"]`);
         else {
             const n = nodeById(store.dragNode);

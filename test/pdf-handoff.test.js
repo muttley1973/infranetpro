@@ -187,11 +187,30 @@ test('⭐ registro asset: il tenant esce in colonna, e SOLO se qualcuno ce l\'ha
   assert.ok(!/Tenant/.test(senza), 'senza tenant la colonna tace');
 });
 
-// ⭐⭐ La trappola del ribilanciamento, trasformata in cancello. Il file porta SEI
+// ⭐⭐ La trappola del ribilanciamento, trasformata in cancello. Il file portava SEI
 // commenti `// 539` accanto ad altrettante tabelle: una somma scritta a mano accanto
 // a dei numeri e' una frase che nessun cancello verifica, e qui la colonna nuova la
-// rimetteva in discussione. Ora le colonne del registro le DERIVA una funzione, e
-// questa prova le misura in tutt'e due i rami.
+// rimetteva in discussione. Ora le colonne di ogni tabella a tutta pagina le DA' una
+// funzione (`_assetRegisterCols` per il registro, `_TABLE_COLS` per le altre cinque), e
+// queste prove le misurano in tutt'e due le lingue.
+test('⭐ tabelle a tutta pagina: le colonne sommano alla larghezza utile (cavi, as-built, porte, VM, DR)', { skip: !has }, () => {
+  const attese = { cables: 8, asBuilt: 4, ports: 8, vms: 10, recovery: 9 };
+  // ⚠️ Se la lista delle tabelle cambia senza che cambi questa, la prova non controlla piu'
+  // quella nuova: deve arrossire, non passare a vuoto.
+  assert.deepEqual(Object.keys(R._TABLE_COLS).sort(), Object.keys(attese).sort(),
+    'una tabella e\' stata aggiunta o tolta da _TABLE_COLS: aggiornare questa prova');
+  for (const lang of ['it', 'en']) {
+    for (const [nome, n] of Object.entries(attese)) {
+      const cols = R._TABLE_COLS[nome](lang, {});
+      const tot = cols.reduce((s, c) => s + c.w, 0);
+      assert.equal(tot, 539, nome + ' (' + lang + '): somma ' + tot + ', la larghezza utile della pagina e\' 539 (595 - 28*2)');
+      assert.equal(cols.length, n, nome + ' (' + lang + '): numero di colonne');
+    }
+  }
+});
+
+
+// Il registro: tutt'e due i rami (con e senza tenant), e in piu' nessuna intestazione troncata.
 test('⭐ registro asset: le colonne sommano alla larghezza utile, e nessuna intestazione si tronca', { skip: !has }, async () => {
   const doc = new PDFDocument({ autoFirstPage: false });
   for (const lang of ['it', 'en']) {
