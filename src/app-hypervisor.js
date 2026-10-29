@@ -601,7 +601,6 @@ registerClickActions({
     'vm-open':   (el) => openVmProps(el.dataset.vmHost, el.dataset.vmId),
     'vm-remove': (el) => removeVm(el.dataset.vmHost, el.dataset.vmId),
     'vm-back':   () => closeVmProps(),
-    'vm-state':  (el) => updateVm(el.dataset.vmHost, el.dataset.vmId, 'state', el.dataset.vmNext),
     'vm-snmp-read':  (el) => pollVmSnmp(el.dataset.vmHost, el.dataset.vmId),
     'vm-snmp-apply': (el) => applyVmSnmpValues(el.dataset.vmHost, el.dataset.vmId),
     'vm-nic-add':    (el) => addVmNic(el.dataset.vmHost, el.dataset.vmId),
@@ -634,6 +633,9 @@ registerChangeActions({
     // Campo di UNA vNIC: il riferimento alla scheda viaggia in data-vm-nic.
     'vm-nic': (el) => { if(el.value === _CUSTOM_TOKEN) return;
         updateVmNic(el.dataset.vmHost, el.dataset.vmId, el.dataset.vmNic, el.dataset.vmField, el.value); },
+    // L'interruttore dello stato nell'intestazione della scheda: acceso / spento. Scrive il campo DICHIARATO: da qui
+    // «segui lo stato delle VM» non lo tocca piu' (updateVm toglie il segno `stateAuto`).
+    'vm-state-sw': (el) => updateVm(el.dataset.vmHost, el.dataset.vmId, 'state', el.checked ? 'running' : 'stopped'),
 });
 
 // ── Pubblicazione sul ponte ──────────────────────────────────────────

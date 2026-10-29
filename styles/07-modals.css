@@ -719,16 +719,25 @@
         /* Lo STATO della VM e' l'ICONA a sinistra del titolo (scheda VM): e' il fatto che si guarda per primo, e il
            colore lo dice senza una scritta — verde = acceso, rosso = spento, giallo = attenzione (la rete dice altro
            dallo stato dichiarato), grigio = non specificato. Stessi token semantici dei LED e del pallino in lista.
-           E' anche il pulsante che cicla lo stato: il tooltip e l'aria-label dicono cosa e' (v. app-properties-vm.js).
-           Il bagliore cyan di .props-selected-icon (10-modern.css) qui prende il colore dello stato. */
-        .vm-state-ico { display:inline-flex; flex-shrink:0; padding:0; margin:0; border:0; background:none; cursor:pointer;
-                        color:var(--text-muted); border-radius:var(--radius-md); }
+           E' solo un indicatore; a cambiare lo stato e' l'interruttore qui sotto. Il bagliore cyan di
+           .props-selected-icon (10-modern.css) qui prende il colore dello stato. */
+        .vm-state-ico { display:inline-flex; flex-shrink:0; color:var(--text-muted); }
         .vm-state-ico .props-selected-icon { color:inherit; filter:drop-shadow(0 0 8px color-mix(in srgb, currentColor 35%, transparent)); }
         .vm-state-ico.is-running   { color:var(--active-color); }
         .vm-state-ico.is-stopped   { color:var(--fault-color); }
         .vm-state-ico.is-attention { color:var(--idle-color); }
-        .vm-state-ico:hover { filter:brightness(1.15); }
-        .vm-state-ico:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+        /* L'interruttore dello stato (acceso / spento), nell'intestazione della scheda VM: piccolo, con i colori dello
+           stato DICHIARATO — verde acceso, rosso spento. «Non specificato» non e' una terza posizione ma
+           l'interruttore a meta' corsa, grigio, finche' non lo muovi. Se la rete contraddice lo stato dichiarato, un
+           anello giallo (lo stesso dell'icona) lo dice. Parte dal componente .toggle-sw: qui solo la misura e i colori. */
+        .toggle-sw.vm-state-sw .toggle-track { width:28px; height:16px; background:var(--text-muted); }
+        .toggle-sw.vm-state-sw .toggle-track::after { width:12px; height:12px; }
+        .toggle-sw.vm-state-sw input:checked + .toggle-track::after { transform:translateX(12px); }
+        .toggle-sw.vm-state-sw.is-unknown input + .toggle-track::after { transform:translateX(6px); }
+        .toggle-sw.vm-state-sw.is-running input + .toggle-track { background:var(--active-color); }
+        .toggle-sw.vm-state-sw.is-stopped input + .toggle-track { background:var(--fault-color); }
+        .toggle-sw.vm-state-sw.has-conflict .toggle-track { box-shadow:0 0 0 2px color-mix(in srgb, var(--idle-color) 70%, transparent); }
+        .toggle-sw.vm-state-sw input:focus-visible + .toggle-track { outline:2px solid var(--accent); outline-offset:2px; }
         /* Il blocco azioni (frecce e ritorno all'host) resta a DESTRA, a qualsiasi lunghezza del nome: il titolo smette di
            prendersi tutto lo spazio (flex:1 → 0 1 auto) e il blocco si espande al suo posto, allineato alla fine. Lo
            scope :has() serve perché .props-selected-main è condiviso da TUTTI i pannelli (device, porta, cavo,

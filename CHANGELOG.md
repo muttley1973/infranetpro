@@ -9,7 +9,7 @@
 
 ### Changed
 
-- **A VM's state is now the colour of the icon next to its name, not a label.** Green is running, red is stopped, yellow is attention (the network contradicts what you declared) and grey is not specified. The icon is also the button that cycles the state, and its tooltip says which state it is and why a yellow one is yellow.
+- **A VM's state is now the colour of the icon next to its name, not a label.** Green is running, red is stopped, yellow is attention (the network contradicts what you declared) and grey is not specified. A small on/off switch next to the arrows changes it (a VM with no declared state shows the switch half-way and grey until you move it, and the first click declares it running); the tooltips say which state it is and why a yellow one is yellow, and a yellow ring around the switch shows the same disagreement.
 
 ### Fixed
 
