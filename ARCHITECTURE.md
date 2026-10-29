@@ -721,6 +721,17 @@ requires a signal a live host cannot suppress:
 - **grey** (`.node-unverified`, bucket `unverified`) — everything else: FDB ageing,
   host-filtered ICMP, a mute SNMP agent, a remote/unreached subnet. Honest "don't know".
 
+**Virtual machines are not floor nodes and never reach those buckets.** A stopped VM is
+not an anomaly, so `lib/vm-presence.js` reuses the *signals* of the same run (the sweep on
+the vNIC IPv4s, its live ARP, the FDB and the routers' ARP/ND as memories) and not its
+verdicts: it writes `vm.proof` with the nodes' proof vocabulary, next to the declared
+`vm.state`. Answering is proof; silence is only "no answer"; the one absence that counts
+is every address proved absent on the local wire, and then a table memory does not bring
+the VM back. A contradiction with the declared state turns the VM's icon yellow
+(`vmStateConflict`). Only "Follow VM state" (per project, off by default) lets the run
+write `vm.state` — and only where it is empty or the run wrote it (`vm.stateAuto`).
+`vm.proof` and `stateAuto` stay out of the portable export, like `node.proof`.
+
 ### Port state: shut by hand vs simply without link
 
 `ifOperStatus` says whether a port has link; `ifAdminStatus` (IF-MIB `.7`, read since

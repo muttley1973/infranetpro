@@ -11,7 +11,7 @@
 </p>
 <p>
   <a href="#testing"><img alt="4,378 tests, 0 failing" src="https://img.shields.io/badge/tests-4%2C378%20%C2%B7%200%20failing-3fb950"></a>
-  <a href="#testing"><img alt="159 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-159%20real--browser%20flows-3fb950"></a>
+  <a href="#testing"><img alt="161 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-161%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#discovery--classification-engines"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
   <img alt="No database" src="https://img.shields.io/badge/database-none-8b949e">
@@ -99,18 +99,18 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 - 🖥️ **Windows:** double-click `avvia.bat`. Details in [Installation](#installation) and [Configuration](#configuration).
 - **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.11.19) — the dossier lives inside Export PDF, the catalogue update works again, and the manuals describe the interface as it is.**
+> 📰 **What's new (v2.12.0) — the Verify run looks at your virtual machines, a VM's state is the colour of its icon, and Undo and Redo keep what you did.**
 >
-> - The handover dossier is no longer a menu entry: the Export PDF dialog opens with it locked on (cover page and change history) and every section starts unticked, so the PDF carries what you tick.
-> - The hardware catalogue update no longer stops when the source library grows; the catalogue in use now has 5,502 models.
-> - Both manuals draw the toolbar and the status bar as they are, and the README screenshots show the current interface.
+> - The Verify run now looks at VMs: what the network says sits beside the state you declared, and an optional *Follow VM state* lets the run set it — never over a state you set by hand.
+> - A VM's state is the colour of the icon next to its name (green, red, yellow for attention) and a small on/off switch changes it.
+> - Panning no longer breaks Undo and Redo, a redo no longer overwrites a later change, the four `npm audit` findings are gone — run `npm ci` — and `users.json.bak` stays out of git.
 >
 > Earlier:
+> - **v2.11.19** — the dossier lives inside Export PDF, the catalogue update works again, and the manuals describe the interface as it is.
 > - **v2.11.18** — a machine you documented stays documented, Ctrl+Z does what it says, and the VM card closes like the host panel.
 > - **v2.11.17** — a neighbour is created as what it announces over LLDP/CDP; a hostile id can no longer run code; "0 found" says when the scan could not look.
 > - **v2.11.16** — a value says where it comes from; a model you typed is no longer called a swapped device.
 > - **v2.11.15** — the map and the rack work with a finger on a tablet; the History says what the Sync really read.
-> - **v2.11.14** — a device that never answers no longer freezes the monitoring; a *Port descriptions* report.
 >
 > Every release, in detail: [CHANGELOG.md](CHANGELOG.md).
 
@@ -172,7 +172,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 - Multi-port floor devices; wall sockets and VoIP phones as pass-through.
 - Catalogue of NVR, SD-WAN edge, VPN concentrator, door controller and panelboard; stacking (StackWise, VSF, Virtual Chassis, IRF) and HA pairs; UPS and PDU outlet groups.
 - A declared life-cycle status (planned, in service, out of service…) that changes how silence is read: a planned device that stays quiet is expected, not a fault.
-- **VMs under their host** — hypervisor, home lab, storage array or NAS: a VM list plus a VM card (identity, network, resources, handover), several vNICs, optional SNMP polling kept apart from what you declared. Drag a discovered tile onto its host to absorb it; a machine is documented once.
+- **VMs under their host** — hypervisor, home lab, storage array or NAS: a VM list plus a VM card (identity, network, resources, handover), several vNICs, optional SNMP polling kept apart from what you declared. The Verify run records beside the state you declared whether the network sees the VM (an answer is proof, silence is not), and a yellow icon says when the two disagree; an optional switch lets the run set the state, never over one you set by hand. Drag a discovered tile onto its host to absorb it; a machine is documented once.
 - Operating-system logos, only from an authoritative source; nothing when the OS is unknown.
 - Sub-header with breadcrumb, active VLAN filter and project stats; multiple projects; a focused dark UI.
 
@@ -503,7 +503,7 @@ RUN_E2E=1 npm run e2e # headless end-to-end in a real Chrome — off by default
 
 Current local quality baseline:
 - `npm run check` parses every JS source of the product — **583** of them.
-- `npm test` runs the full regression suite (currently **4,378 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **159 flows**).
+- `npm test` runs the full regression suite (currently **4,378 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **161 flows**).
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that lists something, and the test count measured against what the suite really prints.
 
 **CI** ([GitHub Actions](.github/workflows/ci.yml)) runs `npm run check` and `npm test` on every push and pull request to `main`, on Node 18 and 20.
