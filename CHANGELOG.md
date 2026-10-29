@@ -7,6 +7,10 @@
 - **The Verify run now looks at virtual machines.** A VM's state (running / stopped) used to be only what you had declared, and the sweep never contacted a VM. Now it also asks each VM's IPv4 addresses and, together with what the run already collects for devices (the sweep's ARP, the routers' ARP and ND tables, the switches' MAC tables), writes what the network says next to your state: "seen on the network" with when and how, "no answer" (which does not prove it is off), or "no longer on the local network" (the address does not even answer ARP). When the network contradicts you — declared stopped but it answers, declared running but gone — the VM gets an amber marker in the host's list and a line in its sheet. VMs do not go through the red buckets of the Verify: a stopped VM is not an anomaly.
 - **"Follow VM state" in the Automations menu, off by default.** When on, the Verify run sets *running* on a VM that answers and *stopped* on one that has left the local network, only where the state is empty or the Verify run wrote it; a state you set by hand is never touched, and the whole batch is one Undo step.
 
+### Changed
+
+- **A VM's state is now the colour of the icon next to its name, not a label.** Green is running, red is stopped, yellow is attention (the network contradicts what you declared) and grey is not specified. The icon is also the button that cycles the state, and its tooltip says which state it is and why a yellow one is yellow.
+
 ### Fixed
 
 - **A host found over TCP is no longer recorded as found by ping.** The sweep reports `tcp:<port>`, which matched no method, so the proof of a device seen that way said "ping".

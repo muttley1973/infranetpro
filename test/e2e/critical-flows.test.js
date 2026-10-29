@@ -4617,7 +4617,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const hasExpand = !!(head && head.querySelector('[data-act="props-expand-all"]'));
           const hasCollapse = !!(head && head.querySelector('[data-act="props-collapse-all"]'));
           const tips = head ? [...head.querySelectorAll('.props-toggle-btn')].map(b => b.getAttribute('data-tip') || '') : [];
-          const stillChip = !!(head && head.querySelector('.vm-state-chip')), stillBack = !!(head && head.querySelector('[data-act="vm-back"]'));
+          const stillChip = !!(head && head.querySelector('.vm-state-ico[data-act="vm-state"]')), stillBack = !!(head && head.querySelector('[data-act="vm-back"]'));
           const opened0 = prev();                      // di partenza: tutto aperto, e il riassunto non si vede
 
           click('#props-panel [data-act="props-collapse-all"]');
@@ -4669,7 +4669,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.ok, 'nessun errore: ' + r.err);
       assert.ok(r.hasExpand && r.hasCollapse, 'in testata della scheda VM ci sono le due frecce (espandi tutto / comprimi tutto)');
       assert.ok(r.tipsOk, 'e portano il loro suggerimento');
-      assert.ok(r.stillChip && r.stillBack, 'lo stato e il ritorno all\'host restano dov\'erano');
+      assert.ok(r.stillChip && r.stillBack, 'lo stato (l\'icona a sinistra del titolo) e il ritorno all\'host restano dov\'erano');
       assert.equal(r.n, 6, 'la scheda ha sei sezioni');
       assert.ok(r.allOpened0 && r.allHidden0, 'di partenza è tutto aperto e il riassunto non si vede (come nel pannello host)');
       assert.ok(r.allClosed, '«comprimi tutto» chiude tutte le sezioni in un colpo');
@@ -4870,19 +4870,24 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
             const persona = { stato: statoDi(), marchi: marchi() };
 
             // 5) la scheda racconta quanto si sa, e solo quello
+            // l'icona a sinistra del titolo porta lo stato: verde acceso · rosso spento · giallo attenzione · grigio non specificato
+            const icoOf = () => { const b = document.querySelector('#props-panel .vm-state-ico'); return b ? { cls: b.className, tip: b.getAttribute('aria-label') || '', colore: getComputedStyle(b).color } : null; };
             openVmProps('hvx', 'man');
             const schedaMan = document.getElementById('props-panel').innerHTML;
+            const icoMan = icoOf();
             openVmProps('hvx', 'mute');
             const schedaMute = document.getElementById('props-panel').innerHTML;
+            const icoMute = icoOf();
             openVmProps('hvx', 'noip');
             const schedaNoIp = document.getElementById('props-panel').innerHTML;
+            const icoNoIp = icoOf();
             const nomi = { man: schedaMan.includes('Si vede in rete') && schedaMan.includes('Dichiarata spenta, ma risponde in rete'),
               mute: schedaMute.includes('Nessuna risposta') && schedaMute.includes('Non prova che sia spenta'),
               noip: !/hv\.pres|Si vede in rete|Nessuna risposta/.test(schedaNoIp) };
 
             const prova = JSON.parse(JSON.stringify(vmOf('up').proof || {}));
             window._dhcpLeases = null; state.autoVmState = false;
-            return { ok: true, spento, cbEsiste, seguiOn, acceso, annullato, riscritto, persona, nomi, prova };
+            return { ok: true, spento, cbEsiste, seguiOn, acceso, annullato, riscritto, persona, nomi, prova, icoMan, icoMute, icoNoIp };
           } catch (e) { return { err: String(e && e.stack || e) }; }
         });
         assert.ok(!r.err, 'nessun errore nel flusso presenza VM: ' + r.err);
@@ -4923,6 +4928,14 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         assert.ok(r.nomi.mute, 'il silenzio si racconta come tale, senza dire che è spenta');
         assert.ok(r.nomi.noip, 'senza indirizzi non c\'è niente da raccontare, e nessuna chiave i18n grezza');
         assert.equal(r.prova.method, 'ping');
+
+        // l'icona dello stato: il colore lo dice, il tooltip dice il resto, e la scritta del chip non c'è più
+        assert.match(r.icoMan.cls, /is-attention/, 'dichiarata spenta ma risponde: giallo (attenzione), non rosso');
+        assert.match(r.icoMan.tip, /Dichiarata spenta, ma risponde in rete/, 'il tooltip dice perché');
+        assert.match(r.icoMute.cls, /is-running/, 'dichiarata accesa e silenziosa: verde — il silenzio non prova niente');
+        assert.match(r.icoNoIp.cls, /is-unknown/, 'non specificata: grigia');
+        assert.notEqual(r.icoMan.colore, r.icoMute.colore, 'i colori sono davvero diversi (attenzione ≠ acceso)');
+        assert.notEqual(r.icoMute.colore, r.icoNoIp.colore, 'acceso ≠ non specificato');
       } finally {
         await page.unroute('**/api/reachability');
       }
@@ -5284,15 +5297,16 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           // stato: chip nell'intestazione, TRI-STATO onesto. Una VM appena creata
           // NON si assume accesa: parte «non specificato» (grigio). Il click la
           // DICHIARA, ciclando non-spec → acceso → spento.
-          const chip = document.querySelector('#props-panel .vm-state-chip');
+          const chip = document.querySelector('#props-panel .vm-state-ico');
           const chipUnknown = !!chip && chip.className.includes('is-unknown');
-          const inHeader = !!document.querySelector('#props-panel .props-selected-title .vm-state-chip');
+          const inHeader = !!document.querySelector('#props-panel .props-selected-title .props-selected-main > .vm-state-ico');
+          const nessunChip = !document.querySelector('#props-panel .vm-state-chip');
           chip.click();                                        // non-spec → acceso
           const afterToggle = nodeById('lab').vms[0].state;
-          const chip2 = document.querySelector('#props-panel .vm-state-chip');
+          const chip2 = document.querySelector('#props-panel .vm-state-ico');
           chip2.click();                                       // acceso → spento
           const afterToggle2 = nodeById('lab').vms[0].state;
-          return { hasCustomOpt, critHasCustom, saved, stillThere, chipUnknown, inHeader, afterToggle, afterToggle2, rawKeys,
+          return { hasCustomOpt, critHasCustom, saved, stillThere, chipUnknown, inHeader, nessunChip, afterToggle, afterToggle2, rawKeys,
                    midValue, selAlive };
         } catch (e) { return { err: String(e && e.stack || e) }; }
       });
@@ -5304,8 +5318,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.selAlive, 'e la select è ancora nel DOM: nessun re-render la distrugge mentre digiti');
       assert.equal(r.saved, 'TrueNAS SCALE 24.04', 'il valore digitato a mano finisce nel modello');
       assert.equal(r.stillThere, 'TrueNAS SCALE 24.04', 'e viene riletto al re-render (non torna al default)');
-      assert.ok(r.inHeader, 'lo stato è un chip NELL\'INTESTAZIONE, accanto al titolo');
-      assert.ok(r.chipUnknown, 'il chip parte grigio: una VM nuova NON si assume accesa (stato non specificato)');
+      assert.ok(r.inHeader, 'lo stato è l\'ICONA a sinistra del titolo, nell\'intestazione');
+      assert.ok(r.nessunChip, 'la scritta del vecchio chip non c\'è più');
+      assert.ok(r.chipUnknown, 'l\'icona parte grigia: una VM nuova NON si assume accesa (stato non specificato)');
       assert.equal(r.afterToggle, 'running', 'un click DICHIARA lo stato: non-spec → acceso');
       assert.equal(r.afterToggle2, 'stopped', 'un altro click cicla: acceso → spento');
     });

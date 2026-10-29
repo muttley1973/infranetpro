@@ -359,20 +359,24 @@ export function _renderVmProps(panel){
     // elimina il campo). Uno stato "acceso" NON si assume da un campo vuoto.
     const _vst = vm.state === 'running' ? 'running' : vm.state === 'stopped' ? 'stopped' : 'unknown';
     const _vnext = _vst === 'unknown' ? 'running' : _vst === 'running' ? 'stopped' : '';
-    const _vcls = _vst === 'running' ? 'is-running' : _vst === 'stopped' ? 'is-stopped' : 'is-unknown';
-    const _vico = _vst === 'running' ? 'fa-circle-play' : _vst === 'stopped' ? 'fa-circle-stop' : 'fa-circle-question';
     const _vlbl = _vst === 'running' ? t('hv.running') : _vst === 'stopped' ? t('hv.stopped') : t('hv.vmUnknown');
+    // «Attenzione»: la rete contraddice lo stato dichiarato con una prova che regge (lib/vm-presence.js). Vince sul
+    // colore dello stato: una VM dichiarata accesa che non e' piu' sul filo locale non e' verde.
+    const _vconf = vmStateConflict(vm);
+    const _vcls = _vconf ? 'is-attention' : _vst === 'running' ? 'is-running' : _vst === 'stopped' ? 'is-stopped' : 'is-unknown';
+    // Il testo che il colore non dice: stato, eventuale discrepanza, e come si cambia.
+    const _vtip = `${t('hv.vmState')}: ${_vlbl}${_vconf ? ' — ' + t('hv.pres.' + _vconf) : ''} · ${t('hv.vmStateToggle')}`;
 
-    // Intestazione: lo STATO e' il fatto che si guarda per primo, quindi vive
-    // accanto al titolo come chip (verde accesa / rosso spenta / grigio non spec.)
-    // — cliccabile per commutare — subito a sinistra del ritorno all'host. Stessa
-    // grammatica dei chip del pannello (.lag-chip) e stessi token semantici usati
-    // dai LED e dalla riga in lista: --ok-color NON esiste.
-    const stateChip = `<button type="button" class="vm-state-chip ${_vcls}" `
+    // Intestazione: lo STATO e' il fatto che si guarda per primo, quindi e' l'ICONA a sinistra del titolo a portarlo:
+    // verde = acceso · rosso = spento · giallo = attenzione (la rete dice altro) · grigio = non specificato. Stessi
+    // token semantici dei LED e del pallino in lista (--ok-color NON esiste). L'icona e' anche il pulsante che cicla
+    // non-spec → acceso → spento; la scritta del vecchio chip non c'e' piu', e al suo posto il tooltip e l'aria-label.
+    // Va al posto dell'<i> che _buildPropsHeader scrive (condiviso da tutti i pannelli: non lo si tocca), e `ICONA` e'
+    // la sua forma esatta — se cambia, l'e2e della scheda VM non trova `.vm-state-ico` e arrossisce.
+    const ICONA = '<i class="fas fa-display props-selected-icon"></i>';
+    const stateIcon = `<button type="button" class="vm-state-ico ${_vcls}" `
         + `${ref} data-act="vm-state" data-vm-next="${_vnext}" `
-        + `data-tip="${_esc(t('hv.vmStateToggle'))}" aria-label="${_esc(t('hv.vmState'))}">`
-        + `<i class="fas ${_vico}"></i>`
-        + `<span>${_vlbl}</span></button>`;
+        + `data-tip="${_esc(_vtip)}" aria-label="${_esc(_vtip)}">${ICONA}</button>`;
     const back = `<button type="button" class="toolbar-btn" data-act="vm-back" data-tip="${_esc(t('hv.vmBack', { host: hostName }))}" aria-label="${_esc(t('hv.vmBack', { host: hostName }))}"><i class="fas fa-arrow-left"></i></button>`;
     // Accento colorato nell'intestazione: logo OS dal guest-OS dichiarato.
     const osIco = osIconHtmlFor({ vmGuest: vm.guestOs }, { accent: true, size: 20 });
@@ -380,7 +384,7 @@ export function _renderVmProps(panel){
     // che lavorano su ogni <details> di #props-panel (qui le sei fisarmoniche della scheda).
     const arrows = _propsToggleButtonsHtml();
     const header = _buildPropsHeader(vm.name || t('hv.vmUnnamed'), t('hv.vmOnHost', { host: hostName }), 'fa-display',
-        `<span class="props-toggles vm-head-actions">${stateChip}${arrows}${back}</span>`, '', osIco);
+        `<span class="props-toggles vm-head-actions">${arrows}${back}</span>`, '', osIco).replace(ICONA, () => stateIcon);
 
     // Sistema operativo: la lista copre i casi comuni, ma l'harness
     // «Personalizzato…» del pannello permette di digitarne uno qualsiasi — per
