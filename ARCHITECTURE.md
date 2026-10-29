@@ -249,6 +249,19 @@ lib/                   Shared browser + test modules (the heart of the app)
                     prefix declares as its gateway) counts like a physical gateway. Discover, the
                     topology crawl, the Verify adoption, the LLDP/CDP neighbour and the drop onto
                     a host all ask it, so they cannot disagree  (pure)
+  vm-presence.js    "does the network see this VM?" — what the Verify run writes in `vm.proof`,
+                    next to the state a person declared and never over it. The same proof
+                    vocabulary as the nodes (`proof.js`: proven / unverified / absent), from the
+                    signals the run already collects: the sweep on the vNIC IPv4s, the sweep's
+                    live ARP, and the MAC tables / router ARP-ND as memories. Answering is proof,
+                    silence is not (a guest firewall, a suspended or booting VM all stay silent);
+                    the only absence that counts is every address proved absent on the local
+                    wire, and then a table memory does not bring the VM back (the measurement
+                    beats the memory). `applyPresence` is the only writer: with "Follow VM state"
+                    on it also sets `vm.state`, but only where it is empty or the Verify run wrote
+                    it (`vm.stateAuto`) — a hand-set state is never touched, and `beforeStateWrite`
+                    fires once, before anything is written, for the undo snapshot. `methodOfVia`
+                    is the one "how was it seen" mapping, shared with the nodes  (pure)
   undo-history.js   the model of undo/redo — `record` / `undo` / `redo` / `canUndo` / `canRedo`
                     over a list of snapshots and an index — plus `shortcutAction` and
                     `isTextEditingTarget` (see "Undo: the snapshot is taken before the change")  (pure)
@@ -1303,7 +1316,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,357 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,378 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

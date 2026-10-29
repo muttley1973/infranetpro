@@ -34,6 +34,8 @@ import { reconcileMiscabling } from './app-autolink.js';   // Proof-State: misca
 import { registerClickActions, registerChangeActions } from './app-delegation.js';   // ASSE B: pannello Drift (template dinamico) via event delegation
 import { aiExplainDrift } from './app-ai.js';   // ASSE B: bottone «Spiega» del Drift (delegato qui, definito in app-ai)
 import { hasSnmpTarget } from '../lib/snmp-target.js';   // «si interroga con SNMP?»: la definizione sta in un posto solo
+import { macKey } from '../lib/mac-class.js';   // la chiave MAC del progetto: una definizione sola
+import { vmSweepIps, applyPresence, methodOfVia } from '../lib/vm-presence.js';   // «la VM si vede in rete?»: prova accanto al dichiarato, e «via» → metodo
 
 // _driftReport è stato condiviso cross-boundary (scritto anche da
 // app-drift-adopt.js) → vive su window, mai come binding di modulo.
@@ -178,6 +180,10 @@ export function _driftBuildSnmpSnapshot(docSnap, reachable, arpTable){
     });
 }
 
+// L'ultimo snapshot della realtà calcolato da _driftComputeFromDoc: serve a _driftWriteVmPresence, che gira subito dopo
+// nello stesso giro di Verifica. Variabile di modulo e non `store`: lo scrive e lo legge questo file soltanto.
+let _lastSnmpSnap = null;
+
 // ── Calcolo Drift dallo stato CORRENTE (SENZA ri-pollare) ────────────
 // Usa il docSnap catturato PRIMA del refresh (i campi base sono già stati
 // sovrascritti dal poll). Riusato da: runDriftCheck (dopo pollAllSNMP) e dal
@@ -187,6 +193,7 @@ export function _driftComputeFromDoc(docSnap, opts){
     const state = store.state;
     _driftUpdateStreaks(docSnap);
     const snmpSnap = _driftBuildSnmpSnapshot(docSnap, opts && opts.reachable, opts && opts.arpTable);
+    _lastSnmpSnap = snmpSnap;   // la presenza delle VM legge gli stessi segnali di vicinato, senza ricostruirli
     if(!Array.isArray(state.driftIgnores)) state.driftIgnores = [];
     store._driftReport = win.buildDriftReport(snmpSnap, docSnap, state.driftIgnores, {
         downStreakN: DRIFT_DOWN_STREAK_N,
@@ -246,10 +253,6 @@ function _driftWriteProofState(sweep, snmpPolled){
         ...(rep.ipChanged || []).map(r => r && r.nodeId).filter(Boolean),
         ...(rep.identityDrift || []).filter(r => r && r.identity).map(r => r.nodeId).filter(Boolean),
     ]);
-    const _method = via => {
-        const v = String(via || '').toLowerCase();
-        return v === 'icmp' ? 'ping' : (['ping','arp','tcp','snmp'].indexOf(v) >= 0 ? v : null);
-    };
     for(const n of (store.state.nodes || [])){
         if(!n) continue;
         const ip = ((n.integration || {}).host || n.ip || '').trim();
@@ -262,7 +265,7 @@ function _driftWriteProofState(sweep, snmpPolled){
             diverged: divergedIds.has(n.id),
             absentEvidence: absentIds.has(n.id),
             attempted: snmpOk || reach != null || absentIds.has(n.id) || unverIds.has(n.id) || divergedIds.has(n.id),
-            method: snmpOk ? 'snmp' : (reach ? _method(reach.via) : null),
+            method: snmpOk ? 'snmp' : (reach ? methodOfVia(reach.via) : null),
         }, now);
     }
     // Alimenta l.portDown dal bucket ghostCable (dedotti con porta d'accesso down da
@@ -281,6 +284,33 @@ function _driftWriteProofState(sweep, snmpPolled){
     }
 }
 
+// ── Presenza delle VM: cosa dice la rete, ACCANTO a ciò che hai dichiarato ──────────
+// Lo stato di una VM (acceso/spento) lo commuti tu; qui si scrive `vm.proof` con gli STESSI segnali che la
+// Verifica ha appena raccolto per i nodi (sweep sugli IP delle vNIC, ARP vivo, MAC-table e ARP/ND dei router) e
+// lo stesso vocabolario di prova. «Risponde» è una prova; il silenzio no (lib/vm-presence.js).
+// Non passa dai bucket rossi del Drift: una VM spenta non è un'anomalia.
+// Con `state.autoVmState` (opt-in, spento di default) la rete scrive anche `vm.state`, ma solo dove è vuoto o
+// l'aveva scritto lei: uno stato commutato da una persona non si tocca, la discrepanza resta da vedere.
+// Il Sync non passa di qui: non ha la sweep. Ritorna il resoconto di `applyPresence`.
+function _driftWriteVmPresence(sweep){
+    const keys = list => new Set((list || []).map(m => macKey(m)).filter(Boolean));
+    const ctx = {
+        reach: (sweep && sweep.reachable) || null,
+        liveMacs: keys(Object.values((sweep && sweep.arpTable) || {})),               // l'ARP della sweep: misura di adesso
+        neighborMacs: keys(_lastSnmpSnap && _lastSnmpSnap.observedMacs),               // FDB, ARP/ND dei router, lease: ricordi
+    };
+    const r = applyPresence(store.state.nodes, ctx, {
+        follow: !!store.state.autoVmState,
+        beforeStateWrite: () => pushHistory(),   // un solo punto di annulla per il lotto, PRIMA di scrivere
+    });
+    if(r.changes.length){
+        const to = k => r.changes.filter(c => c.to === k).length;
+        logAudit('vm-state-auto', { target: r.changes.length === 1 ? (r.changes[0].vm.name || r.changes[0].vm.id) : `${r.changes.length} VM`,
+            summary: `${to('running')} → ${t('hv.running')} · ${to('stopped')} → ${t('hv.stopped')}` });
+    }
+    return r;
+}
+
 // ── Sweep di raggiungibilità (audit presenza multi-segnale) ──────────
 // Interroga il server (ping ICMP / ARP / TCP) sugli IP documentati: stabilisce
 // la PRESENZA dei device che NON parlano SNMP. Ritorna { ip: { alive, via } } o
@@ -288,9 +318,14 @@ function _driftWriteProofState(sweep, snmpPolled){
 // documentazione" (non dal Sync veloce, per non rallentarlo).
 async function _driftReachabilitySweep(){
     const state = store.state;
-    const ips = [...new Set((state.nodes || [])
-        .map(n => ((n.integration || {}).host || n.ip || '').trim())
-        .filter(ip => /^\d{1,3}(\.\d{1,3}){3}$/.test(ip)))];
+    // Gli IP dei nodi E quelli delle VM che ospitano: una VM non era mai contattata, e il suo stato
+    // restava solo quello che una persona aveva scritto (v. _driftWriteVmPresence).
+    const ips = [...new Set([
+        ...(state.nodes || [])
+            .map(n => ((n.integration || {}).host || n.ip || '').trim())
+            .filter(ip => /^\d{1,3}(\.\d{1,3}){3}$/.test(ip)),
+        ...vmSweepIps(state.nodes),
+    ])];
     if(!ips.length) return null;
     // Con scadenza lato client, scalata sul numero di IP (ondate da REACHABILITY_BATCH): il suo
     // `await` sta DENTRO runDriftCheck, e una risposta che non torna terrebbe acceso
@@ -353,6 +388,7 @@ async function runDriftCheck(opts = {}){
         _driftAutoRenewIps();                           // opt-in: rinnova IP dei MAC noti (DHCP)
         _driftPersistSnapshot();                        // B1: la Verifica resta come stato (Panoramica «Vero»)
         _driftWriteProofState(sweep || {}, hasSnmp);    // Proof-State: fissa n.proof su ogni nodo (persistito, non-undo)
+        _driftWriteVmPresence(sweep);                   // le VM: vm.proof accanto allo stato dichiarato (e vm.state, se «segui» è acceso)
         reconcileMiscabling();                          // Proof-State: marca i cavi col vicino osservato ≠ dichiarato (l.miscabled)
         markDirty();
         // Storico: registra la riga di timeline SUBITO dopo calcolo/persistenza, PRIMA
@@ -623,6 +659,14 @@ function _driftAutoRenewIps(){
 // Toggle per-progetto del rinnovo automatico IP (UI in proprietà floor).
 function setAutoIpRenew(on){
     store.state.autoIpRenew = !!on;
+    markDirty();
+    renderAutomationMenu();
+}
+// Toggle per-progetto «segui lo stato osservato» delle VM (UI nel popover Automazioni). Default OFF: le VM mostrano
+// cosa dice la rete accanto allo stato dichiarato, ma non lo riscrivono. Da ON, la Verifica scrive `vm.state` solo
+// dove è vuoto o l'aveva scritto lei (lib/vm-presence.js `followedState`).
+function setAutoVmState(on){
+    store.state.autoVmState = !!on;
     markDirty();
     renderAutomationMenu();
 }
@@ -1043,4 +1087,5 @@ registerChangeActions({
     // evitare che app-vlan-autopoll importi app-drift (sarebbe un ciclo: app-drift
     // gia' importa renderAutomationMenu da app-vlan-autopoll).
     'autopoll-ip-renew': (el) => setAutoIpRenew(el.checked),
+    'autopoll-vm-state': (el) => setAutoVmState(el.checked),   // idem per «segui lo stato delle VM»
 });

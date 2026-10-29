@@ -4807,6 +4807,127 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(await page.evaluate(() => nodeById('lab').name), 'NUC-01', 'la modifica non registrata si annulla (il confronto vero decide)');
     });
 
+    await t.test('VM: la Verifica guarda le VM — la prova sta accanto al dichiarato, «segui lo stato» è opt-in e annullabile, e una persona ha l\'ultima parola', async () => {
+      // Il percorso VERO: runDriftCheck → sweep sugli IP delle vNIC (rotta finta, ma si legge cosa le viene chiesto) →
+      // vm.proof → (solo con l'interruttore) vm.state. Prima la sweep partiva solo dagli IP dei nodi: una VM non veniva
+      // mai contattata e il suo stato restava quello scritto a mano.
+      const chiesti = [];
+      await page.route('**/api/reachability', async (route) => {
+        let body = {}; try { body = JSON.parse(route.request().postData() || '{}'); } catch (_) {}
+        chiesti.push(body.ips || []);
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, arpTable: {}, results: {
+          '10.0.0.5': { alive: true,  via: 'ping', mac: '', absent: false },   // up   → risponde
+          '10.0.0.6': { alive: true,  via: 'arp',  mac: '', absent: false },   // man  → risponde (ma dichiarata spenta)
+          '10.0.0.7': { alive: false, via: '',     mac: '', absent: true },    // gone → fuori dal filo locale (ma dichiarata accesa)
+          '10.0.0.8': { alive: false, via: '',     mac: '', absent: true },    // auto → idem, ma lo stato l'aveva scritto la rete
+          '10.0.0.9': { alive: false, via: '',     mac: '', absent: false },   // mute → tace e basta
+        } }) });
+      });
+      try {
+        const r = await page.evaluate(async () => {
+          try {
+            state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+            state.nodes.length = 0; state.links.length = 0; state.ports = {};
+            state.nodes.push({ id: 'hvx', type: 'server', name: 'HV-X', x: 100, y: 100, ports: 1, vms: [
+              { id: 'up',   name: 'web', nics: [{ id: 'nic1', ip: '10.0.0.5' }] },
+              { id: 'man',  name: 'db',  state: 'stopped', nics: [{ id: 'nic1', ip: '10.0.0.6' }] },
+              { id: 'gone', name: 'old', state: 'running', nics: [{ id: 'nic1', ip: '10.0.0.7' }] },
+              { id: 'auto', name: 'tmp', state: 'running', stateAuto: true, nics: [{ id: 'nic1', ip: '10.0.0.8' }] },
+              { id: 'mute', name: 'fw',  state: 'running', nics: [{ id: 'nic1', ip: '10.0.0.9' }] },
+              { id: 'noip', name: 'nip' },
+            ] });
+            if (typeof _invalidateIdx === 'function') _invalidateIdx();
+            // Un lease fa partire la Verifica anche senza apparati SNMP (rete dietro firewall).
+            window._dhcpLeases = [{ mac: 'AA:BB:CC:00:00:10', ip: '10.9.9.9', hostname: 'x' }];
+            const vmOf = (id) => nodeById('hvx').vms.find((v) => v.id === id);
+            const statoDi = () => Object.fromEntries(nodeById('hvx').vms.map((v) => [v.id, (v.state || '') + (v.stateAuto ? '*' : '')]));
+            const prove = () => Object.fromEntries(nodeById('hvx').vms.map((v) => [v.id, v.proof ? v.proof.status : null]));
+            const marchi = () => nodeById('hvx').vms.filter((v) => _vmRowHtml(v, 'hvx').includes('vm-row-conflict')).map((v) => v.id).sort();
+
+            // 1) interruttore SPENTO (il default): la rete scrive la prova e NON tocca lo stato
+            await window.runDriftCheck({ silent: true });
+            const spento = { stato: statoDi(), prove: prove(), marchi: marchi(), segui: !!state.autoVmState };
+
+            // 2) accendo «segui» dal popover vero (delegation su data-change), e rifaccio il giro
+            renderAutomationMenu();
+            const cb = document.querySelector('#automation-dropdown input[data-change="autopoll-vm-state"]');
+            const cbEsiste = !!cb;
+            if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); }
+            const seguiOn = !!state.autoVmState;
+            window._history = []; window._histIdx = -1;
+            await window.runDriftCheck({ silent: true });
+            const acceso = { stato: statoDi(), marchi: marchi(), storia: window._history.length };
+
+            // 3) Annulla (un solo punto per tutto il lotto): lo stato torna com'era
+            const u = document.getElementById('btn-undo'); u.disabled = false; u.click();
+            const annullato = { stato: statoDi() };
+
+            // 4) una persona commuta «web» a mano: da qui la rete non lo tocca più, e la discrepanza si vede
+            await window.runDriftCheck({ silent: true });          // lo riporta a running (era vuoto)
+            const riscritto = statoDi().up;
+            updateVm('hvx', 'up', 'state', 'stopped');            // il gesto di una persona (chip della scheda)
+            await window.runDriftCheck({ silent: true });
+            const persona = { stato: statoDi(), marchi: marchi() };
+
+            // 5) la scheda racconta quanto si sa, e solo quello
+            openVmProps('hvx', 'man');
+            const schedaMan = document.getElementById('props-panel').innerHTML;
+            openVmProps('hvx', 'mute');
+            const schedaMute = document.getElementById('props-panel').innerHTML;
+            openVmProps('hvx', 'noip');
+            const schedaNoIp = document.getElementById('props-panel').innerHTML;
+            const nomi = { man: schedaMan.includes('Si vede in rete') && schedaMan.includes('Dichiarata spenta, ma risponde in rete'),
+              mute: schedaMute.includes('Nessuna risposta') && schedaMute.includes('Non prova che sia spenta'),
+              noip: !/hv\.pres|Si vede in rete|Nessuna risposta/.test(schedaNoIp) };
+
+            const prova = JSON.parse(JSON.stringify(vmOf('up').proof || {}));
+            window._dhcpLeases = null; state.autoVmState = false;
+            return { ok: true, spento, cbEsiste, seguiOn, acceso, annullato, riscritto, persona, nomi, prova };
+          } catch (e) { return { err: String(e && e.stack || e) }; }
+        });
+        assert.ok(!r.err, 'nessun errore nel flusso presenza VM: ' + r.err);
+
+        // la sweep chiede anche gli IP delle VM (e non quello di chi non ne ha)
+        assert.ok(chiesti.length >= 1, 'la Verifica ha fatto la sweep');
+        for (const ip of ['10.0.0.5', '10.0.0.6', '10.0.0.7', '10.0.0.8', '10.0.0.9']) {
+          assert.ok(chiesti[0].includes(ip), 'la sweep chiede l\'IP della VM ' + ip + ': ' + JSON.stringify(chiesti[0]));
+        }
+
+        // 1) interruttore spento
+        assert.deepEqual(r.spento.stato, { up: '', man: 'stopped', gone: 'running', auto: 'running*', mute: 'running', noip: '' },
+          'senza «segui» nessuno stato dichiarato cambia');
+        assert.deepEqual(r.spento.prove, { up: 'proven', man: 'proven', gone: 'absent', auto: 'absent', mute: 'unverified', noip: null },
+          'la prova ha il vocabolario dei nodi; una VM senza indirizzo non ne ha');
+        assert.deepEqual(r.spento.marchi, ['auto', 'gone', 'man'],
+          'le contraddizioni con una prova che regge hanno il segno nella lista (anche «auto»: lo aveva scritto la rete e la rete ora dice altro); il silenzio (mute) no');
+        assert.equal(r.spento.segui, false, 'default: spento');
+
+        // 2) interruttore acceso dal popover
+        assert.ok(r.cbEsiste, 'il popover Automazioni ha l\'interruttore «Segui lo stato delle VM»');
+        assert.ok(r.seguiOn, 'il change delegato accende state.autoVmState');
+        assert.deepEqual(r.acceso.stato, { up: 'running*', man: 'stopped', gone: 'running', auto: 'stopped*', mute: 'running', noip: '' },
+          'la rete scrive dove lo stato è vuoto o suo; non tocca quello di una persona, né un silenzio');
+        assert.equal(r.acceso.storia, 1, 'un solo punto di annulla per il lotto');
+
+        // 3) annulla
+        assert.deepEqual(r.annullato.stato, { up: '', man: 'stopped', gone: 'running', auto: 'running*', mute: 'running', noip: '' },
+          'Annulla riporta gli stati com\'erano prima del giro');
+
+        // 4) una persona
+        assert.equal(r.riscritto, 'running*', 'dopo l\'annulla il giro successivo riscrive (lo stato era vuoto)');
+        assert.equal(r.persona.stato.up, 'stopped', 'commutato a mano: resta quello che hai messo, senza il segno della rete');
+        assert.ok(r.persona.marchi.includes('up'), 'e ora la VM risponde mentre è dichiarata spenta: si vede');
+
+        // 5) la scheda
+        assert.ok(r.nomi.man, 'la scheda dice «si vede in rete» e segnala la discrepanza');
+        assert.ok(r.nomi.mute, 'il silenzio si racconta come tale, senza dire che è spenta');
+        assert.ok(r.nomi.noip, 'senza indirizzi non c\'è niente da raccontare, e nessuna chiave i18n grezza');
+        assert.equal(r.prova.method, 'ping');
+      } finally {
+        await page.unroute('**/api/reachability');
+      }
+    });
+
     await t.test('VM: import RIPETUTO (76ª) — la zona resta raggiungibile a ogni giro, non scivola fuori dallo scrollport', async () => {
       // BUG storico: la drop-zone stava in FONDO alla lista VM; ogni import ri-renderizzava
       // il pannello (scroll azzerato) spingendola sotto la piega → dal 2° drop in poi

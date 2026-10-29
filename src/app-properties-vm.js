@@ -42,6 +42,7 @@ import { _nodeVms, _vmIntg } from './app-hypervisor.js';
 import { _mgmtBuildUrl, _mgmtProtoDef, _mgmtProtoOptionsHtml } from './app-management.js';
 import { vmNics, vmPrimaryIp } from '../lib/vm-nics.js';   // lib pura importata ESM (come lib/ipv6.js)
 import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS (accento colorato nell'intestazione)
+import { presenceView, vmStateConflict } from '../lib/vm-presence.js';   // cosa dice la rete della VM, accanto allo stato dichiarato
 
 // Sistemi guest: stessa lista dell'host (un guest e' un OS, non una piattaforma).
 const _VM_GUEST_OS = [
@@ -325,6 +326,28 @@ function _preview(parts, emptyKey){
         : `<span class="props-collapsible-preview muted">${t(emptyKey || 'common.empty')}</span>`;
 }
 
+// Cosa dice la RETE di questa VM, sotto l'intestazione e accanto allo stato dichiarato (che e' il chip). Lo scrive la
+// Verifica (`vm.proof`, lib/vm-presence.js); qui si racconta soltanto, e solo quanto si sa: «si vede» e' una prova,
+// il silenzio no (ambra, come un timeout SNMP: non prova che sia spenta). Niente prova = niente riga.
+const _VIA = { ping: 'ping', arp: 'ARP', tcp: 'TCP', snmp: 'SNMP' };
+function _presenceHtml(vm){
+    const when = iso => { try { return new Date(iso).toLocaleString(); } catch(_){ return String(iso || ''); } };
+    const line = (cls, ico, text) => `<div class="vm-hint${_esc(cls ? ' ' + cls : '')}"><i class="fas ${_esc(ico)}"></i> ${_esc(text)}</div>`;
+    const out = [];
+    const v = presenceView(vm.proof);
+    if(v){
+        const last = v.last ? ' ' + t('hv.pres.lastSuffix', { when: when(v.last) }) : '';
+        if(v.kind === 'seen')        out.push(line('', 'fa-satellite-dish', t('hv.pres.seen', { when: when(v.at), via: _VIA[v.via] || '—' })));
+        else if(v.kind === 'silent') out.push(line('vm-hint-warn', 'fa-circle-question', t('hv.pres.silent', { when: when(v.at) }) + last));
+        else if(v.kind === 'gone')   out.push(line('vm-hint-warn', 'fa-plug-circle-xmark', t('hv.pres.gone', { when: when(v.at) }) + last));
+        else                         out.push(line('', 'fa-clock-rotate-left', t('hv.pres.last', { when: when(v.at) })));
+    }
+    const conflict = vmStateConflict(vm);
+    if(conflict) out.push(line('vm-hint-warn', 'fa-triangle-exclamation', t('hv.pres.' + conflict)));
+    if(vm.stateAuto) out.push(line('', 'fa-wand-magic-sparkles', t('hv.pres.auto')));
+    return out.join('');
+}
+
 export function _renderVmProps(panel){
     const sel = _selectedVm();
     if(!sel){ panel.innerHTML = `<div class="drift-empty" style="padding:12px">${t('hv.vmGone')}</div>`; return; }
@@ -432,7 +455,7 @@ export function _renderVmProps(panel){
     // Ordine: chi e' (identita') → quanto pesa (risorse) → come la raggiungi
     // (rete, poi le sue porte vNIC, poi l'integrazione) → chi risponde e come si
     // consegna.
-    panel.innerHTML = header + identity + resources + network + vnics + _snmpSectionHtml(vm, ref) + handover;
+    panel.innerHTML = header + _presenceHtml(vm) + identity + resources + network + vnics + _snmpSectionHtml(vm, ref) + handover;
     // Stesso harness del pannello device: aggiunge «Personalizzato…» alle select
     // che non dichiarano data-no-manual, cosi' il sistema operativo non e' limitato
     // alla lista (una VM puo' ospitare qualsiasi cosa) senza inventare un secondo

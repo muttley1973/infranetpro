@@ -2,8 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- **The Verify run now looks at virtual machines.** A VM's state (running / stopped) used to be only what you had declared, and the sweep never contacted a VM. Now it also asks each VM's IPv4 addresses and, together with what the run already collects for devices (the sweep's ARP, the routers' ARP and ND tables, the switches' MAC tables), writes what the network says next to your state: "seen on the network" with when and how, "no answer" (which does not prove it is off), or "no longer on the local network" (the address does not even answer ARP). When the network contradicts you — declared stopped but it answers, declared running but gone — the VM gets an amber marker in the host's list and a line in its sheet. VMs do not go through the red buckets of the Verify: a stopped VM is not an anomaly.
+- **"Follow VM state" in the Automations menu, off by default.** When on, the Verify run sets *running* on a VM that answers and *stopped* on one that has left the local network, only where the state is empty or the Verify run wrote it; a state you set by hand is never touched, and the whole batch is one Undo step.
+
 ### Fixed
 
+- **A host found over TCP is no longer recorded as found by ping.** The sweep reports `tcp:<port>`, which matched no method, so the proof of a device seen that way said "ping".
 - **Opening a project no longer drops its LAG markers.** The check at load time that removes the LAG marker from a cable to a passive element (wall port, patch panel) looked the cable's ends up in the project that was open before — at start-up, the default one — so every end looked inactive and the markers of every project were dropped on opening, with a notice that blamed a passive element. It now reads the project being opened: a LAG between two switches stays, and only a cable that really ends on a passive element loses its marker.
 - **The "Routed by" list on a VLAN no longer offers "Custom…".** Choosing it wrote a placeholder as the gateway device, and the card then said the device no longer exists.
 - **Panning, zooming or switching rack tab no longer breaks Undo and Redo.** After a Ctrl+Z, moving the view made the next Ctrl+Z undo only the view and wiped the Redo, so Ctrl+Y could not get back to the last operation. The view is no longer part of what Ctrl+Z restores, and it stays where you left it.

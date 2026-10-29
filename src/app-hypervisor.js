@@ -32,6 +32,7 @@ import { openAllVmSections } from './app-properties-vm.js';   // una VM nuova si
 import { vmNics, vmPrimaryIp, migrateVmNics, nextVmNicId, VM_FLAT_NET_FIELDS, VM_NIC_FIELDS, buildVmIdentityIndex, findVmForRow } from '../lib/vm-nics.js';   // vNIC: lib pura importata ESM (come lib/ipv6.js)
 import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS dal guest-OS della VM (lib pura)
 import { parseVlanList } from '../lib/vlan-trunk.js';   // il parser VLAN canonico, lo stesso di carriedVlans: una vNIC su un trunk puo' dichiararne piu' d'una
+import { vmStateConflict } from '../lib/vm-presence.js';   // dichiarata una cosa, la rete ne dice un'altra? (lib pura, la prova la scrive la Verifica)
 
 // Piattaforme datacenter (hypervisor) e homelab: liste diverse, stesso campo
 // `hvPlatform`. Tutte on-prem (il cloud pubblico è un modello a sé, fuori scope).
@@ -107,6 +108,9 @@ function updateVm(nodeId, vmId, field, value){
         if(Number.isFinite(num) && num > 0) vm[field] = num; else delete vm[field];
     }
     else if(v) vm[field] = v; else delete vm[field];
+    // Ogni scrittura di una persona sullo stato lo rende SUO: da qui «segui lo stato delle VM» non lo tocca piu'
+    // (`stateAuto` e' il segno che l'aveva scritto la Verifica — lib/vm-presence.js `followedState`).
+    if(field === 'state') delete vm.stateAuto;
     // Da DOVE stai editando cambia dove deve restare il pannello:
     //  · dalla SCHEDA della VM → si resta sulla scheda (realinearla all'host la
     //    chiuderebbe a ogni campo committato: si compilava un campo e si veniva
@@ -301,13 +305,15 @@ function _vmRowHtml(vm, nodeId){
     const stopped = vm.state === 'stopped';
     const dotColor = running ? 'var(--active-color)' : stopped ? 'var(--fault-color)' : 'var(--text-muted)';
     const stateTitle = running ? t('hv.running') : stopped ? t('hv.stopped') : t('hv.vmUnknown');
+    // La rete dice altro da ciò che hai dichiarato (solo con una prova che regge): un segno ambra accanto al pallino.
+    const conflict = vmStateConflict(vm);
     const ref = `data-vm-host="${esc(nodeId)}" data-vm-id="${esc(vm.id)}"`;
     const displayName = vm.name || t('hv.vmUnnamed');
     // Icona OS dal guest-OS dichiarato (mono nella lista: eredita currentColor).
     // Vuoto/appliance/altro → nessuna icona (schema ①: niente logo inventato).
     const osIco = osIconHtmlFor({ vmGuest: vm.guestOs }, { cls: 'vm-row-os' });
     return `<div class="vm-row" ${ref} data-act="vm-open" role="button" tabindex="0" data-tip="${esc(t('hv.vmEdit'))}">
-        <i class="fas fa-circle vm-row-dot" style="color:${dotColor}" title="${esc(stateTitle)}"></i>
+        <i class="fas fa-circle vm-row-dot" style="color:${dotColor}" title="${esc(stateTitle)}"></i>${conflict ? `<i class="fas fa-triangle-exclamation vm-row-conflict" style="color:var(--idle-color)" title="${esc(t('hv.pres.' + conflict))}"></i>` : ''}
         ${osIco}<span class="vm-row-name">${esc(displayName)}</span>
         <span class="vm-row-sum">${_vmSummaryHtml(vm, displayName)}</span>
         <button type="button" class="toolbar-btn vm-row-btn" ${ref} data-act="vm-open" data-tip="${esc(t('hv.vmEdit'))}" aria-label="${esc(t('hv.vmEdit'))}"><i class="fas fa-pen"></i></button>
@@ -513,7 +519,7 @@ export function applyVmSnmpValues(hostId, vmId){
     // Lo stato misurato entra QUI, col gesto e con l'undo — non piu' da solo al
     // termine della sonda: se hai scritto «spenta» e la macchina risponde, e' una
     // discrepanza da mostrarti, non un campo da correggerti alle spalle.
-    if(s.powerState) vm.state = s.powerState;
+    if(s.powerState){ vm.state = s.powerState; delete vm.stateAuto; }   // il travaso e' un gesto tuo: lo stato diventa dichiarato
     markDirty(); renderProps();
     _showToast(t('hv.vmSnmpApplied'), 'ok');
 }

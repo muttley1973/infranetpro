@@ -81,6 +81,7 @@ export function renderAutomationMenu(){
     const ap=st.autoPoll||{};
     const cfg=effAutoConfig(ap);   // {enabled, interval, depth} — schema nuovo o migrato dai legacy
     const ipr=!!st.autoIpRenew;
+    const vms=!!st.autoVmState;   // «segui lo stato delle VM» (default OFF)
     const as=!!ap.autosave;   // autosave debounced-on-dirty (default OFF)
     const sov=!(ap.snapshotOnVerify===false);   // fotografia (timeline) a ogni Verifica (default ON)
     const dl=Array.isArray(store._dhcpLeases)?store._dhcpLeases:[];   // lease DHCP transitori in memoria
@@ -124,6 +125,17 @@ export function renderAutomationMenu(){
           <button class="toolbar-btn" style="padding:3px 9px;font-size:var(--fs-xs)" data-act="dhcp-open"><i class="fas fa-folder-open"></i> ${escapeHTML(t('dhcp.load'))}</button>
         </div>
         <div class="autom-desc">${escapeHTML(dl.length ? t('dhcp.inMemory',{n:dl.length}) : t('dhcp.loadDesc'))}</div>
+      </div>
+      <div class="autom-sec">
+        <div class="autom-grouphd"><i class="fas fa-display"></i>${escapeHTML(t('autom.vmGroup'))}</div>
+        <div class="autom-row">
+          <span class="autom-title"><i class="fas fa-power-off"></i>${escapeHTML(t('autom.vmState'))}</span>
+          <label class="toggle-sw" data-tip="${escapeHTML(t('autom.vmStateTip'))}">
+            <input type="checkbox" ${vms?'checked':''} data-change="autopoll-vm-state">
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div class="autom-desc">${escapeHTML(t('autom.vmStateDesc'))}</div>
       </div>
       <div class="autom-sec">
         <div class="autom-grouphd"><i class="fas fa-floppy-disk"></i>${escapeHTML(t('autom.saveGroup'))}</div>
