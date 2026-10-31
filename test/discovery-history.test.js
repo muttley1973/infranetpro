@@ -156,8 +156,13 @@ test('normalizeFdbVlan: input non-oggetto → mappa vuota', () => {
 // ============================================================
 // Le osservazioni vivono FUORI dal documento: sanificazione, fusione, migrazione.
 // ============================================================
+// ⚠️ Le date di queste prove sono RELATIVE a oggi, non scritte a mano. Con un «2026-08-01» fisso il giorno in cui
+// compie 90 giorni (30/10/2026) l'aging tagliava la riga e quattro prove diventavano rosse, senza che nel codice
+// fosse cambiato niente. Tutto resta dentro i 90 giorni del tetto, con margine.
+const NOW0 = Date.now();
+const GIORNI = n => iso(NOW0 - n * DAY);
 const OBS = (over) => Object.assign({
-  ts: '2026-05-01T10:00:00.000Z', lastSeen: '2026-08-01T10:00:00.000Z', count: 3,
+  ts: GIORNI(80), lastSeen: GIORNI(10), count: 3,
   mac: 'aa:bb:cc:dd:ee:ff', ip: '192.168.1.50',
   switchId: 'sw1', switchName: 'Core', portId: 'sw1-4', ifName: 'Gi1/0/4',
   source: 'FDB', confidence: 0.8,
@@ -177,13 +182,13 @@ test('sanitizeObservation: serve un MAC o un IP, e la FORMA del record non cambi
 });
 
 test('⚠️ fold: tiene la storia PIÙ LARGA (primo più antico, ultimo più recente, conteggio maggiore)', () => {
-  const vecchia = OBS({ ts: '2026-01-01T00:00:00.000Z', lastSeen: '2026-02-01T00:00:00.000Z', count: 10, confidence: 0.4 });
-  const nuova   = OBS({ ts: '2026-07-01T00:00:00.000Z', lastSeen: '2026-08-10T00:00:00.000Z', count: 2,  confidence: 0.9 });
+  const vecchia = OBS({ ts: GIORNI(85), lastSeen: GIORNI(80), count: 10, confidence: 0.4 });
+  const nuova   = OBS({ ts: GIORNI(60), lastSeen: GIORNI(50), count: 2,  confidence: 0.9 });
   const { observations } = foldObservations({ observations: [vecchia] }, { observations: [nuova] });
   assert.equal(observations.length, 1, 'stessa chiave = una riga sola');
   const o = observations[0];
-  assert.equal(o.ts, '2026-01-01T00:00:00.000Z', 'il primo avvistamento è il più antico');
-  assert.equal(o.lastSeen, '2026-08-10T00:00:00.000Z', 'l\'ultimo è il più recente');
+  assert.equal(o.ts, GIORNI(85), 'il primo avvistamento è il più antico');
+  assert.equal(o.lastSeen, GIORNI(50), 'l\'ultimo è il più recente');
   assert.equal(o.count, 10);
   assert.equal(o.confidence, 0.9);
 });
