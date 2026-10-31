@@ -160,6 +160,49 @@ test('device-type updater: un classificatore che perde i modelli in uso blocca l
   }
 });
 
+test('device-type updater: --from-canonical riscrive i conteggi del manifesto e lascia intatta la sorgente', () => {
+  // Cambia il filtro (qui: un'esclusione a mano) e la proiezione runtime cambia, ma la libreria NetBox no. Il
+  // manifesto porta i numeri che l'interfaccia mostra: se restano quelli di prima, la schermata dice una cosa
+  // diversa dal catalogo che il server serve.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'infranet-device-types-rebuild-'));
+  const source = path.join(root, 'src');
+  const store = path.join(root, 'store');
+  fs.mkdirSync(source, { recursive: true });
+  fs.mkdirSync(store, { recursive: true });
+  try {
+    for (let i = 1; i <= 4; i++) fs.writeFileSync(path.join(source, 'sw' + i + '.yaml'), yamlModel('acme-sw-' + i, 'Acme', 'SW ' + i, 2), 'utf8');
+    assert.equal(runUpdater(source, store).status, 0);
+    const prima = JSON.parse(fs.readFileSync(path.join(store, 'manifest.json'), 'utf8'));
+    assert.equal(prima.catalogModels, 4);
+    assert.equal(prima.excludedModels, 0);
+    const diffPrima = fs.readFileSync(path.join(store, 'diff.json'), 'utf8');
+    const esclusioni = path.join(store, 'esclusioni.json');
+    fs.writeFileSync(esclusioni, JSON.stringify(['acme-sw-1']), 'utf8');
+    const none = path.join(store, 'assente.json');
+    const r = require('child_process').spawnSync(process.execPath, [
+      path.resolve(__dirname, '..', 'scripts', 'update-device-types.js'), '--quiet', '--from-canonical',
+      '--canonical=' + path.join(store, 'canonical.json'),
+      '--catalog=' + path.join(store, 'runtime.json'),
+      '--manifest=' + path.join(store, 'manifest.json'),
+      '--diff=' + path.join(store, 'diff.json'),
+      '--overrides=' + none, '--exclusions=' + esclusioni,
+    ], { encoding: 'utf8', windowsHide: true });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(store, 'runtime.json'), 'utf8')).length, 3);
+    const dopo = JSON.parse(fs.readFileSync(path.join(store, 'manifest.json'), 'utf8'));
+    assert.equal(dopo.catalogModels, 3, 'i modelli in uso sono scesi di uno');
+    assert.equal(dopo.excludedModels, 1, 'e quello scartato si vede');
+    assert.equal(dopo.catalogVendors, 1);
+    // la sorgente non si tocca: stesso riferimento, stessa impronta, stesso diff, stesso conteggio di canonici
+    assert.equal(dopo.sourceRef, prima.sourceRef);
+    assert.equal(dopo.sourceSha256, prima.sourceSha256);
+    assert.equal(dopo.canonicalModels, prima.canonicalModels);
+    assert.equal(fs.readFileSync(path.join(store, 'diff.json'), 'utf8'), diffPrima);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('device-type updater: diff distingue aggiunte, rimozioni e template', () => {
   const diff = updater.diffCatalog(
     [{ sourceSlug: 'old', model: 'Old', interfaces: [], capabilities: {} }],

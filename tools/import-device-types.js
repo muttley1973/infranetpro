@@ -239,12 +239,34 @@ function roleOf(dt, c) {
   // (non per-vendor): distingue un console server da un endpoint mono-porta ethernet.
   if (csPorts >= 4) return { role: 'console', keep: true };
   // 3) Endpoint / periferica / ACCESSORIO -> SCARTA (anche se ha porte, es. IP phone)
-  if (rx(/\b(ip ?phone|phone|handset|voip|conference|deskphone|workstation|desktop|laptop|notebook|thin ?client|monitor|display|projector|webcam|camera|ipcam|nvr|dvr|doorbell|sensor|speaker|soundbar|headset|tablet|printer|scanner|kvm|dock|injector|media converter|transceiver|\bpsu\b|power supply|fan ?tray|rack ?(kit|mount|tray)|rail ?kit|slide ?rail|\d-?post|mounting|bracket|blank(ing)?|shelf)\b/))
+  // ⚠️ Le parole di VOCE (phone/voip/…) scartano solo con meno di 3 porte dati: un telefono ne ha una o due
+  // (la sua e quella del PC), mentre un apparato con 3+ porte che «parla VoIP» è un router/gateway (LANCOM
+  // 883 VoIP: 7 porte, scartato per la parola). Le altre parole restano ASSOLUTE, a prescindere dalle porte.
+  if (rx(/\b(workstation|desktop|laptop|notebook|thin ?client|monitor|display|projector|webcam|camera|ipcam|nvr|dvr|doorbell|sensor|speaker|soundbar|headset|tablet|printer|scanner|kvm|dock|injector|media converter|transceiver|\bpsu\b|power supply|fan ?tray|rack ?(kit|mount|tray)|rail ?kit|slide ?rail|\d-?post|mounting|bracket|blank(ing)?|shelf)\b/)
+      || (data < 3 && rx(/\b(ip ?phone|phone|handset|voip|conference|deskphone)\b/)))
     return { role: 'endpoint', keep: false };
   // 4) Access point / bridge wireless -> TIENI (anche con 0-2 porte). Famiglie AP note
   // di piu' vendor: Cisco Catalyst 91xx/Aironet, Aruba (I)AP, FortiAP, Ubiquiti air*, TP-Link WA/CPE.
   if (rx(/wireless|wi-?fi|access ?point|\bap-?\d|\bap\b|\buap\b|\biap-?\d|aironet|catalyst ?91\d\d|fortiap|airengine|\bapx\d|air-?(fiber|max|cube|grid|gateway)|nanostation|nanobeam|litebeam|powerbeam|\brocket\b|\bbullet\b|meraki mr|aruba ?ap|instant ?on|\bomada\b|\beap-?\d|\bwap-?\d|\bwax-?\d|\bews\d|tl-?wa\d|\bcpe-?\d|\bgwn7[6-9]\d\d/))
     return { role: 'ap', keep: true };
+  // 4b) Punto di accesso / ponte radio / ripetitore riconosciuto dalle INTERFACCE, non dal nome: un AP di
+  // famiglia nuova ha UNA porta cablata (quindi cade sotto la soglia dei 2 «dati» del punto 7) e un nome
+  // senza parole di classe («U6 Lite», «FlexHD»). Il segnale è la radio, e va letto con prudenza: un Apple TV,
+  // un Raspberry Pi o una telecamera Wi-Fi hanno anch'essi una porta e una radio.
+  //   · 2+ radio 802.11 e una porta cablata → AP/ponte (chi ha due radio è fatto per servire altri, non per
+  //     collegarsi; misurato sul catalogo NetBox: 24 su 24 modelli recuperati sono AP/ponti, 0 endpoint);
+  //   · UNA radio (o un modem cellulare) non basta: serve anche una parola di CLASSE nel nome — ripetitore,
+  //     extender, mesh, bridge, o la sigla AP attaccata a un numero (cAP, wAP, DAP-1360, RBLtAP-2).
+  // I punti 1-3 hanno già scartato UPS/NAS/console e gli endpoint per parola (telecamere, TV, stampanti).
+  {
+    const ifs = Array.isArray(dt.interfaces) ? dt.interfaces : [];
+    const typeOf = i => String((i && i.type) || '');
+    const radios = ifs.filter(i => /^ieee802\.11/i.test(typeOf(i))).length;
+    const cellular = ifs.some(i => /^(lte|5g|gsm|cdma|umts|hspa)/i.test(typeOf(i)));
+    // Solo con UNA porta cablata: da 2 in su ci pensa il punto 7 (e il ruolo di chi è già tenuto non cambia).
+    if (data === 1 && (radios >= 2 || ((radios >= 1 || cellular) && rx(/repeater|extender|\b(mesh|bridge|wap|cap|liteap|picostation)\b|\b[a-z]*ap-?\d/))))
+      return { role: 'ap', keep: true };
+  }
   // 5) Chassis modulare (porte fornite da line-card negli module-bays)
   if (bays >= 2 && data < 4 && !rx(/\b(server|blade|enclosure|poweredge|proliant|synergy)\b/))
     return { role: 'chassis', keep: true };

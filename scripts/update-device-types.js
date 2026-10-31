@@ -432,7 +432,20 @@ async function main() {
     log('Ricostruito dal canonico: ' + result.runtime.length + ' modelli (prima ' +
       (Array.isArray(previousRuntime) ? previousRuntime.length : 0) + '), esclusi ' + result.dropped.length +
       ' | con prese: ' + withOutlets + ' | con gruppi letti dal nome: ' + withGroups);
-    log('Manifesto e diff NON toccati: la sorgente non e cambiata, solo la proiezione runtime.');
+    // Il manifesto dice anche QUANTI modelli la proiezione tiene e quanti scarta: sono i numeri che
+    // l'interfaccia mostra («5.615 runtime · 7.142 esclusi»). Se il filtro cambia e quei tre restano
+    // quelli di prima, la schermata dice una cosa diversa dal catalogo che il server serve. La
+    // sorgente (ref, sha, diff) NON cambia: si riscrivono solo i conteggi della proiezione.
+    const manifest = readJson(manifestPath, null);
+    if (manifest && typeof manifest === 'object') {
+      manifest.catalogModels = result.runtime.length;
+      manifest.catalogVendors = new Set(result.runtime.map(model => model.brand).filter(Boolean)).size;
+      manifest.excludedModels = result.dropped.length;
+      jsonWriteAtomic(manifestPath, manifest);
+      log('Manifesto: aggiornati i soli conteggi della proiezione (modelli, produttori, esclusi). Sorgente e diff NON toccati.');
+    } else {
+      log('Manifesto assente: non ricreato, la sorgente non e cambiata. Diff NON toccato.');
+    }
     return;
   }
   let acquired = null;

@@ -6,6 +6,11 @@
 
 - **The README and `package.json` now say Node.js 18 or newer, not 16.** They said 16 or newer, but the build step runs esbuild, which asks for Node 18, and the CI runs 18 and 20: they now say what is true.
 
+### Fixed
+
+- **Access points, wireless bridges and repeaters with a single network port are no longer left out of the hardware catalog.** The catalog keeps network equipment and drops cameras, computers and accessories, and a model with one port fell on the wrong side unless its name said "access point". The filter now also reads the interfaces: two Wi-Fi radios and a wired port make an access point (UniFi U6 and AC, FlexHD, Cisco CW9162/CW9166, FRITZ!Repeater), and one radio or a cellular modem counts when the name says repeater, extender, mesh, bridge or an AP model such as cAP or DAP-1360. A name with "VoIP" no longer drops a router with three or more ports (LANCOM 883 VoIP). On the current library 38 of the 7,179 excluded models come back and none leaves; cameras, Apple TV and Raspberry Pi stay out. A single-radio unit with no such word in its name (a point-to-point radio, a cellular gateway) still stays out, because its interfaces look the same as a camera's.
+- **Rebuilding the catalog from the saved library (`--from-canonical`) now updates the counts the screen shows** (models, vendors, excluded). It rewrote the catalog and left the manifest alone, so the screen kept saying the old numbers.
+
 ## [2.12.0] — 2026-10-29
 
 The Verify run looks at virtual machines, a VM's state is the colour of its icon, and Undo and Redo keep what you did.
