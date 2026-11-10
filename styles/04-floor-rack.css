@@ -734,6 +734,25 @@
            anche lui, altrimenti resta un rettangolo vuoto invece di un buco. */
         .port-led.admin-down { background:var(--shut-color); box-shadow:none; }
         .port-led.sfp-slot.admin-down { background:var(--shut-color); border-color:var(--shut-color); box-shadow:none; }
+        /* Lo spanning-tree la tiene in blocco: c'e' link, il traffico non passa — PER SCELTA, e' la
+           ridondanza che lavora, non un guasto. Percio' NON e' un colore: verde, rosso e ambra dicono
+           gia' altro (l'ambra in particolare e' «vai a guardare», e qui non c'e' niente da guardare).
+           E' una linea scura SOTTILE in diagonale, da vertice a vertice del LED (alto-sinistra →
+           basso-destra), che si somma alla tinta di stato — la porta resta verde perche' il link c'e'.
+           Il gradiente `to top right` fa passare la linea per gli altri due ANGOLI su qualsiasi
+           rettangolo (45 gradi sul LED quadrato, l'angolo dei vertici sullo slot SFP). La parola
+           («STP blocking», e l'ambito: albero predefinito) sta nel suggerimento e nel chip del
+           pannello porta: un segno senza testo obbliga a chiedere cosa vuol dire. Il gemello
+           vettoriale e' `.skin-stp-bar` qui sotto: una skin non puo' raccontare una verita' diversa
+           dal frontale disegnato accanto (twin-renderer). */
+        .port-led.stp-blocked { position:relative; --stp-ink:var(--shut-color); }
+        /* `inset:.5px` + `border-radius:inherit`: la linea non arriva ai bordi esterni del LED, resta appena piu'
+           corta. Precauzione presa dopo il difetto visto nel gemello vettoriale (due punte che uscivano dal
+           quadrato): qui con `inset:0` la diagonale toccava gli angoli esterni, dove il LED ha il raggio di
+           1px — non era stato visto a occhio, ma e' lo stesso punto e non costa niente evitarlo. */
+        .port-led.stp-blocked::after { content:''; position:absolute; inset:.5px; border-radius:inherit; pointer-events:none;
+            background:linear-gradient(to top right, transparent calc(50% - .7px), var(--stp-ink) calc(50% - .7px) calc(50% + .7px), transparent calc(50% + .7px)); }
+        .port-led.sfp-slot.stp-blocked { --stp-ink:rgba(154,165,177,.9); }
         .rack-ports.pdu-power-ports {
             flex:1 1 auto;
             min-width:0;
@@ -903,6 +922,10 @@
         .panel-skin-svg .skin-port.no-link, .panel-skin-svg .skin-port.no-link * { fill:var(--nolink-color) !important; }
         .panel-skin-svg .skin-port.admin-down, .panel-skin-svg .skin-port.admin-down * { fill:var(--shut-color) !important; }
         .panel-skin-svg .skin-port:hover,  .panel-skin-svg .skin-port:hover *  { fill:var(--accent) !important; }
+        /* Il segno dello spanning-tree (`_skinStpBar`): una LINEA, quindi si colora il tratto e non il
+           riempimento. `stroke` !important perche' il gruppo `.skin-port.selected` ne ha uno proprio che i
+           figli erediterebbero. DOPO la regola di hover, a parita' di specificita'. */
+        .panel-skin-svg .skin-stp-bar, .panel-skin-svg .skin-port .skin-stp-bar, .panel-skin-svg .skin-port:hover .skin-stp-bar { fill:none !important; stroke:var(--shut-color) !important; pointer-events:none; }
         .panel-skin-svg .skin-port.selected { stroke:var(--accent); stroke-width:1.2; paint-order:stroke; }
         /* sezione "Skin pannello" nel pannello Proprieta */
         .panel-skin-preview { background:#161616; border:1px solid var(--panel-border); border-radius: var(--radius-sm); padding:6px; margin-bottom:8px; }

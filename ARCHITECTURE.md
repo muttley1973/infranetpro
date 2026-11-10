@@ -808,6 +808,50 @@ of every mapped port that walk did not cover. A project saved before 2.9.2 carri
 `operUp` and accumulates nothing until the first poll writes it, which is exactly what
 is known about it.
 
+### Spanning-tree: a reading that is valid as a whole, or does not exist
+
+`extractStp()` in `drivers/snmp.js` reads the BRIDGE-MIB `dot1dStp` subtree (RFC 4188) in
+the same poll that reads everything else, as the **last** entry of the OID table: the
+wall-clock cap sacrifices the tail first, and losing this one only means "not read". What it
+reads is always the **default tree** — on Cisco PVST+ that is VLAN 1, with RSTP it is every
+VLAN, with MSTP instance 0 — and the result says so (`scope: 'default'`) without naming a
+VLAN or a mode, because the mode is not read and nobody should guess it. That is also why
+two Cisco switches that each call themselves root on it are **not** in conflict: their
+trunks may not carry VLAN 1 at all, so there is no tree for them to disagree about.
+
+The result is a reading that holds as a whole or `null` ("not read" — the device may not be a
+bridge, may have spanning-tree off, or may publish it somewhere else; none of that is known and
+none of it is said). It was measured, not assumed: on the lab (10 November 2026) the standard
+subtree gave a valid reading on 3 bridges out of 7. The others answered with a placeholder or
+with nothing — a Zyxel with spanning-tree off returns the bridge id as a 19-character *text*
+(`0/00:00:…`) and a root port that contradicts a zero cost; an Aruba CX OVA names a root that is
+none of its own MAC addresses; a Cisco core whose trunks carry no VLAN 1 returns an empty
+default tree while spanning-tree runs on the other VLANs. A placeholder read as data says false
+things, so one rule failing discards the whole reading: the bridge id is exactly 8 octets with a
+non-null MAC; a zero cost and a zero root port come together or not at all; and when the device
+says it is the root, that MAC must be one of **its own** (the base address plus every
+`ifPhysAddress`) — not the base address alone, which on the Cisco vIOS images is the same on three
+different switches and is not the MAC they vote with. The priority comes with the 802.1t extended
+system id folded in (32769 = 32768 + VLAN 1), so it is stored as two fields, `rootPriority` and
+`rootSysId`; otherwise "priority different from the default" would fire on every Cisco.
+
+Two things are written. `integration.stp` (a measure; the reading plus `at`, replaced by every
+successful poll, left alone by a failed one and shown with its date) and `ports[pid].stpBlocked`
+(`blocking` or `broken`, only for ports that have link — a port that is down is down, not
+blocked). The second is the **fifth** measure `forgetPortMeasure()` drops with the others when the
+switch stops confirming it, and every poll without a valid reading clears it: a mark on a port must
+not outlive the evidence for it. A blocked Port-channel is not a port of the document, so it
+appears in the card by name and does not paint its members.
+
+It is **shown, not judged**. The switch's Properties get a card (root or "this device", priority,
+cost, root port, topology changes, blocked ports; "not read" for a declared switch the poll could
+not read), the port panel gets a neutral chip, and the LED gets a thin diagonal line from corner to
+corner — in CSS on the generated front panel and as a `<line>` on a vector skin, one drawing in two
+renderers. It is deliberately not amber: on the ports amber already means "go and look", and a
+blocked port is redundancy doing its job. Nothing reaches Verify or the Overview, and `stp` stays in
+the Overview's list of things it does not look at, because judging needs what the standard subtree
+cannot give — per-VLAN trees, port roles, MSTP regions — and a real capture of each device.
+
 ### A VLAN that was never declared
 
 The SNMP reader used to close every interface with `vlan: f.vlan || 1`. A device that
@@ -853,7 +897,9 @@ inferred link aggregation, writing a `lldp-lag-…` group onto the four ports, f
 `isTrunk` and filling the carried VLANs from the device's VLAN inventory. LLDP says
 nothing about aggregation, and those same two parallel cables are equally the picture of
 **spanning-tree redundancy** — one port forwarding, the other blocked with its link
-still up, which is why no port state separates the two cases either. Aggregation, unlike
+still up, which is why the link state alone never separated the two cases. (Where a bridge
+publishes a valid spanning-tree reading the blocked port is now visible — see above — but
+only on the default tree, and that is not evidence about aggregation.) Aggregation, unlike
 the guess, is measurable and already read (`ifStackTable`, IEEE 802.3ad member ports,
 AttachedAggID → `ports[pid].lagId`), so the inference now fires only where one end
 reports the aggregate, or a person declared it; that corroborated case still carries the
@@ -1327,7 +1373,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,381 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,404 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

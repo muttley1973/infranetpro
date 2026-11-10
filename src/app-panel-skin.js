@@ -214,7 +214,8 @@ export function _panelSkinRackHtml(n){
             // Stessa misura del LED del rack: una skin vettoriale non puo' raccontare
             // una verita' diversa dal frontale disegnato (twin-renderer).
             const _shade = portShade(pi, DOWN_STREAK_N);
-            const stateCls = _shade ? (_shade === 'shut' ? ' admin-down' : ' no-link') : '';
+            const _stpBlocked = (pi.stpBlocked === 'blocking' || pi.stpBlocked === 'broken');
+            const stateCls = (_shade ? (_shade === 'shut' ? ' admin-down' : ' no-link') : '') + (_stpBlocked ? ' stp-blocked' : '');
             el.setAttribute('class', ((el.getAttribute('class')||'') + ' skin-port ' + stt + stateCls + selCls).trim());
             // togli il fill proprio della forma E delle forme annidate (Illustrator
             // spesso mette <g id="port-N"><rect fill="..."/></g>) → il colore di
@@ -227,9 +228,43 @@ export function _panelSkinRackHtml(n){
                 tEl.textContent = tip;
                 el.insertBefore(tEl, el.firstChild);
             }
+            // La barra e' un di piu': un guasto qui non deve mai portarsi via l'intera skin (il try/catch
+            // che racchiude tutto restituirebbe '' e il frontale sparirebbe).
+            if(_stpBlocked){ try{ _skinStpBar(doc, el); }catch(_){ /* senza barra: resta la classe e la parola nel suggerimento */ } }
         });
         return '<div class="rack-skin-wrap">' + new XMLSerializer().serializeToString(svg) + '</div>';
     } catch(e){ return ''; }
+}
+
+/** Il segno dello spanning-tree sul LED di una skin vettoriale: una linea sottile in diagonale da vertice
+ *  a vertice (alto-sinistra → basso-destra), come sul frontale generato (`.port-led.stp-blocked::after`).
+ *  Un elemento SVG non ha pseudo-elementi: qui e' un <line> in piu', messo subito dopo la forma della
+ *  porta. Solo se la porta e' (o contiene) un <rect> senza `transform`: su una forma qualsiasi non si
+ *  indovinano i vertici, e la skin resta con la classe e con la parola nel suggerimento — la stessa
+ *  verita' detta con meno inchiostro, mai un segno fuori posto. */
+function _skinStpBar(doc, el){
+    const r = (el.tagName && el.tagName.toLowerCase() === 'rect') ? el : el.querySelector('rect');
+    if(!r || !r.parentNode || r.hasAttribute('transform') || (r !== el && el.hasAttribute('transform'))) return;
+    const x = parseFloat(r.getAttribute('x') || '0'), y = parseFloat(r.getAttribute('y') || '0');
+    const w = parseFloat(r.getAttribute('width')), h = parseFloat(r.getAttribute('height'));
+    if(![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) return;
+    const bar = doc.createElementNS('http://www.w3.org/2000/svg', 'line');
+    bar.setAttribute('class', 'skin-stp-bar');
+    // sottile: ~1/5 del lato corto (sul LED da 7 px del frontale generato sono ~1,4 px)
+    const sw = Math.min(w, h) * 0.2;
+    // ⚠️ Gli estremi NON stanno sugli angoli: la linea ha uno spessore, e il suo taglio d'estremita'
+    // e' perpendicolare alla diagonale, quindi un estremo SULL'ANGOLO sporge fuori dal LED di meta'
+    // spessore (si vedeva: due punte nere oltre il quadrato). Rientrando di mezzo spessore su OGNI asse
+    // gli angoli del taglio restano dentro il LED per qualsiasi proporzione (il seno e il coseno
+    // dell'inclinazione non superano 1). Un cliprect lo risolverebbe uguale, ma per un segno cosi'
+    // piccolo costa piu' di quanto vale.
+    const i = sw / 2;
+    bar.setAttribute('x1', String(+(x + i).toFixed(3)));
+    bar.setAttribute('y1', String(+(y + i).toFixed(3)));
+    bar.setAttribute('x2', String(+(x + w - i).toFixed(3)));
+    bar.setAttribute('y2', String(+(y + h - i).toFixed(3)));
+    bar.setAttribute('stroke-width', String(+sw.toFixed(3)));
+    r.parentNode.insertBefore(bar, r.nextSibling);
 }
 
 /** Drag del badge radio su un device con skin: lo sposta sul box (frazioni 0..1

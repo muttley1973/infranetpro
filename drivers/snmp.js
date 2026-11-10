@@ -293,6 +293,14 @@ const OID = {
   entPhysicalMfgName:     '1.3.6.1.2.1.47.1.1.1.1.12',
   entPhysicalModelName:   '1.3.6.1.2.1.47.1.1.1.1.13',
   entPhysicalAssetID:     '1.3.6.1.2.1.47.1.1.1.1.15',
+  // ---- Spanning-tree (BRIDGE-MIB dot1dStp, RFC 4188) ---------------------------
+  // IN CODA di proposito: `BASE_OIDS` si legge in ordine e il tetto wall-clock sacrifica
+  // la coda, quindi sotto pressione e' la PRIMA cosa che si perde — e perderla vuol dire
+  // «non letto», mai un dato inventato. Una sola subtree (scalari + tabella porte).
+  // `dot1dBaseBridgeAddress` serve a una domanda sola: il MAC con cui la radice si
+  // dichiara e' uno dei MIEI? (vedi extractStp).
+  dot1dBaseAddr:          '1.3.6.1.2.1.17.1.1',
+  dot1dStp:               '1.3.6.1.2.1.17.2',
 };
 
 const BASE_OIDS = Object.values(OID);
@@ -552,8 +560,109 @@ function extractSystem(vbs) {
   return Object.keys(out).length ? out : null;
 }
 
+// ---- Spanning-tree (BRIDGE-MIB dot1dStp, RFC 4188) ------------------------
+//
+// Cosa si legge e con quale ambito: SEMPRE l'«albero predefinito» di chi risponde. Dove
+// lo STP e' per-VLAN (Cisco PVST+) la community normale espone la sola VLAN 1; con
+// RSTP vale per tutte; con MSTP e' l'istanza 0. L'ambito si dichiara, la modalita' non
+// si indovina — e per lo stesso motivo qui NON si trae nessun verdetto.
+//
+// Il valore e' una lettura VALIDA o niente. Misurato sul banco (10/11/2026), lo
+// standard da' una lettura buona solo su alcuni apparati; gli altri rispondono con
+// segnaposto o spazzatura, e un segnaposto letto come dato direbbe cose false:
+//   · Zyxel con STP spento: DesignatedRoot come TESTO di 19 caratteri («0/00:00:…»),
+//     costo 0 ma porta radice 28;
+//   · Aruba CX (OVA): radice che non e' nessun MAC dell'apparato pur con costo 0 e
+//     porta radice 0;
+//   · Cisco vIOS con i trunk senza VLAN 1: albero predefinito VUOTO ma STP acceso.
+// Quindi si scarta l'INTERA lettura (null = «non letto») se una sola di queste regole
+// non torna. Mai una lettura a meta'.
+//
+// ⚠️ La priorita' letta contiene l'extended-system-id (802.1t): 32769 = 32768 + VLAN 1.
+// Si separa in due campi, altrimenti «priorita' diversa dal default» scatterebbe su ogni Cisco.
+// ⚠️ `dot1dBaseBridgeAddress` NON e' l'identita' del ponte: sul vIOS e' lo STESSO su tre
+// switch diversi e diverso dal MAC con cui votano. Per questo «sono io la radice?» si
+// chiede all'insieme dei MIEI MAC (base + ifPhysAddress di tutte le interfacce).
+const _STP_BLOCKED = { 2: 'blocking', 6: 'broken' };
+
+function _stpBridgeId(v) {
+  // BridgeId = priorita' (2 ottetti) + MAC (6). Testo, lunghezze diverse o MAC nullo: non lo e'.
+  if (!Buffer.isBuffer(v) || v.length !== 8) return null;
+  const mac = v.subarray(2);
+  if (!mac.some(b => b !== 0)) return null;
+  const raw = (v[0] << 8) | v[1];
+  return { mac: macToStr(mac), priority: raw & 0xF000, sysId: raw & 0x0FFF };
+}
+
+/**
+ * Estrae la lettura STP da una mappa di varbind. Pura/testabile.
+ * Ritorna `null` se l'apparato non da' una lettura VALIDA («non letto»: puo' non essere
+ * un bridge, avere lo STP spento o esporlo in un'altra MIB — non lo sappiamo e non lo diciamo).
+ * `ctx` = { bpToIf: bridge-port→ifIndex, ifaces: ifIndex→{name, oper, macBuf} }.
+ */
+function extractStp(vbs, ctx) {
+  const bpToIf = (ctx && ctx.bpToIf) || {};
+  const ifaces = (ctx && ctx.ifaces) || {};
+  const P = OID.dot1dStp + '.';
+  const sc = {};      // scalari: <col>.0
+  const port = {};    // dot1dStpPortEntry: 15.1.<col>.<bridge-port>
+  let hasPortRows = false;
+  for (const [oid, val] of Object.entries(vbs || {})) {
+    if (!oid.startsWith(P)) continue;
+    const x = oid.slice(P.length).split('.');
+    if (x.length === 2 && x[1] === '0') sc[x[0]] = val;
+    else if (x.length === 4 && x[0] === '15' && x[1] === '1') { (port[x[3]] ??= {})[x[2]] = val; hasPortRows = true; }
+  }
+
+  const root = _stpBridgeId(sc['5']);
+  if (!root) return null;
+  if (sc['6'] === undefined || sc['7'] === undefined) return null;
+  const cost = bufToInt(sc['6']);
+  const rootBp = bufToInt(sc['7']);
+  // Radice ⇒ costo 0 E nessuna porta radice. Un costo senza porta (o il contrario) e' un segnaposto.
+  if ((cost === 0) !== (rootBp === 0)) return null;
+
+  const out = { scope: 'default', rootMac: root.mac, rootPriority: root.priority, rootSysId: root.sysId, rootCost: cost };
+  if (cost === 0) {
+    // «Sono io la radice»: il MAC dichiarato deve essere uno dei MIEI.
+    const own = new Set();
+    const base = vbs[OID.dot1dBaseAddr + '.0'];
+    if (isRealMac(base)) own.add(macToStr(base));
+    for (const f of Object.values(ifaces)) if (isRealMac(f && f.macBuf)) own.add(macToStr(f.macBuf));
+    if (!own.has(root.mac)) return null;
+    out.isRoot = true;
+  } else {
+    // Non radice: la porta radice deve essere una porta del bridge che conosciamo.
+    const ix = bpToIf[rootBp];
+    if (!(ix > 0)) return null;
+    out.isRoot = false;
+    out.rootPortIfIndex = ix;
+    const nm = ifaces[ix] && ifaces[ix].name;
+    if (nm) out.rootPortName = nm;
+  }
+
+  if (sc['4'] !== undefined) out.topologyChanges = bufToInt(sc['4']);
+
+  // Porte bloccate: solo blocking/broken (listening/learning durano secondi: lampeggerebbero),
+  // solo se la porta ha link (una porta giu' non e' «bloccata», e' giu'). `null` = tabella
+  // porte non letta: di porte bloccate non si dice ne' sì ne' no.
+  if (!hasPortRows) { out.blocked = null; return out; }
+  const blocked = [];
+  for (const [bp, p] of Object.entries(port)) {
+    const state = _STP_BLOCKED[bufToInt(p['3'])];
+    if (!state) continue;
+    const ix = bpToIf[bp];
+    if (!(ix > 0)) continue;
+    if (!ifaces[ix] || ifaces[ix].oper !== 1) continue;
+    blocked.push({ ifIndex: ix, name: ifaces[ix].name || '', state });
+  }
+  blocked.sort((a, b) => a.ifIndex - b.ifIndex);
+  out.blocked = blocked;
+  return out;
+}
+
 // ---- Printer-MIB ----------------------------------------------------------
-const _PRT_STATUS = { 1: 'other', 2: 'unknown', 3: 'idle', 4: 'printing', 5: 'warmup' };
+const _PRT_STATUS ={ 1: 'other', 2: 'unknown', 3: 'idle', 4: 'printing', 5: 'warmup' };
 const _PRT_TYPE   = { 3: 'toner', 4: 'wasteToner', 5: 'ink', 6: 'inkCartridge', 8: 'opc',
                       9: 'developer', 10: 'fuserOil', 21: 'wasteInk' };
 
@@ -1630,11 +1739,21 @@ function extractData(vbs) {
   const system = extractSystem(vbs);
   const printer = extractPrinter(vbs);
   const hostResources = extractHostResources(vbs);
+  // Spanning-tree: lettura valida o null («non letto»). Dopo le interfacce perche' chiede
+  // i loro nomi, lo stato e i MAC; `ifaces` e' la mappa GREZZA (ifIndex → campi), non `physical`.
+  const stp = extractStp(vbs, { bpToIf, ifaces });
+  // La porta bloccata si scrive sulla PORTA, accanto a adminDown/operUp (stessa scadenza:
+  // lib/port-state.js `forgetPortMeasure`). Un aggregatore bloccato non e' una porta del
+  // documento: resta nell'elenco `stp.blocked`, per nome, e non si spalma sui suoi membri.
+  if (stp && Array.isArray(stp.blocked) && stp.blocked.length) {
+    const byIndex = new Map(physical.map(p => [p.index, p]));
+    for (const b of stp.blocked) { const p = byIndex.get(b.ifIndex); if (p) p.stpState = b.state; }
+  }
 
   const ip6 = _ownIp6FromVbs(vbs);
 
   snmpDebug(`  [VLANS] ${hostname||'?'}: ${vlansOut.length} VLAN rilevate (PVID+egress+trunk): [${vlansOut.join(',')}]`);
-  return { hostname, interfaces: physical, lags, subInterfaces: subIfs, vlans: vlansOut, vlanNames, inventory, system, printer, hostResources, ip6 };
+  return { hostname, interfaces: physical, lags, subInterfaces: subIfs, vlans: vlansOut, vlanNames, inventory, system, printer, hostResources, stp, ip6 };
 }
 
 // ---- Session factory -------------------------------------------------------
@@ -2544,7 +2663,7 @@ module.exports._internals = {
   extractNeighbors, N_OID,
   bufToStr, bufToInt, decodePortList, isRealMac, macToStr, macFromText, lldpMac,
   logicalLagIdFromName, lastIdx, extractData, extractEntityInventory,
-  extractSystem, _formatUptime, extractPrinter, _supplyColorKey,
+  extractSystem, extractStp, _formatUptime, extractPrinter, _supplyColorKey,
   extractHostResources, _isPathPrefix, OID, PRT_OID, HR_OID, _oidGt,
   _v3RemoteEngineDiscovered, _runWalks, FDB_RETRY_BASES, _walkDeadline,
   _ownIp4FromVbs, _ipv4FromAddrOid, _isUsableOwnIp4, _createSnmpSession,

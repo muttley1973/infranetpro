@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="4,381 tests, 0 failing" src="https://img.shields.io/badge/tests-4%2C381%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="4,404 tests, 0 failing" src="https://img.shields.io/badge/tests-4%2C404%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="161 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-161%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#discovery--classification-engines"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -192,7 +192,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 
 **📡 Live SNMP**
 - v1 / v2c / v3 discovery of interfaces, VLANs, LAG, LLDP/CDP neighbours and ENTITY-MIB inventory; wireless associations from the bridge FDB and the L3 neighbour table.
-- Read-only live cards (system, Printer-MIB, HOST-RESOURCES, UPS/ATS) that never overwrite what you typed.
+- Read-only live cards (system, spanning-tree, Printer-MIB, HOST-RESOURCES, UPS/ATS) that never overwrite what you typed. The spanning-tree card shows the root, the root port and the blocked ports of the default tree, and a blocked port gets a thin diagonal line on its LED — a reading, never a verdict.
 - Topology walk, off-segment discovery through the SNMP ARP table, port mapping by ifName, deep scan with confidence scoring, mDNS/SSDP/ONVIF listen; one device per chassis — the NICs of one box are folded together on authoritative keys only, never on a name or a MAC.
 - A port shut on purpose is told apart from one simply without link, in the rack, the PDF and draw.io.
 - **Reality Check / Drift Report** — nine categories: consistent ports, state discrepancies, hardware identity changed, IP change on the same MAC, documented-but-absent, not verifiable, on-network-but-undocumented, ghost cables, cables on a shut port.
@@ -373,8 +373,8 @@ The four `*_FILE` paths let a deployment keep every secret on one persistent vol
 
 - **Universal discovery.** The *Scopri* dialog scans with `auto`. A v2c host is imported with data; a **v3-only** host is detected without credentials and flagged **"v3 da configurare"** — fill the credentials in **Properties → Integration** and *Sync*. The Integration panel works for any device with an IP, not only rack devices.
 - **SNMPv3 fields:** username; auth `MD5`, `SHA` (SHA-1), `SHA224`–`SHA512`; privacy `DES`, `AES` (128), `AES256` (Blumenthal) or `AES256R` (Reeder — the agent's variant must match, a wrong one shows up as a timeout); passphrases ≥ 8 characters; an optional **context name** (HP JetDirect needs `jetdirect`). A protocol name the driver does not know is refused with an error, never replaced by another.
-- **MIBs used (standard, vendor-neutral):** IF-MIB (`ifTable`, `ifXTable`, `ifStackTable`) · IEEE 802.3ad · BRIDGE-MIB and Q-BRIDGE-MIB · LLDP-MIB and CISCO-CDP-MIB · Cisco VTP · SNMPv2-MIB · ENTITY-MIB · Printer-MIB and `hrPrinterStatus` · HOST-RESOURCES-MIB.
-- **Live cards** (system, Printer-MIB, HOST-RESOURCES) are read-only, appear only when the device exposes them and never overwrite manual fields. Printer-MIB is read in an isolated single-concurrency pass, because weak agent stacks truncate it otherwise.
+- **MIBs used (standard, vendor-neutral):** IF-MIB (`ifTable`, `ifXTable`, `ifStackTable`) · IEEE 802.3ad · BRIDGE-MIB (including the spanning-tree default tree) and Q-BRIDGE-MIB · LLDP-MIB and CISCO-CDP-MIB · Cisco VTP · SNMPv2-MIB · ENTITY-MIB · Printer-MIB and `hrPrinterStatus` · HOST-RESOURCES-MIB.
+- **Live cards** (system, spanning-tree, Printer-MIB, HOST-RESOURCES) are read-only, appear only when the device exposes them and never overwrite manual fields. Printer-MIB is read in an isolated single-concurrency pass, because weak agent stacks truncate it otherwise.
 
 ---
 
@@ -477,6 +477,7 @@ Everything that has shipped is in [CHANGELOG.md](CHANGELOG.md). Next:
 
 - [ ] **Per-field provenance in the schema** — every field carrying an explicit origin (declared / measured / derived). Half of it exists: the envelope and the classification of every project field; what is missing is the consumption.
 - [ ] **DCIM write-back** — gated: maker-checker, dry-run, re-read after the write, a closed list of writable fields.
+- [ ] **Spanning-tree verdicts** — the reading and the blocked-port mark are in; what is missing is the judgement (do switches cabled together name the same root, is it the one you declared, does a root outside the document command the tree). Per-VLAN trees, port roles and MSTP regions need vendor MIBs and a real capture of each device.
 - [ ] `ENTITY-SENSOR-MIB` (temperatures, fans, PSU) and real PoE wattage per switch.
 - [ ] SQLite-backed storage for discovery and IP history, the FDB cache and the audit log.
 - [ ] Internal discovery and classification hardening (richer local plugins, more real-device tests).
@@ -502,8 +503,8 @@ RUN_E2E=1 npm run e2e # headless end-to-end in a real Chrome — off by default
 - Coverage focuses on the pure logic that has historically broken: SNMP parsing, discovery and classification, the three engines, cable validation, IPAM and LAG audits — plus an app-wide smoke test that loads every script into a DOM stub and asserts rendering never throws.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **585** of them.
-- `npm test` runs the full regression suite (currently **4,381 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **161 flows**).
+- `npm run check` parses every JS source of the product — **586** of them.
+- `npm test` runs the full regression suite (currently **4,404 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **161 flows**).
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that lists something, and the test count measured against what the suite really prints.
 
 **CI** ([GitHub Actions](.github/workflows/ci.yml)) runs `npm run check` and `npm test` on every push and pull request to `main`, on Node 18 and 20.

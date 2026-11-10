@@ -275,7 +275,17 @@ export function _renderPortProps(panel){
             const sep = (snmpParts.length || portShade(pi, DOWN_STREAK_N)) ? ' &middot; ' : '';
             return `${sep}<span data-tip="${escapeHTML(t('port.operWaitTip'))}" style="background:rgba(110,118,129,.12);border:1px solid var(--panel-border);color:var(--text-muted);border-radius:3px;padding:1px 6px">${escapeHTML(w)}</span>`;
         };
-        const snmpBar=(snmpParts.length||portShade(pi,DOWN_STREAK_N)||pi.operWait)?`<div class="snmp-bar" style="margin:0 0 10px"><span class="sb">SNMP</span>${escapeHTML(snmpParts.join(' · '))}${_shadeChip()}${_operWaitChip()}</div>`:'';
+        // Lo spanning-tree la tiene in blocco (`stpBlocked`: blocking | broken): c'e' link, il traffico non
+        // passa. Neutro come `operWait`, per la stessa ragione — qui si CITA, non si dipinge: l'ambra della
+        // barra SNMP vuol dire «vai a guardare», e un blocco ordinario e' la ridondanza che lavora. La parola
+        // dell'apparato non si traduce; il suggerimento dice anche l'ambito (albero predefinito).
+        const _stpChip = () => {
+            const w = pi.stpBlocked;
+            if(w !== 'blocking' && w !== 'broken') return '';
+            const sep = (snmpParts.length || portShade(pi, DOWN_STREAK_N) || pi.operWait) ? ' &middot; ' : '';
+            return `${sep}<span data-tip="${escapeHTML(t(w === 'broken' ? 'port.stpBrokenTip' : 'port.stpBlockedTip'))}" style="background:rgba(110,118,129,.12);border:1px solid var(--panel-border);color:var(--text-muted);border-radius:3px;padding:1px 6px">STP ${escapeHTML(w)}</span>`;
+        };
+        const snmpBar=(snmpParts.length||portShade(pi,DOWN_STREAK_N)||pi.operWait||pi.stpBlocked)?`<div class="snmp-bar" style="margin:0 0 10px"><span class="sb">SNMP</span>${escapeHTML(snmpParts.join(' · '))}${_shadeChip()}${_operWaitChip()}${_stpChip()}</div>`:'';
         const rst=(f,lbl)=>pi[f]!=null?`<button class="toolbar-btn" style="padding:2px 6px;margin:0;font-size:var(--fs-2xs)" data-tip="${escapeHTML(t('pnl.dev.restoreField',{field:lbl}))}" data-act="port-clear-render" data-pid="${pid}" data-pfield="${f}">↺</button>`:'';
         // Select dello STATO dichiarabile. Una sola definizione, usata sia dallo
         // switchport sia dalla tappa passiva: due copie delle stesse cinque voci

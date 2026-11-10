@@ -684,6 +684,12 @@ function _applySnmpBasePortFields(pid, iface){
     if(operUp === undefined) delete p.operUp; else p.operUp = operUp;
     const operWait = _snmpOperToWait(iface.operStatus);
     if(operWait === undefined) delete p.operWait; else p.operWait = operWait;
+    // Lo spanning-tree la tiene in blocco: c'e' link, il traffico non passa. NON e' un
+    // guasto (e' la ridondanza che lavora) e non e' uno stato dichiarabile: e' una MISURA, con
+    // la scadenza di operUp/adminDown (lib/port-state.js `forgetPortMeasure`). Un poll senza una
+    // lettura STP valida la CANCELLA: il segno sul LED non sopravvive alla prova che la reggeva.
+    // L'ambito e' sempre «albero predefinito» (su Cisco PVST+ la VLAN 1): lo dice il suggerimento.
+    if(iface.stpState === 'blocking' || iface.stpState === 'broken') p.stpBlocked = iface.stpState; else delete p.stpBlocked;
     p.status = _snmpOperToUiStatus(iface.operStatus, p.status);
     p.vlan   = _snmpVlanToUi(iface.vlan, p.vlan);
     p.speed  = _snmpSpeedToUi(iface.speed, p.speed);
@@ -949,6 +955,13 @@ export function applyPollResult(nodeId, data, opts={}){
     n.integration.printer  = (data.printer && typeof data.printer === 'object') ? data.printer : null;
     // Risorse host live (HOST-RESOURCES: CPU/RAM/dischi) per server/pc/nas/homelab.
     n.integration.hostResources = (data.hostResources && typeof data.hostResources === 'object') ? data.hostResources : null;
+    // Spanning-tree: una lettura VALIDA dell'albero predefinito, o null («non letto»: puo' non
+    // essere un bridge, avere lo STP spento o pubblicarlo in un'altra MIB — non lo sappiamo e
+    // non lo diciamo). SOLA LETTURA e nessun verdetto: i campi dichiarati non si toccano.
+    // Su poll FALLITO non si tocca: non si e' misurato ne' smentito (come l'inventario).
+    if(data.ok !== false){
+        n.integration.stp = (data.stp && typeof data.stp === 'object') ? { ...data.stp, at: _pollAt } : null;
+    }
     n.integration.lastPoll = _pollAt;
     // Auto-nome gruppi snmp-lag dall'aggregatore (es. "Port-channel1", "bond0", "LAG1")
     if(!store.state.lagGroups) store.state.lagGroups={};

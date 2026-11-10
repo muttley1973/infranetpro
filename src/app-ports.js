@@ -498,6 +498,9 @@ export function portTip(pid){
         }
         parts.push(lagStr);
     }
+    // Lo spanning-tree la tiene in blocco: la PAROLA (e l'ambito) sul LED, perche' il segno da solo
+    // obbliga a chiedere cosa vuol dire. La stessa lettura del chip nel pannello porta.
+    if(pi.stpBlocked === 'blocking' || pi.stpBlocked === 'broken') parts.push(t('port.stpTitle', { state: pi.stpBlocked }));
     return parts.join(' · ');
 }
 

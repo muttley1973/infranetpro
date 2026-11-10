@@ -61,7 +61,13 @@ export function rackUPx(){
 // una porta e' spenta significherebbe non dirglielo mai.
 function _portStateCls(pi){
     const shade = portShade(pi, DOWN_STREAK_N);
-    return shade ? ` ${shade === 'shut' ? 'admin-down' : 'no-link'}` : '';
+    // Lo spanning-tree la tiene in blocco: c'e' link, il traffico non passa — per scelta, non per
+    // guasto. Non e' un colore (verde/rosso/ambra dicono gia' altro, e un'ambra qui direbbe «vai a
+    // guardare» su una ridondanza che sta funzionando): e' una linea DIAGONALE sul LED, in CSS, e la parola
+    // sta nel suggerimento (`portTip`) e nel chip del pannello porta. Si somma alla tinta, non la
+    // sostituisce: la porta resta verde perche' il link c'e'.
+    const stp = (pi && (pi.stpBlocked === 'blocking' || pi.stpBlocked === 'broken')) ? ' stp-blocked' : '';
+    return (shade ? ` ${shade === 'shut' ? 'admin-down' : 'no-link'}` : '') + stp;
 }
 
 function _pduPowerOutlets(n){

@@ -146,7 +146,11 @@ test('CRICCHETTO — la classifica non elenca campi mai visti in nessun progetto
     // Capacita' dell'hypervisor, VLAN di gestione e sistema operativo dichiarato (17/10): select e campi del pannello
     // che esistono solo dopo che una persona li compila — il censimento del 28/08 non aveva nessun hypervisor compilato.
     // Dichiarazioni: escono nell'export. Il guard sui progetti veri li ha trovati sul PC di sviluppo.
-    'hvPlatform', 'hvRamGb', 'hvStorageTb', 'osType']);
+    'hvPlatform', 'hvRamGb', 'hvStorageTb', 'osType',
+    // Lo spanning-tree (10/11): `integration.stp` e `ports[].stpBlocked` li scrive SOLO il poll di uno switch
+    // che pubblica una lettura STP valida (BRIDGE-MIB, albero predefinito); il censimento del 28/08 e' di
+    // prima. Misure, non dichiarazioni: non escono nell'export.
+    'stp', 'stpBlocked']);
   for (const scope of Object.keys(CENSUS)) {
     const visti = new Set(keysOf(scope));
     const extra = Object.keys(FIELD_CLASS_BY_SCOPE[scope]).filter(k => !visti.has(k) && !attesi.has(k));
@@ -341,10 +345,12 @@ test('⭐ un contenitore `secret` non è un contenitore TUTTO segreto', () => {
     assert.strictEqual(classifyField('integration', k), 'document',
       `integration.${k} lo digita una persona: identifica, non autentica`);
   }
-  for (const k of ['lags', 'vlans', 'inventory', 'system', 'lastPoll']) {
+  for (const k of ['lags', 'vlans', 'inventory', 'system', 'lastPoll', 'stp']) {
     assert.strictEqual(classifyField('integration', k), 'measure',
       `integration.${k} lo scrive il poll SNMP`);
   }
+  assert.strictEqual(classifyField('port', 'stpBlocked'), 'measure',
+    'port.stpBlocked lo scrive il poll SNMP e scade con la prova che lo regge');
 });
 
 test('il PAVIMENTO della redazione non può restare indietro rispetto alla classifica', () => {

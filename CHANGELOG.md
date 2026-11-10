@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Spanning-tree, read and shown — and nothing more.** A switch's panel now has a card with what the standard BRIDGE-MIB says about its default tree: which bridge is the root (or "this device"), its priority and cost, the root port, how many topology changes it has seen, and which ports are held in blocking. A port that spanning-tree holds in blocking or broken gets a thin dark diagonal line across its LED in the rack, corner to corner, the words "STP blocking" in its tooltip and a grey chip in the port panel. It is not amber on purpose: amber already means "go and look", and a blocked port is redundancy doing its job. A reading is shown only if it is valid as a whole: a placeholder, a root that is none of the device's own MAC addresses, or a cost without a root port is thrown away and the card says "not read", never "off". The scope is always the default tree — on Cisco PVST+ that is VLAN 1, so two switches that each name themselves root there are not in conflict. Nothing is judged yet: no verdict in Verify or the Overview, and spanning-tree stays in the list of things the Overview does not look at.
+
 ### Changed
 
 - **The README and `package.json` now say Node.js 18 or newer, not 16.** They said 16 or newer, but the build step runs esbuild, which asks for Node 18, and the CI runs 18 and 20: they now say what is true.
