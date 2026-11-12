@@ -739,20 +739,26 @@
            gia' altro (l'ambra in particolare e' «vai a guardare», e qui non c'e' niente da guardare).
            E' una linea scura SOTTILE in diagonale, da vertice a vertice del LED (alto-sinistra →
            basso-destra), che si somma alla tinta di stato — la porta resta verde perche' il link c'e'.
-           Il gradiente `to top right` fa passare la linea per gli altri due ANGOLI su qualsiasi
-           rettangolo (45 gradi sul LED quadrato, l'angolo dei vertici sullo slot SFP). La parola
+           La linea e' un elemento CENTRATO sul LED (50%/50%) e ruotato di 45 gradi, piu' lungo della
+           diagonale e TAGLIATO dal bordo del LED (`overflow:hidden`): per costruzione va da vertice a
+           vertice e il suo centro e' il centro del LED. (Un gradiente con gli estremi rientrati di
+           mezzo pixel, la prima versione, sembrava spostato: la sub-pixel sposta il tratto.) Al
+           passaggio del mouse il LED NON si ingrandisce, a differenza degli altri: il segno non deve
+           muoversi mentre si legge il suggerimento. Sullo slot SFP (8x5, con bordo) la linea
+           segue la diagonale del rettangolo e non e' tagliata. La parola
            («STP blocking», e l'ambito: albero predefinito) sta nel suggerimento e nel chip del
            pannello porta: un segno senza testo obbliga a chiedere cosa vuol dire. Il gemello
            vettoriale e' `.skin-stp-bar` qui sotto: una skin non puo' raccontare una verita' diversa
            dal frontale disegnato accanto (twin-renderer). */
-        .port-led.stp-blocked { position:relative; --stp-ink:var(--shut-color); }
-        /* `inset:.5px` + `border-radius:inherit`: la linea non arriva ai bordi esterni del LED, resta appena piu'
-           corta. Precauzione presa dopo il difetto visto nel gemello vettoriale (due punte che uscivano dal
-           quadrato): qui con `inset:0` la diagonale toccava gli angoli esterni, dove il LED ha il raggio di
-           1px — non era stato visto a occhio, ma e' lo stesso punto e non costa niente evitarlo. */
-        .port-led.stp-blocked::after { content:''; position:absolute; inset:.5px; border-radius:inherit; pointer-events:none;
-            background:linear-gradient(to top right, transparent calc(50% - .7px), var(--stp-ink) calc(50% - .7px) calc(50% + .7px), transparent calc(50% + .7px)); }
-        .port-led.sfp-slot.stp-blocked { --stp-ink:rgba(154,165,177,.9); }
+        .port-led.stp-blocked { position:relative; overflow:hidden; --stp-ink:var(--shut-color); --stp-dx:.6px; }
+        /* `--stp-dx`: la linea e' centrata per costruzione, ma all'occhio (misurato dall'utente a occhio sul
+           rack, non da un cancello) sembrava spostata verso sinistra: la si sposta a destra di 0,6 px del
+           LED, che sono ~14% del lato. Un solo numero da ritoccare, in proporzione allo zoom del rack. */
+        .port-led.stp-blocked::after { content:''; position:absolute; left:calc(50% + var(--stp-dx)); top:50%; width:170%; height:1.4px; pointer-events:none;
+            background:var(--stp-ink); transform:translate(-50%,-50%) rotate(45deg); }
+        .port-led.stp-blocked:hover { transform:none; }
+        .port-led.sfp-slot.stp-blocked { overflow:visible; --stp-ink:rgba(154,165,177,.9); }
+        .port-led.sfp-slot.stp-blocked::after { width:9px; transform:translate(-50%,-50%) rotate(32deg); }
         .rack-ports.pdu-power-ports {
             flex:1 1 auto;
             min-width:0;

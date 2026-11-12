@@ -848,9 +848,20 @@ cost, root port, topology changes, blocked ports; "not read" for a declared swit
 not read), the port panel gets a neutral chip, and the LED gets a thin diagonal line from corner to
 corner — in CSS on the generated front panel and as a `<line>` on a vector skin, one drawing in two
 renderers. It is deliberately not amber: on the ports amber already means "go and look", and a
-blocked port is redundancy doing its job. Nothing reaches Verify or the Overview, and `stp` stays in
-the Overview's list of things it does not look at, because judging needs what the standard subtree
-cannot give — per-VLAN trees, port roles, MSTP regions — and a real capture of each device.
+blocked port is redundancy doing its job. The mark does not grow on hover the way the other LEDs
+do: it has to stay still while someone reads the tooltip. Nothing reaches Verify or the Overview,
+and `stp` stays in the Overview's list of things it does not look at, because judging needs what
+the standard subtree cannot give — per-VLAN trees, port roles, MSTP regions — and a real capture of
+each device.
+
+The first real loop was built on the lab on 12 November 2026: two parallel cables between two
+Cisco switches, both ports in VLAN 1, no portfast. The switch with the higher bridge id read
+exactly what the CLI said — the other one as root at cost 4, one root port, one port blocking, the
+topology-change counter up by one — and the poll created the two cables (`LLDP+MAC`) and reported
+"one pair with two parallel cables, no LAG measured" instead of inventing an aggregate. Which of
+the two cables is blocked is now readable from the port. A port that is down in the default tree
+still reads `forwarding` on the vIOS, which is one more reason the reader only trusts a blocked
+state on a port that has link.
 
 ### A VLAN that was never declared
 
