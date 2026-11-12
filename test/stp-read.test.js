@@ -25,10 +25,12 @@ const sc = (n) => `${P}.${n}.0`;
 const pcol = (col, bp) => `${P}.15.1.${col}.${bp}`;
 
 // vbs minimo: scalari + (facoltativo) tabella porte. `ports` = { bp: stato }.
-function vbsOf({ root, cost, rootPort, topChanges = 1, ports = null, base = null }) {
+// `desig` = { bp: BridgeId } = la colonna «radice designata» (6) della riga di quella porta.
+function vbsOf({ root, cost, rootPort, topChanges = 1, ports = null, base = null, desig = null }) {
   const v = { [sc(5)]: root, [sc(6)]: cost, [sc(7)]: rootPort, [sc(4)]: topChanges };
   if (base) v[`${OID.dot1dBaseAddr}.0`] = mac(base);
   if (ports) for (const [bp, st] of Object.entries(ports)) v[pcol(3, bp)] = st;
+  if (desig) for (const [bp, id] of Object.entries(desig)) v[pcol(6, bp)] = id;
   return v;
 }
 const iface = (name, m, oper = 1) => ({ name, macBuf: m ? mac(m) : undefined, oper });
@@ -75,6 +77,64 @@ test('costo 0 ma porta radice ≠ 0 (o il contrario) → segnaposto, NON letto',
   const ctx = { bpToIf: { 3: 3 }, ifaces: { 3: iface('Gi0/3', '50:b7:6c:00:2a:03') } };
   assert.equal(extractStp(vbsOf({ root: bridgeId(0x8000, '50:b7:6c:00:2a:03'), cost: 0, rootPort: 3 }), ctx), null);
   assert.equal(extractStp(vbsOf({ root: bridgeId(0x8000, '50:b7:6c:00:2a:03'), cost: 4, rootPort: 0 }), ctx), null);
+});
+
+// ---- MSTP dentro la regione della radice CIST (cattura vera, Cisco vIOS, 12/11/2026) ----
+// SW-ACC2 in `spanning-tree mode mst`, regione «LAB», radice CIST = SW-ACC1. Il suo `show` dice
+// «Root ID … Cost 0 · Port 1» e la tabella standard dice lo STESSO: RootCost 0 + RootPort 1,
+// DesignatedRoot = ACC1, Gi0/0 forwarding, Gi1/2 blocking, costo porte 20000 (metodo lungo).
+const _acc2Mst = (over = {}) => ({
+  vbs: vbsOf({
+    root: bridgeId(0x8000, '50:b7:6c:00:2a:00'), cost: 0, rootPort: 1, topChanges: 7,
+    base: 'cc:cc:00:00:00:02',
+    ports: { 1: 5, 7: 2 },
+    desig: { 1: bridgeId(0x8000, '50:b7:6c:00:2a:00'), 7: bridgeId(0x8000, '50:b7:6c:00:2a:00') },
+    ...over,
+  }),
+  ctx: { bpToIf: { 1: 1, 7: 7 }, ifaces: { 1: iface('GigabitEthernet0/0', '50:c3:01:00:22:00'), 7: iface('GigabitEthernet1/2', '50:c3:01:00:22:06') } },
+});
+
+test('MSTP: un non-radice della regione ha costo 0 E porta radice → si legge, con la porta bloccata', () => {
+  const { vbs, ctx } = _acc2Mst();
+  const r = extractStp(vbs, ctx);
+  assert.ok(r, 'senza questa eccezione ogni switch non radice di una regione MST risulterebbe «non letto»');
+  assert.equal(r.isRoot, false, 'la radice e\' ACC1: nessun MAC mio');
+  assert.equal(r.rootMac, '50:b7:6c:00:2a:00');
+  assert.equal(r.rootPriority, 32768);
+  assert.equal(r.rootSysId, 0, 'istanza 0 (CIST): nessun sys-id di VLAN');
+  assert.equal(r.rootCost, 0, 'la misura si tiene com\'e\': e\' il costo esterno, non si ritocca');
+  assert.equal(r.rootPortIfIndex, 1);
+  assert.equal(r.rootPortName, 'GigabitEthernet0/0');
+  assert.deepEqual(r.blocked, [{ ifIndex: 7, name: 'GigabitEthernet1/2', state: 'blocking' }]);
+});
+
+test('MSTP: costo 0 + porta radice SENZA la conferma della tabella porte → NON letto', () => {
+  const { vbs, ctx } = _acc2Mst({ desig: null });
+  assert.equal(extractStp(vbs, ctx), null, 'nessuna riga di porta con la radice: e\' un segnaposto, non una regione');
+  // la riga della porta radice c'e' ma nomina UN'ALTRA radice: le due tabelle non si accordano
+  const { vbs: v2, ctx: c2 } = _acc2Mst({ desig: { 1: bridgeId(0x8000, 'aa:bb:cc:00:00:09') } });
+  assert.equal(extractStp(v2, c2), null);
+  // la riga c'e' per un'altra porta, non per quella radice
+  const { vbs: v3, ctx: c3 } = _acc2Mst({ desig: { 7: bridgeId(0x8000, '50:b7:6c:00:2a:00') } });
+  assert.equal(extractStp(v3, c3), null);
+});
+
+test('MSTP: costo 0 + porta radice che il bridge non conosce → NON letto', () => {
+  const { vbs, ctx } = _acc2Mst();
+  assert.equal(extractStp(vbs, { ...ctx, bpToIf: { 7: 7 } }), null);
+});
+
+test('costo 0 + porta radice con la radice che e\' un MIO MAC → si contraddice, NON letto (anche con la conferma)', () => {
+  const { vbs, ctx } = _acc2Mst({
+    root: bridgeId(0x8000, '50:c3:01:00:22:00'),
+    desig: { 1: bridgeId(0x8000, '50:c3:01:00:22:00') },
+  });
+  assert.equal(extractStp(vbs, ctx), null, '«la radice sono io» e «ho una porta radice» non stanno insieme');
+});
+
+test('l\'eccezione e\' una sola: costo > 0 con porta radice 0 resta un segnaposto, anche con la tabella porte', () => {
+  const { vbs, ctx } = _acc2Mst({ cost: 4, rootPort: 0 });
+  assert.equal(extractStp(vbs, ctx), null);
 });
 
 test('non radice: porta radice, costo e radice nominata', () => {

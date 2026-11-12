@@ -828,7 +828,8 @@ with nothing — a Zyxel with spanning-tree off returns the bridge id as a 19-ch
 none of its own MAC addresses; a Cisco core whose trunks carry no VLAN 1 returns an empty
 default tree while spanning-tree runs on the other VLANs. A placeholder read as data says false
 things, so one rule failing discards the whole reading: the bridge id is exactly 8 octets with a
-non-null MAC; a zero cost and a zero root port come together or not at all; and when the device
+non-null MAC; a zero cost and a zero root port come together or not at all (one exception, measured
+and described below); and when the device
 says it is the root, that MAC must be one of **its own** (the base address plus every
 `ifPhysAddress`) — not the base address alone, which on the Cisco vIOS images is the same on three
 different switches and is not the MAC they vote with. The priority comes with the 802.1t extended
@@ -862,6 +863,43 @@ topology-change counter up by one — and the poll created the two cables (`LLDP
 the two cables is blocked is now readable from the port. A port that is down in the default tree
 still reads `forwarding` on the vIOS, which is one more reason the reader only trusts a blocked
 state on a port that has link.
+
+The same pair of switches was then put in two other modes. In `rapid-pvst` the port the CLI calls
+`Altn BLK` (discarding) is read as `blocking`, so the mark stays; the standard subtree carries no
+RSTP version, so PVST+ and rapid-pvst cannot be told apart from it — the CLI was needed to know which
+one was running. In MSTP the reader gets the default tree as instance 0 (system id 0) with the long
+path-cost method (20000 where PVST+ said 4), and a bridge that is **not** the root but sits in the
+root's region reads a cost of 0 *and* a root port, because its cost to the CIST root is external to
+the region. The rule above would have thrown that reading away and silently emptied every non-root
+switch of an MST region, so it has one exception: a zero cost with a root port is accepted only when
+the root is none of the device's own MAC addresses **and** the port table agrees — the row of the root
+port names the same root as the scalar. A Zyxel placeholder still fails on its bridge id, and a root
+that is the device's own MAC together with a root port still contradicts itself. Only instance 0 is
+read: a ring that lives in another MST instance is not seen, and "no blocked ports" is true of the
+default tree only, exactly as with per-VLAN PVST+.
+
+A different brand was put on the same ring the same day: an Aruba CX. With its spanning-tree off the
+standard subtree answered with a placeholder — the "port enabled" column read disabled on every port
+and the root was a priority-8 bridge id that is none of its own MAC addresses — and the reader
+returned `null`, correctly. With it on (MSTP) the table agreed with the CLI line by line (root,
+priority, root port, blocked port), and a second cable towards a Cisco gave the rack its first blocked
+mark on another brand. Two limits came out of it, and they are written down rather than hidden:
+
+- **Per-VLAN spanning-tree on the Aruba (RPVST) gives a mixture.** The scalars describe the VLAN that
+  carries the ring, but the port table lists ports that are not in that VLAN, reports as `forwarding`
+  a port the CLI calls Alternate Blocking, and the topology-change counter is not that VLAN's — so the
+  reader says "no blocked ports" where there is one. A coherence rule that would tell the two apart was
+  considered and dropped: the Aruba prints the root as the designated bridge even on its own designated
+  ports, so the rule would have thrown away valid MSTP readings. The planned answer for per-VLAN
+  implementations is a per-vendor reader, written only from a real capture.
+- **Two parallel cables between an Aruba and a Cisco in `rapid-pvst` kept the Cisco port in an RSTP
+  dispute.** The Cisco logged `Dispute!`, a proposal and an agreement every few seconds, and the
+  topology-change counters rose about every 30 seconds. It stopped with one cable and did not stop when
+  both sides ran the same family (MSTP or RPVST on the Aruba against `rapid-pvst`). A dispute means a
+  designated port heard an inferior BPDU that also claims to be designated; what exactly the Aruba
+  sends from its alternate port was not captured, so no cause is claimed. The card's topology-change
+  counter is the signal that shows it — a value that keeps climbing on a switch whose ports have not
+  moved.
 
 ### A VLAN that was never declared
 
@@ -1384,7 +1422,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,404 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,409 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

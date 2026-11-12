@@ -577,6 +577,9 @@ function extractSystem(vbs) {
 //   · Cisco vIOS con i trunk senza VLAN 1: albero predefinito VUOTO ma STP acceso.
 // Quindi si scarta l'INTERA lettura (null = «non letto») se una sola di queste regole
 // non torna. Mai una lettura a meta'.
+// Una regola ha un'eccezione dimostrata (MSTP, 12/11/2026): «costo 0 ⇔ porta radice 0» cade per
+// i non-radice dentro la regione della radice CIST — vedi il blocco in extractStp, che la ammette
+// solo con la conferma della tabella porte.
 //
 // ⚠️ La priorita' letta contiene l'extended-system-id (802.1t): 32769 = 32768 + VLAN 1.
 // Si separa in due campi, altrimenti «priorita' diversa dal default» scatterebbe su ogni Cisco.
@@ -619,16 +622,33 @@ function extractStp(vbs, ctx) {
   if (sc['6'] === undefined || sc['7'] === undefined) return null;
   const cost = bufToInt(sc['6']);
   const rootBp = bufToInt(sc['7']);
-  // Radice ⇒ costo 0 E nessuna porta radice. Un costo senza porta (o il contrario) e' un segnaposto.
-  if ((cost === 0) !== (rootBp === 0)) return null;
+  // I MIEI MAC: l'indirizzo base piu' quello di ogni interfaccia (il base NON e' l'identita', vedi sopra).
+  const own = new Set();
+  const base = vbs[OID.dot1dBaseAddr + '.0'];
+  if (isRealMac(base)) own.add(macToStr(base));
+  for (const f of Object.values(ifaces)) if (isRealMac(f && f.macBuf)) own.add(macToStr(f.macBuf));
+
+  // Radice ⇒ costo 0 E nessuna porta radice. Un costo senza porta (o il contrario) e' un segnaposto…
+  // …con UNA eccezione, misurata il 12/11/2026 su un Cisco vIOS in MSTP: dentro la regione della radice
+  // CIST il costo ESTERNO verso la radice e' 0 anche per chi NON e' radice, e la porta radice c'e'
+  // (RootCost 0, RootPort 1, DesignatedRoot = un altro). Scartarla farebbe sparire ogni switch non
+  // radice di una regione MST. Ma «costo 0 + porta radice» e' anche la firma di un segnaposto (Zyxel),
+  // quindi la si accetta solo con la CONFERMA di una tabella diversa: la radice non e' un mio MAC
+  // (altrimenti «sono la radice» e «ho una porta radice» si contraddicono) e la RIGA della porta radice
+  // nella tabella porte nomina la stessa radice dello scalare. (Che la porta radice sia una porta del
+  // bridge lo chiede, come per ogni non-radice, il ramo qui sotto.)
+  let costZeroWithRootPort = false;
+  if ((cost === 0) !== (rootBp === 0)) {
+    if (!(cost === 0 && rootBp > 0)) return null;
+    if (own.has(root.mac)) return null;
+    const row = port[rootBp];
+    if (!row || !Buffer.isBuffer(row['6']) || !row['6'].equals(sc['5'])) return null;
+    costZeroWithRootPort = true;
+  }
 
   const out = { scope: 'default', rootMac: root.mac, rootPriority: root.priority, rootSysId: root.sysId, rootCost: cost };
-  if (cost === 0) {
+  if (cost === 0 && !costZeroWithRootPort) {
     // «Sono io la radice»: il MAC dichiarato deve essere uno dei MIEI.
-    const own = new Set();
-    const base = vbs[OID.dot1dBaseAddr + '.0'];
-    if (isRealMac(base)) own.add(macToStr(base));
-    for (const f of Object.values(ifaces)) if (isRealMac(f && f.macBuf)) own.add(macToStr(f.macBuf));
     if (!own.has(root.mac)) return null;
     out.isRoot = true;
   } else {
