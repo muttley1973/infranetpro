@@ -832,7 +832,11 @@ non-null MAC; a zero cost and a zero root port come together or not at all (one 
 and described below); and when the device
 says it is the root, that MAC must be one of **its own** (the base address plus every
 `ifPhysAddress`) — not the base address alone, which on the Cisco vIOS images is the same on three
-different switches and is not the MAC they vote with. The priority comes with the 802.1t extended
+different switches and is not the MAC they vote with. The timers in use (`MaxAge`, `HelloTime`,
+`ForwardDelay`) must be positive when the device publishes them: on 15 November 2026 a Cisco virtual
+wireless controller, which runs no spanning-tree, answered with itself as root, a zero cost, a zero root
+port and a MAC that really is one of its own — everything the rules above can check — and the three timers
+at zero, so it was the timers that gave it away. A timer that is not published is no objection. The priority comes with the 802.1t extended
 system id folded in (32769 = 32768 + VLAN 1), so it is stored as two fields, `rootPriority` and
 `rootSysId`; otherwise "priority different from the default" would fire on every Cisco.
 
@@ -1422,7 +1426,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,409 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,412 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

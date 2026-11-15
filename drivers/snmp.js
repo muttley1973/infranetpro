@@ -574,7 +574,10 @@ function extractSystem(vbs) {
 //     costo 0 ma porta radice 28;
 //   · Aruba CX (OVA): radice che non e' nessun MAC dell'apparato pur con costo 0 e
 //     porta radice 0;
-//   · Cisco vIOS con i trunk senza VLAN 1: albero predefinito VUOTO ma STP acceso.
+//   · Cisco vIOS con i trunk senza VLAN 1: albero predefinito VUOTO ma STP acceso;
+//   · controller wireless Cisco (vWLC, 15/11/2026): «radice = io» con costo 0 e porta radice 0, e il resto
+//     torna (il MAC e' uno dei suoi) — ma MaxAge, HelloTime e ForwardDelay valgono ZERO. Un bridge che
+//     esegue lo STP usa timer positivi, quindi la tabella e' un segnaposto.
 // Quindi si scarta l'INTERA lettura (null = «non letto») se una sola di queste regole
 // non torna. Mai una lettura a meta'.
 // Una regola ha un'eccezione dimostrata (MSTP, 12/11/2026): «costo 0 ⇔ porta radice 0» cade per
@@ -620,6 +623,13 @@ function extractStp(vbs, ctx) {
   const root = _stpBridgeId(sc['5']);
   if (!root) return null;
   if (sc['6'] === undefined || sc['7'] === undefined) return null;
+  // I timer IN USO (MaxAge `.8`, HelloTime `.9`, ForwardDelay `.11`) di un bridge che esegue lo STP sono
+  // positivi (802.1D: 6–40 s, 1–10 s, 4–30 s). Un valore presente e non positivo = nessuno STP in
+  // esecuzione: segnaposto, qualunque cosa dicano gli altri scalari. Un timer NON pubblicato non e'
+  // un'obiezione: molti agenti non lo espongono e la lettura si decide sul resto.
+  for (const col of ['8', '9', '11']) {
+    if (sc[col] !== undefined && !(bufToInt(sc[col]) > 0)) return null;
+  }
   const cost = bufToInt(sc['6']);
   const rootBp = bufToInt(sc['7']);
   // I MIEI MAC: l'indirizzo base piu' quello di ogni interfaccia (il base NON e' l'identita', vedi sopra).

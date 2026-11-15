@@ -26,19 +26,23 @@ const pcol = (col, bp) => `${P}.15.1.${col}.${bp}`;
 
 // vbs minimo: scalari + (facoltativo) tabella porte. `ports` = { bp: stato }.
 // `desig` = { bp: BridgeId } = la colonna «radice designata» (6) della riga di quella porta.
-function vbsOf({ root, cost, rootPort, topChanges = 1, ports = null, base = null, desig = null }) {
+// `timers` = { 8: MaxAge, 9: HelloTime, 11: ForwardDelay } in centesimi di secondo, come li pubblica l'agente.
+function vbsOf({ root, cost, rootPort, topChanges = 1, ports = null, base = null, desig = null, timers = null }) {
   const v = { [sc(5)]: root, [sc(6)]: cost, [sc(7)]: rootPort, [sc(4)]: topChanges };
+  if (timers) for (const [col, cs] of Object.entries(timers)) v[sc(col)] = cs;
   if (base) v[`${OID.dot1dBaseAddr}.0`] = mac(base);
   if (ports) for (const [bp, st] of Object.entries(ports)) v[pcol(3, bp)] = st;
   if (desig) for (const [bp, id] of Object.entries(desig)) v[pcol(6, bp)] = id;
   return v;
 }
 const iface = (name, m, oper = 1) => ({ name, macBuf: m ? mac(m) : undefined, oper });
+// I timer che pubblicano davvero EXOS e i due Cisco del banco (20 s · 2 s · 15 s): le letture buone li portano.
+const REAL_TIMERS = { 8: 2000, 9: 200, 11: 1500 };
 
 test('EXOS: conforme, radice di se stesso (il MAC e\' fra i suoi)', () => {
   const r = extractStp(
     vbsOf({ root: bridgeId(0x8000, '50:a4:8c:00:2d:00'), cost: 0, rootPort: 0, base: '50:a4:8c:00:2d:00',
-            ports: { 1: 5, 2: 1 } }),
+            ports: { 1: 5, 2: 1 }, timers: REAL_TIMERS }),
     { bpToIf: { 1: 1001, 2: 1002 }, ifaces: { 1001: iface('1:1', '50:a4:8c:00:2d:00'), 1002: iface('1:2', null, 2) } });
   assert.equal(r.isRoot, true);
   assert.equal(r.rootMac, '50:a4:8c:00:2d:00');
@@ -51,7 +55,7 @@ test('EXOS: conforme, radice di se stesso (il MAC e\' fra i suoi)', () => {
 test('vIOS: la priorita\' 32769 si separa in 32768 + sys-id 1; l\'indirizzo base NON conta', () => {
   const r = extractStp(
     vbsOf({ root: bridgeId(0x8001, '50:b7:6c:00:2a:00'), cost: 0, rootPort: 0, base: 'cc:cc:00:00:00:02',
-            ports: { 8: 5 } }),
+            ports: { 8: 5 }, timers: REAL_TIMERS }),
     { bpToIf: { 8: 9 }, ifaces: { 1: iface('Gi0/0', '50:b7:6c:00:2a:00'), 9: iface('Gi2/3', '50:b7:6c:00:2a:08') } });
   assert.equal(r.isRoot, true, 'il MAC della radice e\' quello di Gi0/0, non l\'indirizzo base');
   assert.equal(r.rootPriority, 32768, 'senza la maschera «priorita\' diversa dal default» scatterebbe su ogni Cisco');
@@ -71,6 +75,33 @@ test('Aruba CX: radice che non e\' un MAC dell\'apparato (pur con costo 0 e port
             ports: { 1: 5, 2: 5 } }),
     { bpToIf: { 1: 1, 2: 2 }, ifaces: { 1: iface('1/1/1', '08:00:09:1d:04:c0'), 2: iface('1/1/2', '08:00:09:1d:04:c1') } });
   assert.equal(r, null, 'una lettura che non torna si scarta per intero: niente verdetti sopra la spazzatura');
+});
+
+// ---- Segnaposto con i timer a zero (cattura vera, Cisco vWLC AireOS, 15/11/2026) ----
+// Un controller wireless non esegue lo STP ma risponde alla MIB: «radice = io» (priorita' 0, diversa dalla
+// SUA 32768), costo 0, porta radice 0, UNA porta in forwarding… e MaxAge/Hello/ForwardDelay a ZERO.
+// Tutto il resto torna, quindi le altre regole lo lasciavano passare e l'app diceva «questo apparato e' la
+// radice dello spanning-tree». Un bridge che esegue lo STP usa timer positivi (802.1D: 6–40 s, 1–10 s, 4–30 s).
+test('vWLC: radice di se stesso con i timer a zero (nessuno STP in esecuzione) → NON letto', () => {
+  const r = extractStp(
+    vbsOf({ root: bridgeId(0x0000, '50:fb:8a:00:28:01'), cost: 0, rootPort: 0, topChanges: 0,
+            ports: { 1: 5 }, timers: { 8: 0, 9: 0, 11: 0 } }),
+    { bpToIf: { 1: 1 }, ifaces: { 1: iface('GigabitEthernet0/0/1', '50:fb:8a:00:28:01') } });
+  assert.equal(r, null, 'un segnaposto che per il resto torna non deve diventare «sono la radice»');
+});
+
+test('un timer a zero scarta la lettura intera, qualunque sia (MaxAge, Hello, ForwardDelay) e anche su un non-radice', () => {
+  for (const col of [8, 9, 11]) {
+    const { vbs, ctx } = _acc2Mst({ timers: { ...REAL_TIMERS, [col]: 0 } });
+    assert.equal(extractStp(vbs, ctx), null, `timer ${col} a zero`);
+  }
+  const { vbs, ctx } = _acc2Mst({ timers: REAL_TIMERS });
+  assert.ok(extractStp(vbs, ctx), 'gli stessi timer positivi: si legge');
+});
+
+test('timer non pubblicati: non e\' un\'obiezione (la lettura si decide sul resto)', () => {
+  const { vbs, ctx } = _acc2Mst();
+  assert.ok(extractStp(vbs, ctx), 'molte letture buone non portano i timer: l\'assenza non scarta');
 });
 
 test('costo 0 ma porta radice ≠ 0 (o il contrario) → segnaposto, NON letto', () => {
