@@ -23428,6 +23428,25 @@
     }
   },
   {
+    "slug": "asecam-5mp-poe-bullet-4x",
+    "sourceSlug": "asecam-5mp-poe-bullet-4x",
+    "brand": "ASECAM",
+    "brandSlug": "asecam",
+    "model": "5MP PoE Bullet 4X",
+    "partNumber": "5MP PoE Bullet 4X",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "asrockrack-4u8g-turin2",
     "sourceSlug": "asrockrack-4u8g-turin2",
     "brand": "ASRockRack",
@@ -24138,6 +24157,63 @@
     }
   },
   {
+    "slug": "avm-fritzrepeater-1200",
+    "sourceSlug": "avm-fritzrepeater-1200",
+    "brand": "AVM",
+    "brandSlug": "avm",
+    "model": "FRITZ!Repeater 1200",
+    "partNumber": "20002854",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "avm-fritzrepeater-1200ax",
+    "sourceSlug": "avm-fritzrepeater-1200ax",
+    "brand": "AVM",
+    "brandSlug": "avm",
+    "model": "FRITZ!Repeater 1200ax",
+    "partNumber": "20002974",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "avm-fritzrepeater-1750e",
+    "sourceSlug": "avm-fritzrepeater-1750e",
+    "brand": "AVM",
+    "brandSlug": "avm",
+    "model": "FRITZ!Repeater 1750E",
+    "partNumber": "20002686",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "avm-fritzrepeater-3000",
     "sourceSlug": "avm-fritzrepeater-3000",
     "brand": "AVM",
@@ -24188,6 +24264,25 @@
     "frontPanel": {},
     "counts": {
       "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "avm-fritzwlan-repeater-dvb-c",
+    "sourceSlug": "avm-fritzwlan-repeater-dvb-c",
+    "brand": "AVM",
+    "brandSlug": "avm",
+    "model": "FRITZ!WLAN Repeater DVB-C",
+    "partNumber": "20002679",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
       "sfp": 0,
       "qsfp": 0,
       "mgmt": 0,
@@ -28269,6 +28364,29 @@
     }
   },
   {
+    "slug": "celestica-d4040",
+    "sourceSlug": "celestica-d4040",
+    "brand": "Celestica",
+    "brandSlug": "celestica",
+    "model": "D4040",
+    "partNumber": "D4040",
+    "ports": 32,
+    "rackU": 1,
+    "isFullDepth": true,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 32,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 32,
+      "qsfp": 0,
+      "mgmt": 1,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "centropower-ct-pdu10-sp",
     "sourceSlug": "centropower-ct-pdu10-sp",
     "brand": "CENTROPOWER",
@@ -30260,6 +30378,25 @@
     }
   },
   {
+    "slug": "ciena-0473",
+    "sourceSlug": "ciena-0473",
+    "brand": "Ciena",
+    "brandSlug": "ciena",
+    "model": "0473",
+    "partNumber": "170-0473-910",
+    "ports": 0,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 0,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "ciena-3801",
     "sourceSlug": "ciena-3801",
     "brand": "Ciena",
@@ -30296,6 +30433,31 @@
       "mgmt": 0,
       "fiberDropped": 0
     }
+  },
+  {
+    "slug": "ciena-3803-mtl",
+    "sourceSlug": "ciena-3803-mtl",
+    "brand": "Ciena",
+    "brandSlug": "ciena",
+    "model": "3803-MTL",
+    "partNumber": "170-3803-910-MTL",
+    "ports": 5,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    },
+    "powerOutlets": [
+      {
+        "name": "USB-C",
+        "type": "usb-c"
+      }
+    ]
   },
   {
     "slug": "ciena-3806",
@@ -42492,6 +42654,28 @@
     }
   },
   {
+    "slug": "cisco-c1200-16p-2g",
+    "sourceSlug": "cisco-c1200-16p-2g",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "Catalyst C1200-16P-2G",
+    "partNumber": "C1200-16P-2G",
+    "ports": 18,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2
+    },
+    "counts": {
+      "copper": 16,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "cisco-c1200-16t-2g",
     "sourceSlug": "cisco-c1200-16t-2g",
     "brand": "Cisco",
@@ -42514,12 +42698,100 @@
     }
   },
   {
+    "slug": "cisco-c1200-24fp-4g",
+    "sourceSlug": "cisco-c1200-24fp-4g",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "Catalyst C1200-24FP-4G",
+    "partNumber": "C1200-24FP-4G",
+    "ports": 28,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4
+    },
+    "counts": {
+      "copper": 24,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-c1200-24fp-4x",
+    "sourceSlug": "cisco-c1200-24fp-4x",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "Catalyst C1200-24FP-4X",
+    "partNumber": "C1200-24FP-4X",
+    "ports": 28,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4
+    },
+    "counts": {
+      "copper": 24,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "cisco-c1200-24p-4g",
     "sourceSlug": "cisco-c1200-24p-4g",
     "brand": "Cisco",
     "brandSlug": "cisco",
     "model": "Catalyst C1200-24P-4G",
     "partNumber": "C1200-24P-4G",
+    "ports": 28,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4
+    },
+    "counts": {
+      "copper": 24,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-c1200-24p-4x",
+    "sourceSlug": "cisco-c1200-24p-4x",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "Catalyst C1200-24P-4X",
+    "partNumber": "C1200-24P-4X",
+    "ports": 28,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4
+    },
+    "counts": {
+      "copper": 24,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-c1200-24t-4g",
+    "sourceSlug": "cisco-c1200-24t-4g",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "Catalyst C1200-24T-4G",
+    "partNumber": "C1200-24T-4G",
     "ports": 28,
     "rackU": 1,
     "isFullDepth": false,
@@ -42558,6 +42830,138 @@
     }
   },
   {
+    "slug": "cisco-c1200-48p-4g",
+    "sourceSlug": "cisco-c1200-48p-4g",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "Catalyst C1200-48P-4G",
+    "partNumber": "C1200-48P-4G",
+    "ports": 52,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4
+    },
+    "counts": {
+      "copper": 48,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-c1200-48p-4x",
+    "sourceSlug": "cisco-c1200-48p-4x",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "Catalyst C1200-48P-4X",
+    "partNumber": "C1200-48P-4X",
+    "ports": 52,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4
+    },
+    "counts": {
+      "copper": 48,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-c1200-48t-4g",
+    "sourceSlug": "cisco-c1200-48t-4g",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "Catalyst C1200-48T-4G",
+    "partNumber": "C1200-48T-4G",
+    "ports": 52,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4
+    },
+    "counts": {
+      "copper": 48,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-c1200-48t-4x",
+    "sourceSlug": "cisco-c1200-48t-4x",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "Catalyst C1200-48T-4X",
+    "partNumber": "C1200-48T-4X",
+    "ports": 52,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4
+    },
+    "counts": {
+      "copper": 48,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-c1200-8fp-2g",
+    "sourceSlug": "cisco-c1200-8fp-2g",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "Catalyst C1200-8FP-2G",
+    "partNumber": "C1200-8FP-2G",
+    "ports": 10,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2
+    },
+    "counts": {
+      "copper": 8,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-c1200-8p-e-2g",
+    "sourceSlug": "cisco-c1200-8p-e-2g",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "Catalyst C1200-8P-E-2G",
+    "partNumber": "C1200-8P-E-2G",
+    "ports": 12,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2
+    },
+    "counts": {
+      "copper": 10,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "cisco-c1200-8t-d",
     "sourceSlug": "cisco-c1200-8t-d",
     "brand": "Cisco",
@@ -42571,6 +42975,28 @@
     "counts": {
       "copper": 8,
       "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-c1200-8t-e-2g",
+    "sourceSlug": "cisco-c1200-8t-e-2g",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "Catalyst C1200-8T-E-2G",
+    "partNumber": "C1200-8T-E-2G",
+    "ports": 12,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2
+    },
+    "counts": {
+      "copper": 10,
+      "sfp": 2,
       "qsfp": 0,
       "mgmt": 0,
       "fiberDropped": 0
@@ -43068,6 +43494,44 @@
       "qsfp": 4,
       "mgmt": 1,
       "fiberDropped": 48
+    }
+  },
+  {
+    "slug": "cisco-cw9162i-e",
+    "sourceSlug": "cisco-cw9162i-e",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "Catalyst CW9162I-E",
+    "partNumber": "CW9162I-E",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-cw9166i-e",
+    "sourceSlug": "cisco-cw9166i-e",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "Catalyst CW9166I-E",
+    "partNumber": "CW9166I-E",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
     }
   },
   {
@@ -50125,6 +50589,29 @@
     }
   },
   {
+    "slug": "cisco-n3k-c3548p-10g",
+    "sourceSlug": "cisco-n3k-c3548p-10g",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "Nexus 3548P-10G",
+    "partNumber": "N3K-C3548P-10G",
+    "ports": 48,
+    "rackU": 1,
+    "isFullDepth": true,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 48,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 48,
+      "qsfp": 0,
+      "mgmt": 1,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "cisco-n5k-c5548p",
     "sourceSlug": "cisco-n5k-c5548p",
     "brand": "Cisco",
@@ -50827,6 +51314,29 @@
     }
   },
   {
+    "slug": "cisco-n9336c-se1",
+    "sourceSlug": "cisco-n9336c-se1",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "Nexus 9336C-SE1",
+    "partNumber": "N9336C-SE1",
+    "ports": 36,
+    "rackU": 1,
+    "isFullDepth": true,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 36,
+      "mgmtCount": 2
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 36,
+      "qsfp": 0,
+      "mgmt": 2,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "cisco-n9k-c9336pq",
     "sourceSlug": "cisco-n9k-c9336pq",
     "brand": "Cisco",
@@ -51413,6 +51923,161 @@
     }
   },
   {
+    "slug": "cisco-sf110-16",
+    "sourceSlug": "cisco-sf110-16",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SF110-16",
+    "partNumber": "SF110-16",
+    "ports": 16,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 16,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sf110-24",
+    "sourceSlug": "cisco-sf110-24",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SF110-24",
+    "partNumber": "SF110-24",
+    "ports": 24,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 24,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sf110d-05",
+    "sourceSlug": "cisco-sf110d-05",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SF110D-05",
+    "partNumber": "SF110D-05",
+    "ports": 5,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sf110d-08",
+    "sourceSlug": "cisco-sf110d-08",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SF110D-08",
+    "partNumber": "SF110D-08",
+    "ports": 8,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 8,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sf110d-08hp",
+    "sourceSlug": "cisco-sf110d-08hp",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SF110D-08HP",
+    "partNumber": "SF110D-08HP",
+    "ports": 8,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 8,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sf110d-16",
+    "sourceSlug": "cisco-sf110d-16",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SF110D-16",
+    "partNumber": "SF110D-16",
+    "ports": 16,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 16,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sf110d-16hp",
+    "sourceSlug": "cisco-sf110d-16hp",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SF110D-16HP",
+    "partNumber": "SF110D-16HP",
+    "ports": 16,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 16,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sf112-24",
+    "sourceSlug": "cisco-sf112-24",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SF112-24",
+    "partNumber": "SF112-24",
+    "ports": 28,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2
+    },
+    "counts": {
+      "copper": 26,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "cisco-sf220-48p",
     "sourceSlug": "cisco-sf220-48p",
     "brand": "Cisco",
@@ -51436,6 +52101,94 @@
     }
   },
   {
+    "slug": "cisco-sf250-24-k9",
+    "sourceSlug": "cisco-sf250-24-k9",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SF250-24",
+    "partNumber": "SF250-24-K9",
+    "ports": 30,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4
+    },
+    "counts": {
+      "copper": 26,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sf250-24p-k9",
+    "sourceSlug": "cisco-sf250-24p-k9",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SF250-24P",
+    "partNumber": "SF250-24P-K9",
+    "ports": 30,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4
+    },
+    "counts": {
+      "copper": 26,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sf250-48-k9",
+    "sourceSlug": "cisco-sf250-48-k9",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SF250-48",
+    "partNumber": "SF250-48-K9",
+    "ports": 54,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4
+    },
+    "counts": {
+      "copper": 50,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sf250-48hp-k9",
+    "sourceSlug": "cisco-sf250-48hp-k9",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SF250-48HP",
+    "partNumber": "SF250-48HP-K9",
+    "ports": 54,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4
+    },
+    "counts": {
+      "copper": 50,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "cisco-sf350-24p",
     "sourceSlug": "cisco-sf350-24p",
     "brand": "Cisco",
@@ -51452,6 +52205,167 @@
     },
     "counts": {
       "copper": 26,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sg110-16",
+    "sourceSlug": "cisco-sg110-16",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG110-16",
+    "partNumber": "SG110-16",
+    "ports": 16,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 16,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sg110-16hp",
+    "sourceSlug": "cisco-sg110-16hp",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG110-16HP",
+    "partNumber": "SG110-16HP",
+    "ports": 16,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 16,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sg110-24",
+    "sourceSlug": "cisco-sg110-24",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG110-24",
+    "partNumber": "SG110-24",
+    "ports": 26,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2
+    },
+    "counts": {
+      "copper": 24,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sg110-24hp",
+    "sourceSlug": "cisco-sg110-24hp",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG110-24HP",
+    "partNumber": "SG110-24HP",
+    "ports": 26,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2
+    },
+    "counts": {
+      "copper": 24,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sg110d-05",
+    "sourceSlug": "cisco-sg110d-05",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG110D-05",
+    "partNumber": "SG110D-05",
+    "ports": 5,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sg110d-08",
+    "sourceSlug": "cisco-sg110d-08",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG110D-08",
+    "partNumber": "SG110D-08",
+    "ports": 8,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 8,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sg110d-08hp",
+    "sourceSlug": "cisco-sg110d-08hp",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG110D-08HP",
+    "partNumber": "SG110D-08HP",
+    "ports": 8,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 8,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sg112-24",
+    "sourceSlug": "cisco-sg112-24",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG112-24",
+    "partNumber": "SG112-24",
+    "ports": 26,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2
+    },
+    "counts": {
+      "copper": 24,
       "sfp": 2,
       "qsfp": 0,
       "mgmt": 0,
@@ -51544,6 +52458,44 @@
     }
   },
   {
+    "slug": "cisco-sg250-08-k9",
+    "sourceSlug": "cisco-sg250-08-k9",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG250-08",
+    "partNumber": "SG250-08-K9",
+    "ports": 8,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 8,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sg250-08hp-k9",
+    "sourceSlug": "cisco-sg250-08hp-k9",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG250-08HP",
+    "partNumber": "SG250-08HP-K9",
+    "ports": 8,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 8,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "cisco-sg250-10p-k9",
     "sourceSlug": "cisco-sg250-10p-k9",
     "brand": "Cisco",
@@ -51559,6 +52511,28 @@
     },
     "counts": {
       "copper": 8,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sg250-18-k9",
+    "sourceSlug": "cisco-sg250-18-k9",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG250-18",
+    "partNumber": "SG250-18-K9",
+    "ports": 20,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2
+    },
+    "counts": {
+      "copper": 18,
       "sfp": 2,
       "qsfp": 0,
       "mgmt": 0,
@@ -51588,6 +52562,72 @@
     }
   },
   {
+    "slug": "cisco-sg250-26hp-k9",
+    "sourceSlug": "cisco-sg250-26hp-k9",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG250-26HP",
+    "partNumber": "SG250-26HP-K9",
+    "ports": 28,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2
+    },
+    "counts": {
+      "copper": 26,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sg250-26p-k9",
+    "sourceSlug": "cisco-sg250-26p-k9",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG250-26P",
+    "partNumber": "SG250-26P-K9",
+    "ports": 28,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2
+    },
+    "counts": {
+      "copper": 26,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sg250-50-k9",
+    "sourceSlug": "cisco-sg250-50-k9",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG250-50",
+    "partNumber": "SG250-50-K9",
+    "ports": 52,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2
+    },
+    "counts": {
+      "copper": 50,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "cisco-sg250-50hp-k9",
     "sourceSlug": "cisco-sg250-50hp-k9",
     "brand": "Cisco",
@@ -51603,6 +52643,120 @@
     },
     "counts": {
       "copper": 48,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sg250-50p-k9",
+    "sourceSlug": "cisco-sg250-50p-k9",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG250-50P",
+    "partNumber": "SG250-50P-K9",
+    "ports": 52,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2
+    },
+    "counts": {
+      "copper": 50,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sg250x-24-k9",
+    "sourceSlug": "cisco-sg250x-24-k9",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG250X-24",
+    "partNumber": "SG250X-24-K9",
+    "ports": 28,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 3
+    },
+    "counts": {
+      "copper": 26,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sg250x-24p-k9",
+    "sourceSlug": "cisco-sg250x-24p-k9",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG250X-24P",
+    "partNumber": "SG250X-24P-K9",
+    "ports": 28,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 3
+    },
+    "counts": {
+      "copper": 26,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sg250x-48-k9",
+    "sourceSlug": "cisco-sg250x-48-k9",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG250X-48",
+    "partNumber": "SG250X-48-K9",
+    "ports": 52,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 3
+    },
+    "counts": {
+      "copper": 50,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "cisco-sg250x-48p-k9",
+    "sourceSlug": "cisco-sg250x-48p-k9",
+    "brand": "Cisco",
+    "brandSlug": "cisco",
+    "model": "SG250X-48P",
+    "partNumber": "SG250X-48P-K9",
+    "ports": 52,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 3
+    },
+    "counts": {
+      "copper": 50,
       "sfp": 2,
       "qsfp": 0,
       "mgmt": 0,
@@ -55407,6 +56561,25 @@
         "type": "iec-60320-c13"
       }
     ]
+  },
+  {
+    "slug": "d-link-dap-1360",
+    "sourceSlug": "d-link-dap-1360",
+    "brand": "D-Link",
+    "brandSlug": "d-link",
+    "model": "DAP-1360",
+    "partNumber": "DAP-1360",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
   },
   {
     "slug": "d-link-des-1005c",
@@ -59492,6 +60665,29 @@
     }
   },
   {
+    "slug": "dell-powerswitch-s3048-on-os9",
+    "sourceSlug": "dell-powerswitch-s3048-on-os9",
+    "brand": "Dell",
+    "brandSlug": "dell",
+    "model": "PowerSwitch S3048-ON (OS9)",
+    "partNumber": "",
+    "ports": 52,
+    "rackU": 1,
+    "isFullDepth": true,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 48,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 1,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "dell-powerswitch-s4048-on",
     "sourceSlug": "dell-powerswitch-s4048-on",
     "brand": "Dell",
@@ -59681,6 +60877,29 @@
       "copper": 0,
       "sfp": 48,
       "qsfp": 8,
+      "mgmt": 1,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "dell-powerswitch-s6100-on",
+    "sourceSlug": "dell-powerswitch-s6100-on",
+    "brand": "Dell",
+    "brandSlug": "dell",
+    "model": "PowerSwitch S6100-ON",
+    "partNumber": "S6100-ON",
+    "ports": 2,
+    "rackU": 2,
+    "isFullDepth": true,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 2,
+      "qsfp": 0,
       "mgmt": 1,
       "fiberDropped": 0
     }
@@ -66588,6 +67807,44 @@
     "counts": {
       "copper": 6,
       "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "eltex-wep-2l",
+    "sourceSlug": "eltex-wep-2l",
+    "brand": "Eltex",
+    "brandSlug": "eltex",
+    "model": "WEP-2L",
+    "partNumber": "",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "eltex-wep-30l",
+    "sourceSlug": "eltex-wep-30l",
+    "brand": "Eltex",
+    "brandSlug": "eltex",
+    "model": "WEP-30L",
+    "partNumber": "",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
       "qsfp": 0,
       "mgmt": 0,
       "fiberDropped": 0
@@ -73741,6 +74998,25 @@
     }
   },
   {
+    "slug": "firebat-f1-7640hs-24gb",
+    "sourceSlug": "firebat-f1-7640hs-24gb",
+    "brand": "Firebat",
+    "brandSlug": "firebat",
+    "model": "F1 (7640HS, 24GB)",
+    "partNumber": "",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "firebrick-fb2900",
     "sourceSlug": "firebrick-fb2900",
     "brand": "FireBrick",
@@ -74406,6 +75682,28 @@
     }
   },
   {
+    "slug": "fortinet-fac-3000f",
+    "sourceSlug": "fortinet-fac-3000f",
+    "brand": "Fortinet",
+    "brandSlug": "fortinet",
+    "model": "FortiAuthenticator 3000F",
+    "partNumber": "FAC-3000F",
+    "ports": 6,
+    "rackU": 2,
+    "isFullDepth": true,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2
+    },
+    "counts": {
+      "copper": 4,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "fortinet-fac-300f",
     "sourceSlug": "fortinet-fac-300f",
     "brand": "Fortinet",
@@ -74437,6 +75735,25 @@
     "frontPanel": {},
     "counts": {
       "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "fortinet-fex-40d",
+    "sourceSlug": "fortinet-fex-40d",
+    "brand": "Fortinet",
+    "brandSlug": "fortinet",
+    "model": "FortiExtender 40D",
+    "partNumber": "FEX-40D",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
       "sfp": 0,
       "qsfp": 0,
       "mgmt": 0,
@@ -75800,6 +77117,25 @@
     }
   },
   {
+    "slug": "fortinet-fg-50g-5g",
+    "sourceSlug": "fortinet-fg-50g-5g",
+    "brand": "Fortinet",
+    "brandSlug": "fortinet",
+    "model": "FortiGate 50G 5G",
+    "partNumber": "FG-50G-5G",
+    "ports": 6,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 6,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "fortinet-fg-50g-sfp",
     "sourceSlug": "fortinet-fg-50g-sfp",
     "brand": "Fortinet",
@@ -76552,6 +77888,29 @@
       "copper": 0,
       "sfp": 2,
       "qsfp": 8,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "fortinet-fgr-50g-5g",
+    "sourceSlug": "fortinet-fgr-50g-5g",
+    "brand": "Fortinet",
+    "brandSlug": "fortinet",
+    "model": "FortiGate Rugged 50G 5G",
+    "partNumber": "FGR-50G-5G",
+    "ports": 10,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 8,
+      "sfp": 2,
+      "qsfp": 0,
       "mgmt": 0,
       "fiberDropped": 0
     }
@@ -78007,6 +79366,51 @@
     }
   },
   {
+    "slug": "fs-ies3110-8tfp-r",
+    "sourceSlug": "fs-ies3110-8tfp-r",
+    "brand": "FS",
+    "brandSlug": "fs",
+    "model": "IES3110-8TFP-R",
+    "partNumber": "148181",
+    "ports": 10,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2
+    },
+    "counts": {
+      "copper": 8,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "fs-imc-2m2t",
+    "sourceSlug": "fs-imc-2m2t",
+    "brand": "FS",
+    "brandSlug": "fs",
+    "model": "IMC-2M2T",
+    "partNumber": "IMC-2M2T",
+    "ports": 4,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 2,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "fs-mfmc-12dp",
     "sourceSlug": "fs-mfmc-12dp",
     "brand": "FS",
@@ -78022,6 +79426,31 @@
       "sfp": 0,
       "qsfp": 0,
       "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "fs-n5580-48y8c",
+    "sourceSlug": "fs-n5580-48y8c",
+    "brand": "FS",
+    "brandSlug": "fs",
+    "model": "N5580-48Y8C",
+    "partNumber": "N5580-48Y8C",
+    "ports": 58,
+    "rackU": 1,
+    "isFullDepth": true,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 48,
+      "sfp2Count": 10,
+      "sfp2StartNum": 1,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 48,
+      "qsfp": 10,
+      "mgmt": 1,
       "fiberDropped": 0
     }
   },
@@ -78331,6 +79760,29 @@
     }
   },
   {
+    "slug": "fs-s3410-48ts",
+    "sourceSlug": "fs-s3410-48ts",
+    "brand": "FS",
+    "brandSlug": "fs",
+    "model": "S3410-48TS",
+    "partNumber": "S3410-48TS",
+    "ports": 52,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 48,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "fs-s3410-48ts-p",
     "sourceSlug": "fs-s3410-48ts-p",
     "brand": "FS",
@@ -78482,6 +79934,31 @@
       "sfp": 4,
       "qsfp": 0,
       "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "fs-s5470-48y",
+    "sourceSlug": "fs-s5470-48y",
+    "brand": "FS",
+    "brandSlug": "fs",
+    "model": "S5470-48Y",
+    "partNumber": "S5470-48Y",
+    "ports": 56,
+    "rackU": 1,
+    "isFullDepth": true,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 48,
+      "sfp2Count": 8,
+      "sfp2StartNum": 1,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 48,
+      "qsfp": 8,
+      "mgmt": 1,
       "fiberDropped": 0
     }
   },
@@ -86253,6 +87730,29 @@
       "copper": 24,
       "sfp": 4,
       "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "hpe-flexnetwork-5130-24sfp-4sfpp-ei",
+    "sourceSlug": "hpe-flexnetwork-5130-24sfp-4sfpp-ei",
+    "brand": "HPE",
+    "brandSlug": "hpe",
+    "model": "FlexNetwork 5130-24SFP-4SFP+ EI",
+    "partNumber": "JG933A",
+    "ports": 28,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 24,
+      "sfp2Count": 4
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 24,
+      "qsfp": 4,
       "mgmt": 0,
       "fiberDropped": 0
     }
@@ -100578,6 +102078,25 @@
     }
   },
   {
+    "slug": "keenetic-lite",
+    "sourceSlug": "keenetic-lite",
+    "brand": "Keenetic",
+    "brandSlug": "keenetic",
+    "model": "Lite",
+    "partNumber": "KN-1311",
+    "ports": 5,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "keenetic-start",
     "sourceSlug": "keenetic-start",
     "brand": "Keenetic",
@@ -101330,6 +102849,25 @@
     "counts": {
       "copper": 10,
       "sfp": 1,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "lancom-883-voip",
+    "sourceSlug": "lancom-883-voip",
+    "brand": "LANCOM",
+    "brandSlug": "lancom",
+    "model": "883 VoIP",
+    "partNumber": "883 VoIP",
+    "ports": 7,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 7,
+      "sfp": 0,
       "qsfp": 0,
       "mgmt": 0,
       "fiberDropped": 0
@@ -102575,6 +104113,44 @@
     "frontPanel": {},
     "counts": {
       "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "lancom-lw-600",
+    "sourceSlug": "lancom-lw-600",
+    "brand": "LANCOM",
+    "brandSlug": "lancom",
+    "model": "LW-600",
+    "partNumber": "61829",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "lancom-lw-700",
+    "sourceSlug": "lancom-lw-700",
+    "brand": "LANCOM",
+    "brandSlug": "lancom",
+    "model": "LW-700",
+    "partNumber": "61931",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
       "sfp": 0,
       "qsfp": 0,
       "mgmt": 0,
@@ -104872,6 +106448,25 @@
     }
   },
   {
+    "slug": "mikrotik-cap-rbcap2nd",
+    "sourceSlug": "mikrotik-cap-rbcap2nd",
+    "brand": "MikroTik",
+    "brandSlug": "mikrotik",
+    "model": "cAP RBcAP2nD",
+    "partNumber": "RBcAP2nD",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "mikrotik-cap-xl-ac",
     "sourceSlug": "mikrotik-cap-xl-ac",
     "brand": "MikroTik",
@@ -105692,6 +107287,29 @@
     }
   },
   {
+    "slug": "mikrotik-crs326-24g-2s-plus-in",
+    "sourceSlug": "mikrotik-crs326-24g-2s-plus-in",
+    "brand": "MikroTik",
+    "brandSlug": "mikrotik",
+    "model": "CRS326-24G-2S+IN",
+    "partNumber": "CRS326-24G-2S+IN",
+    "ports": 26,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 24,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "mikrotik-crs326-24g-2s-plus-rm",
     "sourceSlug": "mikrotik-crs326-24g-2s-plus-rm",
     "brand": "MikroTik",
@@ -105865,6 +107483,30 @@
     }
   },
   {
+    "slug": "mikrotik-crs418-8p-8g-2s-plus-5axq2axq-rm",
+    "sourceSlug": "mikrotik-crs418-8p-8g-2s-plus-5axq2axq-rm",
+    "brand": "MikroTik",
+    "brandSlug": "mikrotik",
+    "model": "CRS418-8P-8G-2S+5axQ2axQ-RM",
+    "partNumber": "CRS418-8P-8G-2S+5axQ2axQ-RM",
+    "ports": 18,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1,
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 16,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 1,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "mikrotik-crs418-8p-8g-2s-plus-rm",
     "sourceSlug": "mikrotik-crs418-8p-8g-2s-plus-rm",
     "brand": "MikroTik",
@@ -105987,6 +107629,54 @@
     }
   },
   {
+    "slug": "mikrotik-crs804-4ddq-hrm",
+    "sourceSlug": "mikrotik-crs804-4ddq-hrm",
+    "brand": "MikroTik",
+    "brandSlug": "mikrotik",
+    "model": "CRS804-4DDQ-hRM",
+    "partNumber": "CRS804-4DDQ-hRM",
+    "ports": 4,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 4,
+      "mgmtCount": 2
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 4,
+      "qsfp": 0,
+      "mgmt": 2,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "mikrotik-crs812-8ds-2dq-2ddq-rm",
+    "sourceSlug": "mikrotik-crs812-8ds-2dq-2ddq-rm",
+    "brand": "MikroTik",
+    "brandSlug": "mikrotik",
+    "model": "CRS812-8DS-2DQ-2DDQ-RM",
+    "partNumber": "CRS812-8DS-2DQ-2DDQ-RM",
+    "ports": 12,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 8,
+      "sfp2Count": 4,
+      "sfp2StartNum": 1,
+      "mgmtCount": 2
+    },
+    "counts": {
+      "copper": 0,
+      "sfp": 8,
+      "qsfp": 4,
+      "mgmt": 2,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "mikrotik-css318-16g-2s-plus-in",
     "sourceSlug": "mikrotik-css318-16g-2s-plus-in",
     "brand": "MikroTik",
@@ -106039,6 +107729,29 @@
     "brandSlug": "mikrotik",
     "model": "CSS610-8G-2S+IN",
     "partNumber": "CSS610-8G-2S+IN",
+    "ports": 10,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 8,
+      "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "mikrotik-css610-8p-2s-plus-in",
+    "sourceSlug": "mikrotik-css610-8p-2s-plus-in",
+    "brand": "MikroTik",
+    "brandSlug": "mikrotik",
+    "model": "CSS610-8P-2S+IN",
+    "partNumber": "CSS610-8P-2S+IN",
     "ports": 10,
     "rackU": 1,
     "isFullDepth": false,
@@ -106933,6 +108646,25 @@
     }
   },
   {
+    "slug": "mikrotik-rbltap-2hnd",
+    "sourceSlug": "mikrotik-rbltap-2hnd",
+    "brand": "MikroTik",
+    "brandSlug": "mikrotik",
+    "model": "RBLtAP-2HnD",
+    "partNumber": "RBLtAP-2HnD",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "mikrotik-rbsxtr-and-r11e-lte6",
     "sourceSlug": "mikrotik-rbsxtr-and-r11e-lte6",
     "brand": "MikroTik",
@@ -106997,6 +108729,44 @@
     }
   },
   {
+    "slug": "mikrotik-wap-60g",
+    "sourceSlug": "mikrotik-wap-60g",
+    "brand": "MikroTik",
+    "brandSlug": "mikrotik",
+    "model": "wAP 60G",
+    "partNumber": "RBwAPG-60ad",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "mikrotik-wap-lte-kit",
+    "sourceSlug": "mikrotik-wap-lte-kit",
+    "brand": "MikroTik",
+    "brandSlug": "mikrotik",
+    "model": "wAP LTE kit",
+    "partNumber": "RBwAPR-2nD&R11e-LTE",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "mikrotik-wap-r-ac",
     "sourceSlug": "mikrotik-wap-r-ac",
     "brand": "MikroTik",
@@ -107009,6 +108779,44 @@
     "frontPanel": {},
     "counts": {
       "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "mimosa-networks-b5c",
+    "sourceSlug": "mimosa-networks-b5c",
+    "brand": "Mimosa Networks",
+    "brandSlug": "mimosa-networks",
+    "model": "B5c",
+    "partNumber": "b5c",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "mimosa-networks-b5x",
+    "sourceSlug": "mimosa-networks-b5x",
+    "brand": "Mimosa Networks",
+    "brandSlug": "mimosa-networks",
+    "model": "B5X",
+    "partNumber": "b5x",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
       "sfp": 0,
       "qsfp": 0,
       "mgmt": 0,
@@ -107396,6 +109204,79 @@
       "mgmt": 0,
       "fiberDropped": 0
     }
+  },
+  {
+    "slug": "multimatic-md-1000pro",
+    "sourceSlug": "multimatic-md-1000pro",
+    "brand": "multimatic",
+    "brandSlug": "multimatic",
+    "model": "MD-1000PRO",
+    "partNumber": "",
+    "ports": 0,
+    "rackU": 2,
+    "isFullDepth": true,
+    "frontPanel": {},
+    "counts": {
+      "copper": 0,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    },
+    "powerOutlets": [
+      {
+        "name": "SEGMENT1-1",
+        "type": "iec-60320-c13",
+        "group": "g1"
+      },
+      {
+        "name": "SEGMENT1-2",
+        "type": "iec-60320-c13",
+        "group": "g1"
+      },
+      {
+        "name": "SEGMENT1-3",
+        "type": "iec-60320-c13",
+        "group": "g1"
+      },
+      {
+        "name": "SEGMENT1-4",
+        "type": "iec-60320-c13",
+        "group": "g1"
+      },
+      {
+        "name": "SEGMENT2-1",
+        "type": "iec-60320-c13",
+        "group": "g2"
+      },
+      {
+        "name": "SEGMENT2-2",
+        "type": "iec-60320-c13",
+        "group": "g2"
+      },
+      {
+        "name": "SEGMENT2-3",
+        "type": "iec-60320-c13",
+        "group": "g2"
+      },
+      {
+        "name": "SEGMENT2-4",
+        "type": "iec-60320-c13",
+        "group": "g2"
+      }
+    ],
+    "powerGroups": [
+      {
+        "id": "g1",
+        "name": "Segment 1",
+        "switching": "switched"
+      },
+      {
+        "id": "g2",
+        "name": "Segment 2",
+        "switching": "switched"
+      }
+    ]
   },
   {
     "slug": "nateks-flexgain-fom-4",
@@ -111371,6 +113252,25 @@
     }
   },
   {
+    "slug": "opengear-om1204-4e-l",
+    "sourceSlug": "opengear-om1204-4e-l",
+    "brand": "Opengear",
+    "brandSlug": "opengear",
+    "model": "OM1204-4E-L",
+    "partNumber": "OM1204-4E-L",
+    "ports": 6,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 6,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "opengear-om1208-8e-l",
     "sourceSlug": "opengear-om1208-8e-l",
     "brand": "Opengear",
@@ -111930,6 +113830,44 @@
     "counts": {
       "copper": 6,
       "sfp": 2,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "orange-livebox-6",
+    "sourceSlug": "orange-livebox-6",
+    "brand": "Orange",
+    "brandSlug": "orange",
+    "model": "Livebox 6",
+    "partNumber": "",
+    "ports": 8,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 8,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "orange-livebox-7",
+    "sourceSlug": "orange-livebox-7",
+    "brand": "Orange",
+    "brandSlug": "orange",
+    "model": "Livebox 7",
+    "partNumber": "",
+    "ports": 8,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 8,
+      "sfp": 0,
       "qsfp": 0,
       "mgmt": 0,
       "fiberDropped": 0
@@ -114613,6 +116551,48 @@
     "counts": {
       "copper": 6,
       "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "planet-ipoe-162",
+    "sourceSlug": "planet-ipoe-162",
+    "brand": "Planet",
+    "brandSlug": "planet",
+    "model": "IPOE-162",
+    "partNumber": "IPOE-162",
+    "ports": 2,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "planet-isw-621tf",
+    "sourceSlug": "planet-isw-621tf",
+    "brand": "Planet",
+    "brandSlug": "planet",
+    "model": "ISW-621TF",
+    "partNumber": "ISW-621TF",
+    "ports": 6,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "separateSfp": true,
+      "sfpCount": 2,
+      "sfpStartNum": 1
+    },
+    "counts": {
+      "copper": 4,
+      "sfp": 2,
       "qsfp": 0,
       "mgmt": 0,
       "fiberDropped": 0
@@ -128222,6 +130202,25 @@
     }
   },
   {
+    "slug": "supermicro-superblade-sbe-820j-422",
+    "sourceSlug": "supermicro-superblade-sbe-820j-422",
+    "brand": "Supermicro",
+    "brandSlug": "supermicro",
+    "model": "SuperBlade SBE-820J-422",
+    "partNumber": "SBE-820J-422",
+    "ports": 0,
+    "rackU": 8,
+    "isFullDepth": true,
+    "frontPanel": {},
+    "counts": {
+      "copper": 0,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "supermicro-superchassis-113tq-r700wb",
     "sourceSlug": "supermicro-superchassis-113tq-r700wb",
     "brand": "Supermicro",
@@ -129184,6 +131183,27 @@
     },
     "counts": {
       "copper": 4,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 1,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "supermicro-sys-1029p-wtr",
+    "sourceSlug": "supermicro-sys-1029p-wtr",
+    "brand": "Supermicro",
+    "brandSlug": "supermicro",
+    "model": "SYS-1029P-WTR",
+    "partNumber": "SYS-1029P-WTR",
+    "ports": 2,
+    "rackU": 1,
+    "isFullDepth": true,
+    "frontPanel": {
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 2,
       "sfp": 0,
       "qsfp": 0,
       "mgmt": 1,
@@ -132304,6 +134324,25 @@
     }
   },
   {
+    "slug": "tp-link-tl-sg1008p",
+    "sourceSlug": "tp-link-tl-sg1008p",
+    "brand": "TP-Link",
+    "brandSlug": "tp-link",
+    "model": "TL-SG1008P",
+    "partNumber": "",
+    "ports": 8,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 8,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "tp-link-tl-sg1016de",
     "sourceSlug": "tp-link-tl-sg1016de",
     "brand": "TP-Link",
@@ -133109,6 +135148,25 @@
     }
   },
   {
+    "slug": "trendnet-tew-821dap",
+    "sourceSlug": "trendnet-tew-821dap",
+    "brand": "TrendNet",
+    "brandSlug": "trendnet",
+    "model": "TEW-821DAP",
+    "partNumber": "",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "trendnet-tew-wlc100",
     "sourceSlug": "trendnet-tew-wlc100",
     "brand": "TrendNet",
@@ -133258,6 +135316,63 @@
     "frontPanel": {},
     "counts": {
       "copper": 3,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "ubiquiti-uap-ac-lite",
+    "sourceSlug": "ubiquiti-uap-ac-lite",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "AC Lite",
+    "partNumber": "UAP-AC-LITE",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "ubiquiti-uap-ac-lr",
+    "sourceSlug": "ubiquiti-uap-ac-lr",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "AC Long-Range",
+    "partNumber": "UAP-AC-LR",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "ubiquiti-uap-ac-m",
+    "sourceSlug": "ubiquiti-uap-ac-m",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "AC Mesh",
+    "partNumber": "UAP-AC-M",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
       "sfp": 0,
       "qsfp": 0,
       "mgmt": 0,
@@ -134280,6 +136395,25 @@
     }
   },
   {
+    "slug": "ubiquiti-uap-flexhd",
+    "sourceSlug": "ubiquiti-uap-flexhd",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "FlexHD",
+    "partNumber": "UAP-FlexHD",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "ubiquiti-uap-iw-hd",
     "sourceSlug": "ubiquiti-uap-iw-hd",
     "brand": "Ubiquiti",
@@ -134292,6 +136426,44 @@
     "frontPanel": {},
     "counts": {
       "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "ubiquiti-liteap-120",
+    "sourceSlug": "ubiquiti-liteap-120",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "LiteAP 120",
+    "partNumber": "LAP-120",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "ubiquiti-liteap-gps",
+    "sourceSlug": "ubiquiti-liteap-gps",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "LiteAP GPS",
+    "partNumber": "LAP-GPS",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
       "sfp": 0,
       "qsfp": 0,
       "mgmt": 0,
@@ -134558,6 +136730,25 @@
     "frontPanel": {},
     "counts": {
       "copper": 2,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "ubiquiti-picostation-m2",
+    "sourceSlug": "ubiquiti-picostation-m2",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "PicoStation M2",
+    "partNumber": "picostation m2",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
       "sfp": 0,
       "qsfp": 0,
       "mgmt": 0,
@@ -134934,6 +137125,25 @@
     }
   },
   {
+    "slug": "ubiquiti-uk-ultra",
+    "sourceSlug": "ubiquiti-uk-ultra",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "Swiss Army Knife",
+    "partNumber": "UK-Ultra",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "ubiquiti-usw-enterprise-8-poe",
     "sourceSlug": "ubiquiti-usw-enterprise-8-poe",
     "brand": "Ubiquiti",
@@ -134956,6 +137166,25 @@
     }
   },
   {
+    "slug": "ubiquiti-u6-enterprise",
+    "sourceSlug": "ubiquiti-u6-enterprise",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "U6 Enterprise",
+    "partNumber": "U6-Enterprise",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
     "slug": "ubiquiti-u6-iw",
     "sourceSlug": "ubiquiti-u6-iw",
     "brand": "Ubiquiti",
@@ -134968,6 +137197,158 @@
     "frontPanel": {},
     "counts": {
       "copper": 5,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "ubiquiti-u6-lite",
+    "sourceSlug": "ubiquiti-u6-lite",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "U6 Lite",
+    "partNumber": "U6-Lite",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "ubiquiti-u6-lr",
+    "sourceSlug": "ubiquiti-u6-lr",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "U6 Long-Range",
+    "partNumber": "U6-LR",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "ubiquiti-u6-mesh",
+    "sourceSlug": "ubiquiti-u6-mesh",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "U6 Mesh",
+    "partNumber": "U6-Mesh",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "ubiquiti-u6-plus",
+    "sourceSlug": "ubiquiti-u6-plus",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "U6+",
+    "partNumber": "U6+",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "ubiquiti-u7-pro-max",
+    "sourceSlug": "ubiquiti-u7-pro-max",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "U7 Pro Max",
+    "partNumber": "U7-Pro-Max",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "ubiquiti-u7-pro-outdoor",
+    "sourceSlug": "ubiquiti-u7-pro-outdoor",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "U7 Pro Outdoor",
+    "partNumber": "U7-Pro-Outdoor",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "ubiquiti-u7-pro-xg",
+    "sourceSlug": "ubiquiti-u7-pro-xg",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "U7 Pro XG",
+    "partNumber": "U7-Pro-XG",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "ubiquiti-u7-pro-xgs",
+    "sourceSlug": "ubiquiti-u7-pro-xgs",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "U7 Pro XGS",
+    "partNumber": "U7-Pro-XGS",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {},
+    "counts": {
+      "copper": 1,
       "sfp": 0,
       "qsfp": 0,
       "mgmt": 0,
@@ -135036,6 +137417,27 @@
       "sfp": 0,
       "qsfp": 0,
       "mgmt": 0,
+      "fiberDropped": 0
+    }
+  },
+  {
+    "slug": "ubiquiti-ubb",
+    "sourceSlug": "ubiquiti-ubb",
+    "brand": "Ubiquiti",
+    "brandSlug": "ubiquiti",
+    "model": "Unifi Building Bridge",
+    "partNumber": "UBB",
+    "ports": 1,
+    "rackU": 1,
+    "isFullDepth": false,
+    "frontPanel": {
+      "mgmtCount": 1
+    },
+    "counts": {
+      "copper": 1,
+      "sfp": 0,
+      "qsfp": 0,
+      "mgmt": 1,
       "fiberDropped": 0
     }
   },

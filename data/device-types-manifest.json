@@ -1,32 +1,32 @@
 {
   "schemaVersion": 1,
-  "sourceRef": "37f5f02c27eedf60767594174598daec5b9e2bee",
-  "sourceSha256": "008e1c17fdd88a42049f2ff51a532f2e661ed40ff634e5c171cf32fc61d3e57a",
+  "sourceRef": "f3a04d6520b678b920438ad441cfa9b03e5bdaf2",
+  "sourceSha256": "8c8b92f4a14201063bef8ee0e4fdcb06832f12d6c989ad6bd79ea67c06267bb8",
   "source": {
     "name": "netbox-device-type-library",
     "url": "https://github.com/netbox-community/devicetype-library.git",
-    "ref": "37f5f02c27eedf60767594174598daec5b9e2bee",
+    "ref": "f3a04d6520b678b920438ad441cfa9b03e5bdaf2",
     "license": "CC0-1.0"
   },
-  "generatedAt": "2026-10-18T07:11:28.319Z",
-  "canonicalModels": 12386,
-  "catalogModels": 5502,
-  "catalogVendors": 289,
-  "excludedModels": 6884,
-  "sourceFiles": 12386,
+  "generatedAt": "2026-10-31T13:12:13.105Z",
+  "canonicalModels": 12757,
+  "catalogModels": 5616,
+  "catalogVendors": 295,
+  "excludedModels": 7141,
+  "sourceFiles": 12757,
   "aliasCount": 0,
   "overrideCount": 1,
   "exclusionCount": 0,
   "diff": {
-    "added": 6344,
-    "removed": 1,
-    "metadataChanged": 42,
-    "templateChanged": 14,
-    "excludedRuntime": 2,
-    "changed": 56
+    "added": 371,
+    "removed": 0,
+    "metadataChanged": 7,
+    "templateChanged": 0,
+    "excludedRuntime": 0,
+    "changed": 7
   },
   "previous": {
-    "sourceRef": "2dd6ca4e61bdc5348b358bf9e1afbe341c4e3981",
-    "sourceSha256": "9f4dd05f75916b8fc4cc2e33fb7dd92f89353b01ada8e5a7810aadc0599c2570"
+    "sourceRef": "37f5f02c27eedf60767594174598daec5b9e2bee",
+    "sourceSha256": "008e1c17fdd88a42049f2ff51a532f2e661ed40ff634e5c171cf32fc61d3e57a"
   }
 }

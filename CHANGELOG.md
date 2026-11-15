@@ -16,6 +16,8 @@
 
 - **The README and `package.json` now say Node.js 18 or newer, not 16.** They said 16 or newer, but the build step runs esbuild, which asks for Node 18, and the CI runs 18 and 20: they now say what is true.
 
+- **The hardware catalogue is rebuilt on a newer snapshot of the NetBox device library.** The library now holds 12,757 models (12,386 before) and the catalogue in use 5,616 (5,502 before, including the access points and repeaters the filter below brings back), across 295 vendors. 371 models were added to the library, 7 changed and none was removed; what the role filter leaves out stays out.
+
 ### Fixed
 
 - **After a failover, the other unit's readings are no longer credited to the node, and the second cable on the same port is gone.** When another unit of a cluster answers the cluster address, its neighbours, its hostname and its IPv6 address are its own. The Sync used to write them on the node you documented on that address: a second cable appeared on the same port, and two nodes ended up with the same hostname, so a neighbour announcing itself under that name was attached to the wrong one and the right unit's cable read as miscabled. Now, when the serial number that answers is a partner's — read from the cluster the device lists, or declared by you with your partner's serial documented — the node keeps its hostname and its IPv6, and the auto-link does not use that reading for it. A replaced device, a serial you locked or an unconfirmed reading are not touched. A cable that is already wrong in a saved project is not removed by itself, and the ports' state read from the other unit still lands on this node's ports.

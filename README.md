@@ -166,7 +166,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 
 **🗺️ Diagramming**
 - 19″ rack view with colour-coded port LEDs; drag-and-drop units from 1U to 8U.
-- **Apply model** — pick a real switch or router model and its port count and front panel are set natively. The catalogue ships ~5,500 models across 289 vendors, generated from public-domain device data.
+- **Apply model** — pick a real switch or router model and its port count and front panel are set natively. The catalogue ships ~5,600 models across 295 vendors, generated from public-domain device data.
 - Front panels with a dedicated MGMT block and a separate SFP block; per-device port layout.
 - Floor plan with storeys and rooms; cables as bezier curves; labels say what a thing is without ever rewriting the name you declared.
 - Multi-port floor devices; wall sockets and VoIP phones as pass-through.
