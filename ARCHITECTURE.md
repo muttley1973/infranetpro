@@ -926,8 +926,19 @@ everything, and the primary is named only when every row names the same serial a
 of the members read — never the first that happens to come. The result is `integration.cluster`
 (`kind`, `mode`, `group`, `primarySerial`, and per member the serial, the name, `primary` and `inSync`
 with `null` meaning unknown), a measurement with its date that the next successful poll replaces or
-removes. It is not shown and not judged yet; it is the evidence from which a failover can be told from
-a replaced unit and a pair can be *proposed*.
+removes. It is the evidence from which a failover is told from a replaced unit, and from which a pair
+can be *proposed* — which is not done yet.
+
+The first use is the hardware-identity check of Verify. After a failover the cluster address answers
+with the other unit's serial number, which used to read "device replaced" (actionable: RMA, theft, a
+documentation error) and offered to rewrite the declared serial with the other unit's. Now, when the
+cluster the device itself listed names **both** serials — the declared one and the one that answers —
+the row is a *failover*: informative, grouped apart from the firmware-only rows, counted neither as
+actionable nor as firmware, without an "adopt" action (adopting would put the wrong serial in the
+document) and with the two names of the units if the cluster gave them. It holds only when the serial is
+the **only** identity difference (a different model on top is a different story) and only with that proof:
+no cluster reading, or a serial the cluster does not name, stays "device replaced" exactly as before. It
+was seen on the lab on 15 November 2026, on the real cluster that had swapped its primary by itself.
 
 ### A VLAN that was never declared
 
@@ -1450,7 +1461,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,430 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,441 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

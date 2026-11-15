@@ -536,7 +536,7 @@ function _driftDropRow(key){
             // counts.identityDrift = solo serial/model (azionabile); il solo-firmware
             // (informativo) è contato a parte, come infra/endpoint per i non-documentati.
             rep.counts.identityDrift = rep.identityDrift.filter(r => r.identity).length;
-            rep.counts.identityFirmware = rep.identityDrift.filter(r => !r.identity).length;
+            rep.counts.identityFirmware = rep.identityDrift.filter(r => !r.identity && !r.failover).length;
         } else {
             rep.counts[cat] = rep[cat].length;
         }
@@ -757,11 +757,19 @@ export function _driftRowHtml(cat, r){
             const cls = d.kind === 'firmware' ? ' drift-id-fw' : '';
             return `<span class="drift-id-diff${cls}">${esc(FLD[d.field] || d.field)}: <s>${esc(d.doc)}</s> → <b>${esc(d.real)}</b></span>`;
         }).join(' · ');
+        // Un failover (il cluster letto elenca sia la serie documentata sia quella che risponde) non e' un
+        // apparato sostituito: tag neutro, e niente «adotta» (riscriverebbe la serie con quella dell'altra unita').
+        const _sd = (r.diffs || []).find(d => d.field === 'serialNumber') || {};
+        const _fo = r.failover || null;
         const badge = r.identity
             ? `<span class="drift-why"><span class="drift-why-tag drift-id-swap" title="${esc(t('drift.idSwapTip'))}"><i class="fas fa-triangle-exclamation"></i> ${esc(t('drift.idSwap'))}</span></span>`
-            : `<span class="drift-why"><span class="drift-why-tag" title="${esc(t('drift.idFwTip'))}">${esc(t('drift.idFwOnly'))}</span></span>`;
+            : _fo
+                ? `<span class="drift-why"><span class="drift-why-tag" title="${esc(t('drift.idFailoverTip', { from: _fo.docName || _sd.doc || '?', to: _fo.realName || _sd.real || '?' }))}"><i class="fas fa-right-left"></i> ${esc(t('drift.idFailover'))}</span></span>`
+                : `<span class="drift-why"><span class="drift-why-tag" title="${esc(t('drift.idFwTip'))}">${esc(t('drift.idFwOnly'))}</span></span>`;
         main = `<span class="drift-row-main">${esc(r.label)}</span><span class="drift-row-sub">${diffs}</span>${badge}`;
-        const applyBtn = `<button class="drift-act apply" data-act="drift-apply-identity" data-key="${esc(r.key)}" data-tip="${t('drift.tipApplyIdentity')}"><i class="fas fa-arrows-rotate"></i></button>`;
+        const applyBtn = r.patch
+            ? `<button class="drift-act apply" data-act="drift-apply-identity" data-key="${esc(r.key)}" data-tip="${t('drift.tipApplyIdentity')}"><i class="fas fa-arrows-rotate"></i></button>`
+            : '';
         actions = `${applyBtn}${ignBtn}${invBtn}`;
     } else if(cat === 'macOrphan'){
         main = `<span class="drift-row-main">${esc(r.label || r.mac)}</span><span class="drift-row-sub">${esc(r.mac)} — ${t('drift.notSeen')}</span>`;
@@ -1010,15 +1018,22 @@ export function _renderDriftReport(){
             // solo-firmware (informative) collassate in un sotto-gruppo, come gli
             // endpoint. Il badge mostra counts.identityDrift (le sole azionabili).
             const idRows = allRows.filter(r => r.identity);
-            const fwRows = allRows.filter(r => !r.identity);
+            const foRows = allRows.filter(r => !r.identity && r.failover);     // un altro membro dello stesso cluster risponde
+            const fwRows = allRows.filter(r => !r.identity && !r.failover);
             rows = idRows;
+            if(foRows.length){
+                const foBody = foRows.map(r => _driftRowHtml('identityDrift', r)).join('');
+                extra += `<details class="drift-endpoint-group">
+                    <summary class="drift-endpoint-head"><i class="fas fa-right-left"></i> ${t('drift.clusterFailover',{n:foRows.length})}</summary>
+                    <div class="drift-endpoint-body">${foBody}</div></details>`;
+            }
             if(fwRows.length){
                 const fwBody = fwRows.map(r => _driftRowHtml('identityDrift', r)).join('');
-                extra = `<details class="drift-endpoint-group">
+                extra += `<details class="drift-endpoint-group">
                     <summary class="drift-endpoint-head"><i class="fas fa-microchip"></i> ${t('drift.firmwareChanged',{n:fwRows.length})}</summary>
                     <div class="drift-endpoint-body">${fwBody}</div></details>`;
             }
-            openWhen = (idRows.length + fwRows.length) > 0;
+            openWhen = (idRows.length + foRows.length + fwRows.length) > 0;
         }
         const open = openWhen ? ' open' : '';
         const rowsHtml = rows.length ? rows.map(r => _driftRowHtml(c.k, r)).join('') : '';

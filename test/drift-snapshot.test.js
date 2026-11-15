@@ -516,6 +516,44 @@ test('snmpSnap: measuredIds solo dai device che HANNO risposto (inventory persis
   assert.equal(s.measuredIds.sw1.serialNumber, 'ABC123');
 });
 
+test('snmpSnap: i membri del cluster letto viaggiano con l\'identità misurata, solo se il device ha risposto', () => {
+  const cluster = { kind: 'fortinet-fgcp', mode: 'active-passive', group: 'LAB-HA', primarySerial: 'SER-A', at: '2026-11-15T10:00:00Z',
+    members: [{ serial: 'SER-A', name: 'FGT-A', primary: true, inSync: true }, { serial: 'SER-B', name: 'FGT-B', primary: false, inSync: true }] };
+  const nodes = [
+    { id: 'fw', snmpStatus: 'ok', integration: { inventory: { serialNumber: 'SER-A' }, cluster } },
+    { id: 'fw2', snmpStatus: 'timeout', integration: { inventory: { serialNumber: 'SER-B' }, cluster } },   // muto → escluso
+    { id: 'sw', snmpStatus: 'ok', integration: { inventory: { serialNumber: 'S1' } } },                      // nessun cluster letto
+  ];
+  const s = buildSnmpSnapshot({ nodes });
+  assert.deepEqual(s.measuredIds.fw.cluster, { group: 'LAB-HA', mode: 'active-passive',
+    members: [{ serial: 'SER-A', name: 'FGT-A' }, { serial: 'SER-B', name: 'FGT-B' }] }, 'dei membri passano solo serie e nome');
+  assert.equal(s.measuredIds.fw2, undefined);
+  assert.equal('cluster' in s.measuredIds.sw, false, 'senza lettura del cluster la chiave non esiste');
+});
+
+test('snmpSnap: un membro senza serie non viaggia, e un cluster senza membri validi non lascia la chiave', () => {
+  const nodes = [
+    { id: 'a', snmpStatus: 'ok', integration: { inventory: { serialNumber: 'S1' }, cluster: { mode: 'active-passive', members: [{ serial: '  ' }, { name: 'x' }, { serial: 'SER-A', name: 'FGT-A' }] } } },
+    { id: 'b', snmpStatus: 'ok', integration: { inventory: { serialNumber: 'S2' }, cluster: { mode: 'active-passive', members: [{ serial: '' }] } } },
+  ];
+  const s = buildSnmpSnapshot({ nodes });
+  assert.deepEqual(s.measuredIds.a.cluster.members, [{ serial: 'SER-A', name: 'FGT-A' }]);
+  assert.equal('cluster' in s.measuredIds.b, false);
+});
+
+test('round-trip: il failover di un cluster letto → «stesso cluster», NON «apparato sostituito»', () => {
+  const cluster = { mode: 'active-passive', group: 'LAB-HA', members: [{ serial: 'SER-A', name: 'FGT-A' }, { serial: 'SER-B', name: 'FGT-B' }] };
+  const nodes = [{ id: 'fw3', mac: 'AA:AA:AA:00:00:09', ip: '10.0.0.50', snmpStatus: 'ok',
+    serialNumber: 'SER-B', model: 'FGT-VM',
+    integration: { host: '10.0.0.50', inventory: { serialNumber: 'SER-A', model: 'FGT-VM' }, cluster } }];
+  const doc = buildDocSnapshot({ nodes, links: [], ports: {}, normMac: lower, nodeLabel: n => n.id });
+  const snmp = buildSnmpSnapshot({ nodes, docPorts: doc.ports, ports: {} });
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.identityDrift, 0);
+  assert.ok(r.identityDrift[0].failover);
+  assert.equal(r.identityDrift[0].failover.realName, 'FGT-A');
+});
+
 test('round-trip: swap del serial → identityDrift azionabile dallo snapshot al report', () => {
   const nodes = [{ id: 'sw1', mac: 'AA:AA:AA:00:00:01', ip: '10.0.0.2', snmpStatus: 'ok',
     serialNumber: 'ABC123', model: 'C9300', firmwareVer: '17.3',

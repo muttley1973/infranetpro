@@ -725,6 +725,80 @@ test('identità: la riga ignorata segue la condizione (fingerprint sul valore re
   assert.equal(buildDriftReport(snmpB, doc, [keyA], {}).counts.identityDrift, 1, 'realtà diversa → nuova key → riappare');
 });
 
+// ── FAILOVER: l'altra unità dello STESSO cluster non è un apparato sostituito ──────────────
+// Dopo un failover l'indirizzo del cluster risponde con la serie dell'altra unità. Era «apparato
+// sostituito» (azionabile: RMA, furto, errore di documentazione), con un'azione che riscriveva la serie
+// documentata con quella dell'altra unità. Se il cluster letto dal dispositivo elenca ENTRAMBE le serie
+// — quella documentata e quella che risponde — non è stato sostituito niente: è cambiato chi risponde.
+// Informativo, e senza «adotta»: adottare quella serie sbaglierebbe il documento.
+const _CL = { group: 'LAB-HA', mode: 'active-passive', members: [{ serial: 'SER-A', name: 'FGT-A' }, { serial: 'SER-B', name: 'FGT-B' }] };
+function _failover(docId, realId, { docExtra = {}, realExtra = {}, cluster = _CL } = {}) {
+  return buildDriftReport(
+    { responded: { fw: true }, measuredIds: { fw: { serialNumber: realId, ...realExtra, ...(cluster ? { cluster } : {}) } } },
+    { identities: [{ nodeId: 'fw', label: 'FW cluster', serialNumber: docId, ...docExtra }] }, [], {});
+}
+
+test('failover: serie documentata e serie letta sono membri dello stesso cluster → informativo, NON «apparato sostituito»', () => {
+  const r = _failover('SER-B', 'SER-A');
+  assert.equal(r.counts.identityDrift, 0, 'non e\' azionabile');
+  assert.equal(r.counts.identityFirmware, 0, 'e non e\' nemmeno «solo firmware»');
+  const row = r.identityDrift[0];
+  assert.equal(row.identity, false);
+  assert.deepEqual(row.failover, { group: 'LAB-HA', mode: 'active-passive', docName: 'FGT-B', realName: 'FGT-A' });
+  assert.equal(row.diffs.find(d => d.field === 'serialNumber').kind, 'failover');
+  assert.equal(row.patch, null, 'niente «adotta»: riscriverebbe la serie documentata con quella dell\'altra unita\'');
+  assert.equal(driftBannerKind(r.counts, r), 'aligned', 'un failover non allarma il banner');
+});
+
+test('failover: se la serie DOCUMENTATA non e\' un membro del cluster letto, resta un apparato sostituito', () => {
+  const r = _failover('SER-X', 'SER-A');
+  assert.equal(r.counts.identityDrift, 1);
+  assert.equal(r.identityDrift[0].identity, true);
+  assert.equal(r.identityDrift[0].failover, undefined);
+});
+
+test('failover: se la serie LETTA non e\' fra i membri del cluster, resta un apparato sostituito', () => {
+  const r = _failover('SER-B', 'SER-Z');
+  assert.equal(r.counts.identityDrift, 1);
+  assert.equal(r.identityDrift[0].identity, true);
+});
+
+test('failover: senza una lettura del cluster non si inventa — come prima', () => {
+  const r = _failover('SER-B', 'SER-A', { cluster: null });
+  assert.equal(r.counts.identityDrift, 1);
+  assert.equal(r.identityDrift[0].identity, true);
+});
+
+test('failover: le serie si confrontano senza badare a spazi e maiuscole', () => {
+  const r = _failover(' ser-b ', 'SER-A');
+  assert.equal(r.counts.identityDrift, 0);
+  assert.equal(r.identityDrift[0].failover.docName, 'FGT-B');
+});
+
+test('failover: se cambia anche il MODELLO sono due cose cambiate → resta un apparato sostituito', () => {
+  const r = _failover('SER-B', 'SER-A', { docExtra: { model: 'FG-100' }, realExtra: { model: 'FG-200' } });
+  assert.equal(r.counts.identityDrift, 1);
+  const row = r.identityDrift[0];
+  assert.equal(row.identity, true);
+  assert.equal(row.failover, undefined);
+  assert.equal(row.diffs.find(d => d.field === 'serialNumber').kind, 'identity', 'la serie non si declassa se c\'e\' altro');
+});
+
+test('failover + firmware diverso: la riga resta un failover, non diventa «firmware cambiato»', () => {
+  const r = _failover('SER-B', 'SER-A', { docExtra: { firmwareVer: '7.0' }, realExtra: { firmwareVer: '7.2' } });
+  assert.equal(r.counts.identityDrift, 0);
+  assert.equal(r.counts.identityFirmware, 0, 'non e\' un solo-firmware: e\' un failover che porta anche un firmware diverso');
+  const row = r.identityDrift[0];
+  assert.ok(row.failover);
+  assert.deepEqual(row.diffs.map(d => d.kind).sort(), ['failover', 'firmware']);
+});
+
+test('failover: un membro senza nome non fa inventare un nome', () => {
+  const r = _failover('SER-B', 'SER-A', { cluster: { group: 'G', mode: 'active-passive', members: [{ serial: 'SER-A' }, { serial: 'SER-B' }] } });
+  assert.equal('docName' in r.identityDrift[0].failover, false);
+  assert.equal('realName' in r.identityDrift[0].failover, false);
+});
+
 // ---- AUDIT 2026-08-13: fix F2 (chiave ipchg con nodeId + nuovo-IP) ----------
 test('cambio IP: la chiave ipchg porta nodeId E nuovo-IP (no ignore permanente, no collisione VRRP)', () => {
   const doc = { macs: [{ mac: 'AA:BB:CC:00:00:30', label: 'srv', nodeId: 'srv1', ip: '192.168.1.50' }] };
