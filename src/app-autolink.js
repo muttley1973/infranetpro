@@ -9,6 +9,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { uid } from './app-util.js';
 import { fillFromRead } from '../lib/field-provenance.js';   // la regola: chi scrive per conto di una lettura ne registra la provenienza
+import { answeredByHaPartner } from '../lib/ha-failover.js';   // la lettura fatta a un indirizzo di cluster e' di un'ALTRA unita'? Allora non e' di questo nodo
 import { dropMaterialized } from '../lib/neighbor-type.js';   // i vicini da cui il Sync ha appena creato il nodo non restano «non agganciati» nel riepilogo
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, renderCables, _showToast, _invalidateIdx, _linksForPort, canAddConnection, _createLinkRecord, _validateWallPortConnection } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -959,6 +960,18 @@ async function _autoDiscoverLinks(nodeIds){
 
     for(const { n, host, data } of _topoResults){
         if(!data || !data.ok) continue;
+        // Dopo un failover l'indirizzo del CLUSTER risponde con l'altra unita': i suoi vicini, la sua FDB e la
+        // sua ARP sono dell'altra unita', non del nodo che il documento tiene su quell'indirizzo. Crederci per
+        // quel nodo disegnava un SECONDO cavo sulla stessa porta (il firewall B verso la porta dello switch
+        // dove e' attaccato il firewall A). Solo se e' DIMOSTRATO (lib/ha-failover.js: serie riconfermata,
+        // non bloccata, e di un membro dello stesso cluster): un apparato sostituito resta del suo nodo.
+        // L'altra unita' ha il suo cavo, che si vede dallo switch.
+        const _otherUnit = answeredByHaPartner(n, store.state.nodes, x => (x && (x.name || x.hostname || x.id)) || '');
+        if(_otherUnit){
+            diag.answeredByPartner = (diag.answeredByPartner || 0) + 1;
+            console.log(`[AutoLink] ${n.name||host}: risponde un'altra unita' dello stesso cluster${_otherUnit.realName ? ` (${_otherUnit.realName})` : ''} — i suoi vicini non sono di questo nodo, non si usano`);
+            continue;
+        }
         diag.topoOk++;
         diag.neighborsSeen += (data.neighbors || []).length;
         const arpTableRaw = win._normalizeFdbTable(data.arpTable || {});

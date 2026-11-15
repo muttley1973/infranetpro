@@ -8,6 +8,7 @@ const {
     getHaSummary, getHaBadgeLabel,
     propagateHaSymmetry, validateHaSymmetry,
     HA_INDEPENDENT_FIELDS,
+    getDeclaredPartnerSerials, explainSerialMismatch,
 } = require('../lib/ha-pair.js');
 
 // Helper: crea un nodo HA pair (1-1)
@@ -360,4 +361,62 @@ test('scenario: HA e Stacking coesistono senza interferenze', () => {
     // Firewall pair: NON in stack
     assert.equal(isInHaGroup(fw1), true);
     assert.equal(isInHaGroup(fw2), true);
+});
+
+// ── Le SERIE dei compagni dichiarati, e cosa vuol dire una serie che non e' la documentata ─────────
+// Una coppia vale solo se i due lati si dichiarano; un compagno senza serie documentata non prova niente.
+const withSerial = (n, serial) => ({ ...n, serialNumber: serial });
+const lab = n => n.name || n.id;
+
+test('getDeclaredPartnerSerials: coppia dichiarata da entrambi i lati → il compagno con la sua serie', () => {
+    const a = withSerial(pair('fw-a', 'fw-b'), 'SER-A'), b = withSerial(pair('fw-b', 'fw-a'), 'SER-B');
+    assert.deepEqual(getDeclaredPartnerSerials([a, b], b, lab), [{ nodeId: 'fw-a', name: 'FW-A', serialNumber: 'SER-A' }]);
+});
+
+test('getDeclaredPartnerSerials: un lato solo NON e\' una coppia dichiarata', () => {
+    const a = withSerial(pair('fw-a', 'fw-b'), 'SER-A'), b = withSerial({ id: 'fw-b', name: 'FW-B', spec: {} }, 'SER-B');
+    assert.deepEqual(getDeclaredPartnerSerials([a, b], a, lab), []);
+    assert.deepEqual(getDeclaredPartnerSerials([a, b], b, lab), []);
+});
+
+test('getDeclaredPartnerSerials: in un cluster i compagni sono gli ALTRI membri, solo con una serie documentata', () => {
+    const m = (id, serial) => withSerial(cluster(id, 'g'), serial);
+    const nodes = [m('a', 'SER-A'), m('b', 'SER-B'), m('c', ''), withSerial(cluster('z', 'altro'), 'SER-Z')];
+    assert.deepEqual(getDeclaredPartnerSerials(nodes, nodes[0], lab), [{ nodeId: 'b', name: 'B', serialNumber: 'SER-B' }]);
+});
+
+test('getDeclaredPartnerSerials: chi non e\' in HA, o input guasti → nessun compagno', () => {
+    assert.deepEqual(getDeclaredPartnerSerials([{ id: 'sw', serialNumber: 'S' }], { id: 'sw', serialNumber: 'S' }, lab), []);
+    assert.deepEqual(getDeclaredPartnerSerials(null, null, lab), []);
+});
+
+const CL = { group: 'LAB-HA', mode: 'active-passive', members: [{ serial: 'SER-A', name: 'FGT-A' }, { serial: 'SER-B', name: 'FGT-B' }] };
+const PARTNERS = [{ nodeId: 'fw-a', name: 'FW-A', serialNumber: 'SER-A' }];
+
+test('explainSerialMismatch: il cluster letto nomina SIA la serie documentata SIA quella che risponde → failover (cluster)', () => {
+    assert.deepEqual(explainSerialMismatch({ declared: 'SER-B', measured: 'SER-A', cluster: CL }),
+        { source: 'cluster', group: 'LAB-HA', mode: 'active-passive', docName: 'FGT-B', realName: 'FGT-A' });
+});
+
+test('explainSerialMismatch: senza lettura, un compagno dichiarato con quella serie → failover (declared)', () => {
+    assert.deepEqual(explainSerialMismatch({ declared: 'SER-B', measured: 'SER-A', partners: PARTNERS, docLabel: 'FW-B' }),
+        { source: 'declared', docName: 'FW-B', realName: 'FW-A' });
+});
+
+test('explainSerialMismatch: se il dispositivo ha elencato il cluster, la sua parola vince su quella del documento', () => {
+    assert.equal(explainSerialMismatch({ declared: 'SER-B', measured: 'SER-A', cluster: CL, partners: PARTNERS, docLabel: 'FW-B' }).source, 'cluster');
+});
+
+test('explainSerialMismatch: serie uguali o mancanti → nessuna spiegazione (non c\'e\' niente da spiegare)', () => {
+    assert.equal(explainSerialMismatch({ declared: 'SER-A', measured: ' ser-a ', cluster: CL }), null);
+    assert.equal(explainSerialMismatch({ declared: '', measured: 'SER-A', cluster: CL }), null);
+    assert.equal(explainSerialMismatch({ declared: 'SER-B', measured: '', cluster: CL }), null);
+    assert.equal(explainSerialMismatch({}), null);
+    assert.equal(explainSerialMismatch(), null);
+});
+
+test('explainSerialMismatch: una serie che nessuno nomina (ne\' cluster ne\' compagni) → nessuna spiegazione', () => {
+    assert.equal(explainSerialMismatch({ declared: 'SER-B', measured: 'SER-Z', cluster: CL, partners: PARTNERS }), null);
+    assert.equal(explainSerialMismatch({ declared: 'SER-X', measured: 'SER-A', cluster: CL }), null, 'la documentata non e\' un membro');
+    assert.equal(explainSerialMismatch({ declared: 'SER-B', measured: 'SER-A' }), null);
 });

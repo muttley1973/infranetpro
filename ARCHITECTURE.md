@@ -947,7 +947,24 @@ answering. The snapshot carries each node's declared partners with their serials
 declared from one side only is not a declared pair, and a partner with no serial proves nothing), and the
 report applies the same single-difference rule. When the device did list its cluster, that reading wins —
 it is the device's word, not our deduction — and the row says which of the two proved it
-(`failover.source`: `cluster` or `declared`).
+(`failover.source`: `cluster` or `declared`). The rule lives once, in `lib/ha-pair.js`
+(`explainSerialMismatch`), because three places ask the same question.
+
+The third is the **second cable**. After a failover the cluster address answers with the other unit, so
+everything read through it — the LLDP neighbours, the name, the IPv6 address — belongs to the other unit,
+not to the node the document keeps on that address. On the lab (15 November 2026) that drew a second cable
+on the same port, and from two causes at once: the other unit's LLDP table was credited to the node, **and**
+the Sync wrote the other unit's hostname onto it, so two nodes carried the hostname "FGT-A" and a neighbour
+announcing itself as "FGT-A" was attached to the wrong one (the right unit's own cable then read as
+miscabled). The poll now asks `answeredByHaPartner` (`lib/ha-failover.js`) on the reading that has just
+arrived: when the serial that answers is a member's of the same cluster — read from the device or declared —
+the node's hostname and IPv6 are left alone, and the auto-link does not use that node's neighbours, FDB or
+ARP for it. It needs the same proof as the failover row, the measurement must be confirmed by the last poll,
+and a serial you locked is never contested. A replaced device (a serial no partner has) still keeps its own
+readings, which is what you may decide to adopt. The inventory and the cluster stay written, since they are
+the proof. Not done: the ports' state and VLANs read from the other unit still land on this node's ports —
+the configuration is synchronised across the cluster, the operational state is not. A cable that is already
+wrong in a saved project is not removed by itself.
 
 ### A VLAN that was never declared
 
@@ -1470,7 +1487,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,454 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,474 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

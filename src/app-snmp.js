@@ -22,6 +22,7 @@ import { reconcilePortCount } from '../lib/ports-reconcile.js';   // P5: contegg
 import { persistAuditEntries } from './app-history.js';   // la riga del giro va subito su disco (non aspetta il Salva)
 import { describeSnmpSync } from '../lib/snmp-sync-audit.js';   // la riga di Storia dopo un Sync: cosa e' stato LETTO e cosa no (lib pura)
 import { markFromRead, fillFromRead, writeFromRead, confirmFromRead } from '../lib/field-provenance.js';   // la regola: chi scrive per conto di una lettura ne registra la provenienza
+import { answeredByHaPartner } from '../lib/ha-failover.js'; // la lettura fatta a un indirizzo di cluster e' di un'ALTRA unita'? Allora il suo nome e il suo IPv6 non sono di questo nodo
 import { reconcileInventory, fillIdentityFromRead } from '../lib/identity-reconcile.js'; // identità hardware misurata: riconferma o «ultimo noto», e la copia nei campi vuoti con la sua provenienza (lib pura)
 import { adoptedDescription } from '../lib/port-descriptions.js';   // l'ifAlias letto diventa la Descrizione della porta (adozione AUTOMATICA, mai sopra a una persona)
 import { forgetPortMeasure } from '../lib/port-state.js';   // scadenza delle misure di porta (lib pura): una lettura che questo giro non c'è stata non vale più
@@ -730,14 +731,22 @@ function _applySnmpBasePortFields(pid, iface){
 export function applyPollResult(nodeId, data, opts={}){
     const n=nodeById(nodeId); if(!n) return;
     if(!opts.noHistory) pushHistory();
+    // Dopo un failover l'indirizzo del CLUSTER risponde con l'altra unita': il suo nome e il suo IPv6 sono
+    // dell'altra unita', non del nodo che il documento tiene su quell'indirizzo. Scriverli qui faceva avere a
+    // DUE nodi lo stesso hostname (visto sul banco: il firewall B con hostname «FGT-A») — e un vicino che si
+    // annuncia «FGT-A» si agganciava al nodo sbagliato, con un secondo cavo sulla stessa porta. Solo se e'
+    // DIMOSTRATO (lib/ha-failover.js, sulla lettura di QUESTO poll): l'inventario e il cluster restano, sono
+    // la prova; il resto del risultato non cambia.
+    const _otherUnit = answeredByHaPartner(n, store.state.nodes, x => (x && (x.name || x.hostname || x.id)) || '',
+        { inventory: data.inventory, cluster: data.cluster });
     // Hostname: aggiorna solo se l'utente non ha impostato un valore manuale.
-    if(data.hostname && data.hostname.trim() && !n.hostnameManual) n.hostname=data.hostname.trim();
+    if(!_otherUnit && data.hostname && data.hostname.trim() && !n.hostnameManual) n.hostname=data.hostname.trim();
     // IPv6 PROPRIO del device (ipAddressTable) → node.ip6, come l'hostname (manual-first):
     //  • lucchetto APERTO → auto-allinea alla realtà (e nessun avviso);
     //  • lucchetto CHIUSO (ip6Manual) e realtà DIVERSA → non tocca, ma segna n.ip6Real
     //    = l'IPv6 reale, così la Verifica lo mostra come avviso nel pannello Proprietà;
     //  • coincide o device senza ip6 → pulisce l'eventuale avviso.
-    if(data.ip6){
+    if(data.ip6 && !_otherUnit){
         if(!n.ip6Manual){ if(n.ip6 !== data.ip6) n.ip6 = data.ip6; if(n.ip6Real) delete n.ip6Real; }
         else if(n.ip6 && n.ip6 !== data.ip6){ n.ip6Real = data.ip6; }
         else if(n.ip6Real){ delete n.ip6Real; }
