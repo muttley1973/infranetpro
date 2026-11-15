@@ -113,6 +113,9 @@ function _l3BuildModel(withUsage, opts){
     const nodes = (store.state.nodes || []).map(n => ({
         id: n.id, name: getNodeDisplayName(n) || n.name || n.id,
         ip: n.ip || (n.integration && n.integration.host) || '', ip6: n.ip6 || '', type: n.type,
+        // il gruppo HA DICHIARATO (lib/ha-pair.js: spec, o top-level legacy): serve all'audit per non
+        // accusare di duplicato l'indirizzo di servizio che una coppia o un cluster condivide
+        haPeer: (n.spec && n.spec.haPeer) || n.haPeer || '', haGroupId: (n.spec && n.spec.haGroupId) || n.haGroupId || '',
     }));
     // Gli IP delle VM entrano SOLO nell'audit igiene (duplicati), non nella
     // risoluzione del gateway: quel binding pilota badge e tendine sui nodi VERI

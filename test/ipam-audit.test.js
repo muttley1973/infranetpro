@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildIpamAudit, findDuplicateIps, findSubnetOverlaps, findExpectedOverlaps, findAddressesOutsidePlan, isContainerPrefix, containerDeclarationFor, declaredVlans, findVlansOutsidePlan, collectVlansInUse } = require('../lib/ipam-audit.js');
+const { buildIpamAudit, findDuplicateIps, findSharedHaIps, findSubnetOverlaps, findExpectedOverlaps, findAddressesOutsidePlan, isContainerPrefix, containerDeclarationFor, declaredVlans, findVlansOutsidePlan, collectVlansInUse } = require('../lib/ipam-audit.js');
 const { _parseCidrInfo } = require('../lib/cidr.js');
 
 // ---- findDuplicateIps -------------------------------------------------------
@@ -80,6 +80,81 @@ test('findDuplicateIps: v4 e v6 non si mescolano, e gli IPv4 restano in testa', 
     { id: '2', name: 'b', ip: '10.0.0.2', ip6: '2001:db8::10' },
   ]);
   assert.deepEqual(dups.map(d => d.ip), ['10.0.0.2', '2001:db8::10']);
+});
+
+// ---- findDuplicateIps: l'indirizzo di servizio di una coppia/cluster HA DICHIARATO ----
+// Due unità HA dichiarate come tali condividono legittimamente un indirizzo (VIP, IP del cluster): chi
+// documenta un cluster e non conosce l'indirizzo di gestione di ogni unità lo scrive su entrambe. Era
+// un falso «IP duplicato». Vale SOLO se l'utente ha dichiarato la coppia, e per intero: il dichiarato è
+// legge. Una dichiarazione a metà, o un terzo apparato sullo stesso indirizzo, restano un conflitto.
+const VIP = '10.10.99.50';
+
+test('HA: una coppia dichiarata da entrambi i lati che condivide l\'indirizzo NON è un duplicato', () => {
+  const nodes = [
+    { id: 'fw-a', name: 'FGT-A', ip: VIP, haPeer: 'fw-b' },
+    { id: 'fw-b', name: 'FGT-B', ip: VIP, haPeer: 'fw-a' },
+  ];
+  assert.deepEqual(findDuplicateIps(nodes), []);
+  const shared = findSharedHaIps(nodes);
+  assert.equal(shared.length, 1, 'non sparisce: si elenca a parte, dichiarato e condiviso');
+  assert.equal(shared[0].ip, VIP);
+  assert.deepEqual(shared[0].nodes.map(n => n.name).sort(), ['FGT-A', 'FGT-B']);
+});
+
+test('HA: un cluster dichiarato con lo stesso gruppo condivide l\'indirizzo senza essere un conflitto', () => {
+  const nodes = ['a', 'b', 'c'].map(k => ({ id: 'wlc-' + k, name: 'WLC-' + k.toUpperCase(), ip: '10.1.1.9', haGroupId: 'ha-edge-wlc' }));
+  assert.deepEqual(findDuplicateIps(nodes), []);
+  assert.equal(findSharedHaIps(nodes).length, 1);
+});
+
+test('HA: la dichiarazione a metà (un lato solo) è ancora un conflitto', () => {
+  const dups = findDuplicateIps([
+    { id: 'fw-a', name: 'FGT-A', ip: VIP, haPeer: 'fw-b' },
+    { id: 'fw-b', name: 'FGT-B', ip: VIP },
+  ]);
+  assert.equal(dups.length, 1, 'un lato che non conferma la coppia non è una coppia dichiarata');
+  assert.deepEqual(findSharedHaIps([{ id: 'fw-a', ip: VIP, haPeer: 'fw-b' }, { id: 'fw-b', ip: VIP }]), []);
+});
+
+test('HA: un terzo apparato sullo stesso indirizzo resta un conflitto, con TUTTI e tre i nomi', () => {
+  const dups = findDuplicateIps([
+    { id: 'fw-a', name: 'FGT-A', ip: VIP, haPeer: 'fw-b' },
+    { id: 'fw-b', name: 'FGT-B', ip: VIP, haPeer: 'fw-a' },
+    { id: 'pc', name: 'PC', ip: VIP },
+  ]);
+  assert.equal(dups.length, 1);
+  assert.deepEqual(dups[0].nodes.map(n => n.name).sort(), ['FGT-A', 'FGT-B', 'PC']);
+});
+
+test('HA: due coppie DIVERSE sullo stesso indirizzo sono un conflitto', () => {
+  const dups = findDuplicateIps([
+    { id: 'a1', name: 'A1', ip: VIP, haPeer: 'a2' }, { id: 'a2', name: 'A2', ip: VIP, haPeer: 'a1' },
+    { id: 'b1', name: 'B1', ip: VIP, haPeer: 'b2' }, { id: 'b2', name: 'B2', ip: VIP, haPeer: 'b1' },
+  ]);
+  assert.equal(dups.length, 1);
+  assert.equal(dups[0].nodes.length, 4);
+});
+
+test('HA: l\'esenzione vale per l\'indirizzo condiviso, non per gli altri (un IP proprio duplicato resta segnalato)', () => {
+  const dups = findDuplicateIps([
+    { id: 'fw-a', name: 'FGT-A', ip: VIP, ip6: '2001:db8::5', haPeer: 'fw-b' },
+    { id: 'fw-b', name: 'FGT-B', ip: VIP, ip6: '2001:db8::6', haPeer: 'fw-a' },
+    { id: 'sw', name: 'SW', ip: '10.10.99.6' },
+    { id: 'ap', name: 'AP', ip: '10.10.99.6' },
+  ]);
+  assert.deepEqual(dups.map(d => d.ip), ['10.10.99.6']);
+});
+
+test('buildIpamAudit riporta gli indirizzi condivisi dichiarati a parte, senza contarli fra i duplicati', () => {
+  const a = buildIpamAudit({
+    prefixes: [], parseCidr: _parseCidrInfo,
+    nodes: [
+      { id: 'fw-a', name: 'FGT-A', ip: VIP, haPeer: 'fw-b' },
+      { id: 'fw-b', name: 'FGT-B', ip: VIP, haPeer: 'fw-a' },
+    ],
+  });
+  assert.deepEqual(a.duplicateIps, []);
+  assert.equal(a.duplicateIpsSharedByHa.length, 1);
 });
 
 // ---- findSubnetOverlaps -----------------------------------------------------
