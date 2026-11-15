@@ -93,7 +93,7 @@ test('CRICCHETTO — la classifica non elenca campi mai visti in nessun progetto
   // che è una misura e non si riscrive.
   const attesi = new Set(['proof', 'modelMatch', 'portsMeasured', 'osTypeMeasured', 'portsReal',
     'portsManual', 'backup', 'snmp', 'srcDevice', 'srcRack',
-    'color', 'lengthM', 'length', 'overflow',
+    'color', 'colorOvr', 'lengthM', 'length', 'overflow',
     // Il blocco SNMPv3 e il `timeout`: li scrive il pannello Integrazione
     // (`data-ikey`), ma nessuno dei 17 progetti del campione usa la v3. Campi che
     // il campione non poteva contenere, non campi finti. `hostManual` lo scrive il
@@ -195,6 +195,33 @@ test('link.miscabled e\' DERIVATO: lo scrive la Verifica, si ricalcola, e non vi
   assert.strictEqual(out.links[0].src, 'a-1', 'il cavo resta');
   assert.strictEqual(out.links[0].label, 'dorsale', 'e quello che ha scritto una persona pure');
   assert.deepStrictEqual(state.links[0].miscabled, { observed: 'sw9', declared: 'sw2' }, 'l\'originale non si tocca');
+});
+
+test('link.colorOvr è DOCUMENTO come link.color: sono due nomi dello stesso fatto, e una classe sola', () => {
+  // Lo ha trovato il guard sui progetti VERI (15/11): `projects/29.json`, nato da un import NetBox,
+  // aveva un cavo con `colorOvr` e nessuna classe. `_normalizeLinkMetadata` scrive SEMPRE i due
+  // nomi insieme (color↔colorOvr), quindi ogni cavo colorato ce l'ha; `src/app-link-color.js`
+  // legge `colorOvr` per primo («manual-first: vince sempre»). Stessa storia di `length`/`lengthM`.
+  assert.strictEqual(classifyField('link', 'colorOvr'), 'document');
+  assert.strictEqual(exportActionFor('link', 'colorOvr'), 'keep', 'il colore scelto dalla persona esce nell\'export');
+});
+
+test('i due nomi di uno stesso fatto del cavo (alias di link-model) hanno la stessa classe, e nessuno resta senza', () => {
+  const { _normalizeLinkMetadata } = require('../lib/link-model.js');
+  const coppie = [['color', 'colorOvr', '#e60000'], ['length', 'lengthM', 5]];
+  for (const [a, b, esempio] of coppie) {
+    for (const dato of [a, b]) {
+      const l = { id: 'l1', src: 'a-1', dst: 'b-1', [dato]: esempio };
+      _normalizeLinkMetadata(l);
+      assert.ok(a in l && b in l, `scrivendo solo «${dato}» la normalizzazione scrive anche l'altro nome`);
+      for (const k of Object.keys(l)) {
+        assert.notStrictEqual(classifyField('link', k), null,
+          `link.${k} esce dalla normalizzazione di un cavo con solo «${dato}» e non ha classe in lib/project-schema.js`);
+      }
+    }
+    assert.strictEqual(classifyField('link', a), classifyField('link', b),
+      `«${a}» e «${b}» sono lo stesso fatto: una classe sola`);
+  }
 });
 
 test('spec: piattaforma, RAM e storage dell\'hypervisor, VLAN di gestione e sistema operativo sono DOCUMENTO e restano nell\'export', () => {
