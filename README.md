@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="4,474 tests, 0 failing" src="https://img.shields.io/badge/tests-4%2C474%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="4,650 tests, 0 failing" src="https://img.shields.io/badge/tests-4%2C650%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="161 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-161%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#discovery--classification-engines"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -180,6 +180,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 - The floor above a project: an organisation with its sites (each a *reference* to its project), the WAN uplinks each one buys and the links between sites.
 - A link answers two questions on two fields — **transport** (internet, MPLS, VPLS, VXLAN…) and **tunnel** (IPsec, GRE, WireGuard…) — and says which WAN lines carry it.
 - A deterministic inter-site map and a form in the same panel; a coherence audit that keeps incoherences and gaps apart and names every check it could not run.
+- **A geographic view of the same map, on real streets:** give each site a position (typed, proposed from its address, or read from the DCIM — always chosen by you) and the sites appear as circles on an OpenStreetMap map, with their links, as a page of the dossier too. The tiles are fetched and cached by your own server, so the browser still talks to nobody; the one thing sent out is the address you press **Find** on.
 - Fills itself from NetBox circuits and VPN services; prints a WAN chapter in the dossier with a recovery card per line and per link.
 
 **📊 Dashboard**
@@ -340,6 +341,8 @@ Everything is an **environment variable** — no config file.
 | `INFRANET_SESSION_SECRET_FILE` | `./.session-secret` | Where the auto-generated secret is kept; point it at a persistent path when the code directory is read-only |
 | `INFRANET_AI_KEY` / `INFRANET_AI_ENDPOINT` | *(unset)* | AI key from the environment (off disk); the endpoint, when set, wins over the saved one so the key cannot be redirected |
 | `INFRANET_DCIM_URL` / `INFRANET_DCIM_TOKEN` | *(unset)* | DCIM instance and token from the environment |
+| `INFRANET_TILES_URL` | OpenStreetMap tiles | The background of the Geographic map: a tile URL template (`{z}/{x}/{y}`) of any service that serves PNG tiles; `off` switches the background off. The server fetches and caches the tiles (two at a time, seven days, 300 MB) — the browser never talks to the provider. Also `INFRANET_TILES_ATTRIBUTION` (text to show for a non-OSM service) and `INFRANET_TILES_DIR` (cache folder, default `./data/tile-cache`) |
+| `INFRANET_GEOCODER_URL` | OpenStreetMap Nominatim | Where **Find from the address** (a site's position) looks an address up. Any Nominatim-compatible service; `off` disables it and nothing is ever sent. The server asks, never the browser; one request a second, answers kept for a day |
 | `INFRANET_TRUST_PROXY` | *(off)* | Set `1` behind a TLS reverse proxy: secure cookie, trusts `X-Forwarded-*` and counts logins per real client instead of per proxy |
 | `INFRANET_LOGIN_IP_MAX` | `100` | Failed logins one address may make in 15 minutes |
 | `INFRANET_LOGIN_CONCURRENCY` / `INFRANET_LOGIN_QUEUE` | `2` / `8` | Password checks at once / waiting; beyond that login answers `503` with `Retry-After` |
@@ -503,8 +506,8 @@ RUN_E2E=1 npm run e2e # headless end-to-end in a real Chrome — off by default
 - Coverage focuses on the pure logic that has historically broken: SNMP parsing, discovery and classification, the three engines, cable validation, IPAM and LAG audits — plus an app-wide smoke test that loads every script into a DOM stub and asserts rendering never throws.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **589** of them.
-- `npm test` runs the full regression suite (currently **4,474 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **161 flows**).
+- `npm run check` parses every JS source of the product — **606** of them.
+- `npm test` runs the full regression suite (currently **4,650 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **161 flows**).
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that lists something, and the test count measured against what the suite really prints.
 
 **CI** ([GitHub Actions](.github/workflows/ci.yml)) runs `npm run check` and `npm test` on every push and pull request to `main`, on Node 18 and 20.

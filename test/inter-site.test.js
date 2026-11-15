@@ -87,7 +87,7 @@ test('una sede senza id o senza nome non entra', () => {
 test('una sede normalizza ruolo, riferimento al progetto e subnet', () => {
   assert.deepStrictEqual(
     normalizeSite({ id: ' hq ', name: ' Milano ', role: 'hub', projectRef: 'p-1', subnets: ['10.1.0.9/24'] }),
-    { id: 'hq', name: 'Milano', role: 'hub', projectRef: 'p-1', address: null, subnets: ['10.1.0.0/24'] });
+    { id: 'hq', name: 'Milano', role: 'hub', projectRef: 'p-1', address: null, geo: null, subnets: ['10.1.0.0/24'] });
 });
 
 test('② un ruolo fuori vocabolario non si corregge in silenzio: standalone', () => {

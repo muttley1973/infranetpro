@@ -58,3 +58,6 @@ _manual_build*.html
 # Log e temporanei
 *.log
 *.bundle
+
+# Cache delle tessere della mappa: rigenerabile, non entra nell immagine.
+data/tile-cache

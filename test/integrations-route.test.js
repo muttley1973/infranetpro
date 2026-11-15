@@ -592,6 +592,78 @@ test('POST /wan → il censimento dei tipi, con la natura decisa per identità',
   assert.equal(ftth.transport, 'other', 'FTTH non è una nostra natura, e non ci si avvicina');
 });
 
+// ── La POSIZIONE di una sede: le coordinate che il DCIM dichiara ─────────────
+// Il finto NetBox ignora i filtri e torna TUTTI i siti, come un NetBox davanti a
+// un parametro che non conosce: la cintura d'ambito deve togliere gli altri.
+const _conSiti = async (siti, fn) => {
+  const prima = NB['/api/dcim/sites/'];
+  NB['/api/dcim/sites/'] = siti;
+  try { return await fn(); } finally { NB['/api/dcim/sites/'] = prima; }
+};
+const _geo = (body) => fetch(`${base}${P}/sites-geo`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+});
+
+test('POST /sites-geo → la posizione del sito chiesto, e SOLO di quello', async () => {
+  await _conSiti([
+    { id: 40, name: 'HQ', latitude: 45.4642, longitude: 9.19, description: 'riservata' },
+    { id: 41, name: 'Filiale', latitude: 41.9028, longitude: 12.4964 },
+  ], async () => {
+    const r = await _geo({ siteIds: [40] });
+    assert.equal(r.status, 200);
+    const j = await r.json();
+    assert.equal(j.ok, true);
+    assert.deepEqual(j.found, [{ siteId: '40', name: 'HQ', lat: 45.4642, lng: 9.19 }]);
+    assert.deepEqual([j.noPosition, j.invalid, j.missing], [[], [], []], 'il sito 41 non è stato chiesto: non compare da nessuna parte');
+    assert.ok(!/riservata|token/i.test(JSON.stringify(j)), 'nessun altro campo del sito, nessun segreto');
+  });
+});
+
+test('POST /sites-geo → «nessuna posizione», «storta» e «sparito» sono tre risposte', async () => {
+  await _conSiti([
+    { id: 40, name: 'HQ', latitude: null, longitude: null },
+    { id: 41, name: 'Filiale', latitude: 45.1, longitude: null },
+  ], async () => {
+    const j = await (await _geo({ siteIds: [40, 41, 99] })).json();
+    assert.deepEqual(j.noPosition, [{ siteId: '40', name: 'HQ' }]);
+    assert.deepEqual(j.invalid, [{ siteId: '41', name: 'Filiale', reason: 'half' }]);
+    assert.deepEqual(j.missing, ['99']);
+    assert.deepEqual(j.found, []);
+  });
+});
+
+test('POST /sites-geo senza ambito → 400 (non si legge tutto NetBox per sbaglio)', async () => {
+  for (const body of [{}, { siteIds: [] }, { siteIds: 'x' }, { siteIds: [null] }]) {
+    const r = await _geo(body);
+    assert.equal(r.status, 400, JSON.stringify(body));
+    assert.equal((await r.json()).code, 'no-scope');
+  }
+});
+
+test('POST /sites-geo come non-admin → 403', async () => {
+  role = 'viewer';
+  const r = await _geo({ siteIds: [40] });
+  assert.equal(r.status, 403);
+  role = 'admin';
+});
+
+test('POST /sites-geo non scrive niente: né progetti né organizzazione', async () => {
+  const prima = fs.readdirSync(PROJECTS).sort().join();
+  await _conSiti([{ id: 40, name: 'HQ', latitude: 45, longitude: 9 }], async () => {
+    assert.equal((await _geo({ siteIds: [40] })).status, 200);
+  });
+  assert.equal(fs.readdirSync(PROJECTS).sort().join(), prima);
+});
+
+test('i nomi dei guasti della rotta sono quelli del vocabolario condiviso', () => {
+  const { GEODCIM_ERRORS } = require('../lib/dcim-geo.js');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'integrations.js'), 'utf8');
+  const blocco = src.slice(src.indexOf("router.post('/api/integrations/dcim/sites-geo'"));
+  const fine = blocco.indexOf('\n});\n');
+  const rotta = blocco.slice(0, fine);
+  for (const code of GEODCIM_ERRORS) assert.ok(rotta.includes("'" + code + "'"), 'la rotta nomina ' + code);
+});
+
 // ── Egress del segreto: il token salvato non segue un URL a origine diversa ──
 // Smoke 06/09 (gruppo G): POST /test con un URL scelto dall'admin e SENZA token
 // nel body si portava dietro il token salvato → punti il test a un server tuo,

@@ -25,6 +25,7 @@ const { createPullCache } = require('../dcim/pull-cache');
 const dcimMap = require('../../lib/dcim-map');
 const dcimWan = require('../../lib/dcim-wan');
 const dcimVpn = require('../../lib/dcim-vpn');
+const dcimGeo = require('../../lib/dcim-geo');
 const deviceCatalog = require('../../lib/device-catalog');
 const { nextId, saveProject, loadProject, safeProjectId, withProject, CHIAVE_NUOVO } = require('../projects-store');
 const dcimDiff = require('../../lib/dcim-diff');
@@ -821,6 +822,36 @@ router.post('/api/integrations/dcim/wan', auth.requireAdmin, async (req, res) =>
     // il verbale di una decisione che il software prende da sé.
     types: out.types,
   });
+});
+
+// ── La POSIZIONE di una sede: le coordinate che il DCIM dichiara ─────────────
+// Un sito NetBox porta `latitude` e `longitude`. Come le linee WAN, questa rotta
+// **non scrive niente**: ritorna CANDIDATI, e a mettere il punto sulla sede è la
+// persona, dal pannello, con un clic (paletto ②). Quello che se ne crede — due
+// numeri validi, nessuna posizione, una posizione storta, un sito sparito — lo
+// decide `lib/dcim-geo.js`, che ha le prove.
+//
+// L'ambito arriva come id di SITI NetBox, letti dal pannello da
+// `state.source.dcim.sites` del progetto della sede: è il documento a dire da dove
+// viene, non chi guarda. ⚠️ NetBox onora `?id=` su `dcim/sites/`, ma la cintura
+// dentro `sitesToGeo` ricontrolla comunque riga per riga: un filtro ignorato (come
+// quello per sito su `vpn/`) non deve allargare la lettura a tutto l'archivio.
+router.post('/api/integrations/dcim/sites-geo', auth.requireAdmin, async (req, res) => {
+  const body = req.body || {};
+  const siteIds = Array.isArray(body.siteIds) ? body.siteIds.filter(x => x != null) : [];
+  if (!siteIds.length) return res.status(400).json({ error: 'siteIds mancante', code: 'no-scope' });
+
+  let client;
+  try { client = _client(); } catch (e) { return res.status(400).json({ error: e.message, code: 'not-configured' }); }
+
+  let sites;
+  try {
+    sites = await _batchByField(client, '/api/dcim/sites/', 'id', siteIds, 1000);
+  } catch (e) {
+    return res.status(502).json({ error: String((e && e.message) || e), code: 'dcim-unreachable' });
+  }
+  const out = dcimGeo.sitesToGeo(sites.results, { siteIds });
+  res.json({ ok: true, fetchedAt: new Date().toISOString(), ...out });
 });
 
 // I collegamenti fra sedi che NetBox tiene in `vpn/`: servizi L2VPN e tunnel.

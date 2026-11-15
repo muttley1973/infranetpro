@@ -175,6 +175,30 @@ lib/                   Shared browser + test modules (the heart of the app)
                     of five things happened (linked / typed / missing / unreadable / none), and
                     "not found" is never said without having looked. Carries the organisation
                     it was built from, so the map comes from the SAME coordinates as the panel.
+  inter-site-geo-map.js  What goes on the Geographic MAP (the Leaflet view): a circle per site with a point, a line per
+                    link between two placed sites, what is left out and why (a site without a point, a link that
+                    touches one, two sites on the same point), the framing. Two or more links between the same
+                    sites fan out as sampled quadratic curves, on a CANONICAL side of the pair so the fan does not
+                    depend on which end a link calls "A". No DOM, no Leaflet, degrees only.
+  inter-site-geo.js  The same sites WHERE THEY ARE, as coordinates (Web Mercator, north up): no SVG, no DOM,
+                    no strings. A site is a DOT at its true position and its name a label that steps aside:
+                    beside the dot first, then at growing distances with a leader line, never over another
+                    label, another dot or — when there is room — a link. Greedy and deterministic. The scale
+                    bar is measured at the latitude of the centre and says a ROUND number of metres; the test
+                    checks it against the great-circle distance between two cities, not against a number.
+                    A site without a point is not placed "somewhere": it is listed in undrawable.sites, and
+                    so are the links that touch it. The arcs are inter-site-layout.js's (INTER_SITE_LAYOUT_ARCS),
+                    one piece of arithmetic. Known limit: the antimeridian is not wrapped. `view` is the
+                    degrees-to-pixels transform, kept so a future coastline or tile layer uses THAT one.
+  geocode.js        The pure half of "Find": the query cleaned, the answer believed only as far as it deserves
+                    (coordinates through the same parseCoordinate as the model; out-of-globe, wrong shapes and
+                    error objects fall). It proposes candidates and knows no site and writes nothing.
+  dcim-geo.js       The pure half of "Read from the DCIM": a NetBox site's latitude and longitude judged
+                    into four answers — a point, no position declared, a position that cannot be used
+                    (half a pair, off the globe), and a site that is gone. Coordinates go through the
+                    model's own parseCoordinate; only the site ids asked for are believed (NetBox ignores
+                    filters it does not know — measured on vpn/ — so the belt re-checks row by row); the
+                    order is the scope's, not the server's. It proposes and writes nothing.
   inter-site-svg.js  That map as printable SVG: white ground DECLARED as a rectangle, every
                     colour an attribute — the panel's SVG wears CSS classes and follows the
                     THEME, so through svg-to-pdfkit it would print as black shapes, or as a
@@ -526,6 +550,11 @@ src/app-inter-site.js  "Sites and links": the multi-site layer with a face. Map 
                        scoped by the project's own `state.source.dcim.sites` rather than by
                        whoever is looking, and everything it could not place is listed in the
                        panel instead of dropped.
+src/app-inter-site.js, the Map tab has two modes — schematic (SVG) and geographic (a Leaflet map, loaded on demand
+                       from vendor/leaflet, tiles from /api/tiles); and
+                       the Sites tab has the position fields: two coordinates, "Find" (candidates, chosen by
+                       you) and "Remove". What is being typed lives apart from the document until it is two
+                       valid coordinates; a half-typed point is not a point.
 src/app-org-context.js "Where am I": answers whether the OPEN project is a site declared by the
                        organisation (site.projectRef — read, never guessed by name), so the
                        sub-header can offer the step back up. Imports NOTHING on purpose: the
@@ -906,6 +935,38 @@ mark on another brand. Two limits came out of it, and they are written down rath
   sends from its alternate port was not captured, so no cause is claimed. The card's topology-change
   counter is the signal that shows it — a value that keeps climbing on a switch whose ports have not
   moved.
+
+### A site's position, and the geographic view
+
+A site carries `geo: {lat, lng, source}` or `null` — two numbers or nothing, never "lat, 0". `parseCoordinate`
+(lib/inter-site.js) is the ONE rule for a coordinate: point or comma, six decimals, ±90 and ±180, and an empty
+field is not zero. `source` is how the point arrived (`manual`, `geocoded`, `map`, `dcim`); nobody writes it by itself.
+The DCIM is the fourth way, and the same rule: `POST /api/integrations/dcim/sites-geo` (admin) reads
+the NetBox sites the site's project records in `state.source.dcim.sites` and returns candidates — it
+writes nothing; the panel lists them beside "Find"'s, and the point is yours to choose.
+
+**"Find" proposes, you choose.** The browser never talks to a third party (`connect-src 'self'`, pinned by a
+test): it POSTs the address to `/api/geocode`, admin only, and the server asks the geocoder (server/geocoder.js).
+The geocoder is a polite guest: one request a second, answers kept for a day (capped), a User-Agent that names
+only the product, redirects not followed, a deadline and a size cap, and every failure has a name
+(`unreachable`, `upstream`, `upstream-busy`, `bad-response`, `too-fast`, `disabled`, `bad-query`); a failure is not
+cached. The service is configurable (`INFRANET_GEOCODER_URL`) and can be switched off, in which case nothing is
+ever sent. The address goes in the body, not the URL, so it does not reach an access log in front of the app.
+
+**The view.** On screen it is a real map: Leaflet (vendored in `vendor/leaflet`, loaded only when the view opens) over
+OpenStreetMap tiles, with `buildGeoMapModel` (lib/inter-site-geo-map.js) deciding what is drawn. In the dossier there
+is no background to fetch: `buildInterSiteGeoLayout` (lib/inter-site-geo.js) places the sites in Web Mercator, with a
+grid of round degrees and a scale bar checked against the great-circle distance between two cities, and
+`buildInterSiteGeoMapSvg` draws it as vector on a declared white ground. The WAN chapter prints that page only when a
+site has a point.
+
+**The tiles are the server's, not the browser's.** `connect-src 'self'` and `img-src 'self'` stay as they are (pinned
+by a test): the panel asks `/api/tiles/{z}/{x}/{y}.png` and `server/tiles.js` asks the provider. It is a polite guest —
+at most two requests at once, one request for the same tile asked twice, a User-Agent that names only the product,
+seven days on disk (300 MB cap, oldest out), a failure not repeated for a minute, an old tile served if the provider is
+down — and it believes nothing it does not check: z/x/y are integers in range (so no path or address can be
+injected), a response must be a 200 with a PNG signature, redirects are not followed, the body has a cap.
+`INFRANET_TILES_URL` chooses the provider (or `off`); its attribution is shown by the map.
 
 ### A cluster read from the device, as evidence
 
@@ -1487,7 +1548,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,474 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,650 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

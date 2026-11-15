@@ -41,9 +41,14 @@ import { store } from './store.js';
 import { showAlert, showConfirm, switchProject } from './app-core.js';
 import { registerClickActions, registerChangeActions, registerInputActions, registerKeydownActions, dispatchClick } from './app-delegation.js';
 import { buildInterSiteLayout, interSiteEdgePath } from '../lib/inter-site-layout.js';
+import { buildGeoMapModel, clusterMarkers } from '../lib/inter-site-geo-map.js';
 import { SITE_ROLES, INTER_SITE_STATES, WAN_ADDRESSING, WAN_SERVICE_TYPES,
   INTER_SITE_TRANSPORTS, INTER_SITE_TUNNELS, CARRIER_TRANSPORTS,
-  knownProviders } from '../lib/inter-site.js';
+  knownProviders, parseCoordinate, normalizeGeo } from '../lib/inter-site.js';
+// I nomi con cui «Trova» può non riuscire: il vocabolario è quello della rotta, e
+// le parole del pannello si guardano contro QUESTO (test/inter-site-panel-i18n).
+import { GEOCODE_ERRORS } from '../lib/geocode.js';
+import { GEODCIM_ERRORS } from '../lib/dcim-geo.js';
 // ㉖ La classificazione problema/lacuna si IMPORTA. C'era una seconda copia qui,
 // e coincideva con quella del motore per abitudine: un controllo aggiunto di là
 // sarebbe stato calcolato e mai disegnato, perché questo file disegna solo ciò
@@ -107,6 +112,29 @@ const _st = {
    *          totalLinks:number, notes:any[]}|null} */
   wanReport: null,
   /** @type {boolean} */ wanBusy: false,
+  /** Ciò che si sta SCRIVENDO nei due campi del punto di una sede, per id di sede.
+   *  Esiste perché il modello tiene un punto o niente (②): scrivere la latitudine
+   *  e non ancora la longitudine non ha un punto da mostrare, e senza questo il
+   *  testo digitato sparirebbe al primo ridisegno. Si butta quando arriva un
+   *  documento (`_adopt`) o quando un punto viene scelto.
+   *  @type {Record<string, {lat:string, lng:string}>} */
+  geoDraft: {},
+  /** L'ultima ricerca «Trova», con ciò che ha proposto. NON è nel documento: sono
+   *  proposte, e una proposta non scelta non esiste (②). `tok` serve a scartare
+   *  la risposta di una ricerca vecchia se nel frattempo ne è partita un'altra o
+   *  il pannello è stato chiuso.
+   *  @type {{siteId:string, tok:number, busy:boolean, candidates:{lat:number,lng:number,label:string}[],
+   *          error:string, host:string|null}|null} */
+  geoFind: null,
+  /** Come si disegnano le sedi nella scheda Mappa: `schema` (come sono legate) o `geo` (dove sono).
+   *  Parte sempre da `schema`: la carta vuole dei punti, e chi non li ha scritti non deve
+   *  trovarsi davanti una pagina bianca.
+   *  @type {'schema'|'geo'} */
+  mapMode: 'schema',
+  /** Se la ricerca per indirizzo c'è su questo server, e dove va l'indirizzo.
+   *  `null` = non l'ho ancora chiesto (il bottone resta attivo: si scopre cliccando).
+   *  @type {{enabled:boolean, host:string|null, reason:string|null}|null} */
+  geocoder: null,
   tab: 'map',
   dirty: false,
   saving: false,
@@ -213,6 +241,10 @@ function _adopt(j) {
   _st.audit = (j && j.audit) || null;
   _st.unknownRefs = (j && j.unknownProjectRefs) || [];
   _st.dirty = false;
+  // Un documento nuovo è la verità: ciò che si stava digitando o proponendo era
+  // riferito al documento di prima.
+  _st.geoDraft = {};
+  _st.geoFind = null;
 }
 
 // ⭐ La versione dell'organizzazione che questa scheda ha in mano, presa dall'ETag
@@ -586,11 +618,233 @@ function _paintNetHint(el) {
   hint.style.display = bad.length ? '' : 'none';
 }
 
+// ── Il punto di una sede sulla carta ──────────────────────────────────────
+//
+// Tre strade, e la prima è la base (①): scrivere le due coordinate; «Trova» le
+// PROPONE dall'indirizzo e si sceglie; (poi) un clic sulla carta. In tutti e tre i
+// casi è l'utente a mettere il punto, e `source` dice quale strada ha fatto.
+// Il modello tiene un punto o niente (②): ciò che si sta digitando sta a parte,
+// in `_st.geoDraft`, finché non sono due coordinate valide.
+
+/** Cosa si legge sotto i due campi. Una sola funzione per il disegno e per il
+ *  ritocco mentre si scrive: due frasi sulla stessa cosa divergerebbero.
+ *  ⚠️ La regola dell'intervallo NON è qui: è `parseCoordinate`, del modello. */
+function _geoHintText(d) {
+  if (!d) return '';
+  const vuoto = (v) => String(v == null ? '' : v).trim() === '';
+  const lat = parseCoordinate(d.lat, 'lat'), lng = parseCoordinate(d.lng, 'lng');
+  if ((!vuoto(d.lat) && lat === null) || (!vuoto(d.lng) && lng === null)) return t('org.geoInvalid');
+  if (vuoto(d.lat) !== vuoto(d.lng)) return t('org.geoBoth');
+  return '';
+}
+
+/** Come è nato il punto, a parole. */
+function _geoSourceText(geo) {
+  return geo ? t('org.geoSource.' + (geo.source || 'none')) : '';
+}
+
+/** Una coordinata come testo da mostrare in un campo. */
+const _geoShow = (v) => (v == null ? '' : String(v));
+
+function _geoBlock(s, i, ro) {
+  const d = _st.geoDraft[s.id];
+  const val = (axis) => (d ? d[axis] : (s.geo ? _geoShow(s.geo[axis]) : ''));
+  const f = (_st.geoFind && _st.geoFind.siteId === s.id) ? _st.geoFind : null;
+  const gc = _st.geocoder;
+  const spenta = !!(gc && !gc.enabled);
+  const host = (gc && gc.host) || '';
+  const campo = (axis, key, ph) => `<label class="org-geo-axis"><span>${escapeHTML(t(key))}</span>
+      <input type="text" inputmode="decimal" autocomplete="off" ${ro ? 'disabled' : ''} value="${escapeHTML(val(axis))}"
+             placeholder="${escapeHTML(t(ph))}"
+             data-input="org-geo" data-idx="${i}" data-axis="${escapeHTML(axis)}"></label>`;
+  const trova = ro ? '' : `<button class="um-btn ghost org-mini" data-act="org-geo-find" data-idx="${i}"
+        ${(spenta || (f && f.busy)) ? 'disabled' : ''}
+        title="${escapeHTML(spenta ? t('org.geoErr.disabled') : (host ? t('org.geoFindTip').replace('{host}', host) : t('org.geoFindTip').replace('{host}', '…')))}">
+        <i class="fas ${f && f.busy && f.kind === 'find' ? 'fa-spinner fa-spin' : 'fa-magnifying-glass-location'}"></i>
+        ${escapeHTML(f && f.busy && f.kind === 'find' ? t('org.geoBusy') : t('org.geoFind'))}</button>`;
+  // La posizione che il DCIM già dichiara per il sito da cui nasce il progetto di
+  // questa sede: stessa disciplina di «Trova» — propone, e la scelta è tua. Serve
+  // un progetto collegato, come per le reti e le linee WAN.
+  const letturaDcim = ro ? '' : `<button class="um-btn ghost org-mini" data-act="org-geo-dcim" data-idx="${i}"
+        ${(s.projectRef && !(f && f.busy)) ? '' : 'disabled'}
+        title="${escapeHTML(s.projectRef ? t('org.geoDcimTip') : t('org.netsNoProject'))}">
+        <i class="fas ${f && f.busy && f.kind === 'dcim' ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-down'}"></i>
+        ${escapeHTML(f && f.busy && f.kind === 'dcim' ? t('org.geoBusy') : t('org.geoDcim'))}</button>`;
+  const togli = (ro || !(s.geo || d)) ? '' : `<button class="um-btn ghost org-mini" data-act="org-geo-clear" data-idx="${i}">
+        <i class="fas fa-xmark"></i> ${escapeHTML(t('org.geoClear'))}</button>`;
+  const cands = (f && !f.busy && f.candidates.length)
+    ? `<p class="org-hint">${escapeHTML(t('org.geoCands'))}</p>
+       <ul class="org-geo-cands">${f.candidates.map((c, k) => `<li class="org-geo-cand">
+         <span class="org-geo-cand-label">${escapeHTML(c.label)}</span>
+         <span class="org-geo-cand-xy">${escapeHTML(Number(c.lat) + ', ' + Number(c.lng))}</span>
+         <button class="um-btn primary org-mini" data-act="org-geo-use" data-idx="${i}" data-cand="${Number(k)}">
+           <i class="fas fa-check"></i> ${escapeHTML(t('org.geoUse'))}</button></li>`).join('')}</ul>`
+    : '';
+  return `<div class="org-f org-f-wide org-geo">
+      <span>${escapeHTML(t('org.geo'))}</span>
+      <div class="org-geo-row">
+        ${campo('lat', 'org.geoLat', 'org.geoLatPh')}${campo('lng', 'org.geoLng', 'org.geoLngPh')}
+        ${trova}${letturaDcim}${togli}
+      </div>
+      <small class="org-bad" data-geo-hint ${_geoHintText(d) ? '' : 'style="display:none"'}>${escapeHTML(_geoHintText(d))}</small>
+      <small class="org-hint" data-geo-source>${escapeHTML(_geoSourceText(s.geo))}</small>
+      ${(!ro && host) ? `<small class="org-hint">${escapeHTML(t('org.geoSendsTo').replace('{host}', host))}</small>` : ''}
+      ${f && !f.busy ? (f.error ? `<small class="org-bad">${escapeHTML(f.error)}</small>` : (f.note || !f.candidates.length ? `<small class="org-hint">${escapeHTML(f.note || t('org.geoNone'))}</small>` : '')) : ''}${cands}
+    </div>`;
+}
+
+/** Un campo del punto, mentre si scrive: niente ridisegno (butterebbe il cursore). */
+function _setGeoAxis(el) {
+  const i = Number(el.dataset.idx);
+  const axis = el.dataset.axis;
+  const s = _sites()[i];
+  if (!s || (axis !== 'lat' && axis !== 'lng')) return;
+  const d = _st.geoDraft[s.id] || (_st.geoDraft[s.id] = {
+    lat: s.geo ? _geoShow(s.geo.lat) : '', lng: s.geo ? _geoShow(s.geo.lng) : '',
+  });
+  d[axis] = el.value;
+  _touch();
+  // Scrivere il punto è dichiararlo a mano: se veniva da «Trova» o dalla carta,
+  // adesso non lo è più, e la sorgente lo dice.
+  s.geo = normalizeGeo({ lat: d.lat, lng: d.lng, source: 'manual' });
+  const box = el.closest('.org-geo');
+  if (!box) return;
+  const hint = box.querySelector('[data-geo-hint]');
+  if (hint) { const m = _geoHintText(d); hint.textContent = m; hint.style.display = m ? '' : 'none'; }
+  const src = box.querySelector('[data-geo-source]');
+  if (src) src.textContent = _geoSourceText(s.geo);
+}
+
+function _geoClear(i) {
+  const s = _sites()[i];
+  if (!s) return;
+  s.geo = null;
+  delete _st.geoDraft[s.id];
+  if (_st.geoFind && _st.geoFind.siteId === s.id) _st.geoFind = null;
+  _touch(); _render();
+}
+
+/** Sceglie uno dei punti proposti. Qui, e solo qui, una proposta diventa un dato. */
+function _geoUse(i, k) {
+  const s = _sites()[i];
+  const f = _st.geoFind;
+  const c = f && s && f.siteId === s.id ? f.candidates[k] : null;
+  if (!s || !c) return;
+  // Come è arrivato il punto lo dice il candidato (`dcim` se l'ha letto il DCIM);
+  // «Trova» non lo scrive e allora vale `geocoded`. È sempre la persona a sceglierlo.
+  s.geo = normalizeGeo({ lat: c.lat, lng: c.lng, source: c.source || 'geocoded' });
+  delete _st.geoDraft[s.id];
+  _st.geoFind = null;
+  _touch(); _render();
+}
+
+let _geoSeq = 0;
+async function _geoFind(i) {
+  const s = _sites()[i];
+  if (!s || (_st.geoFind && _st.geoFind.busy)) return;
+  if (!String(s.address || '').trim()) { showAlert(t('org.geoNoAddress')); return; }
+  const tok = ++_geoSeq;
+  _st.geoFind = { siteId: s.id, tok, kind: 'find', busy: true, candidates: [], error: '', note: '', host: null };
+  _render();
+  let candidates = [], error = '', host = null;
+  try {
+    const r = await fetch('/api/geocode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ q: s.address }),
+    });
+    const j = await r.json().catch(() => null);
+    if (r.status === 401 || r.status === 403) error = t('org.saveForbidden');
+    else if (!r.ok) {
+      const code = j && GEOCODE_ERRORS.indexOf(j.code) >= 0 ? j.code : 'generic';
+      const sec = Math.max(1, Math.ceil(Number(j && j.retryAfterMs) / 1000) || 1);
+      error = t('org.geoErr.' + code).replace('{s}', String(sec));
+    } else if (j && Array.isArray(j.candidates)) { candidates = j.candidates; host = j.host || null; }
+    else error = t('org.geoErr.generic');
+  } catch (_) {
+    error = t('org.geoErr.generic');
+  }
+  // Una risposta vecchia non si adotta: nel frattempo è partita un'altra ricerca, o
+  // il pannello ha cambiato documento.
+  if (!_st.geoFind || _st.geoFind.tok !== tok) return;
+  _st.geoFind = { siteId: s.id, tok, kind: 'find', busy: false, candidates, error, note: '', host };
+  _render();
+}
+
+/**
+ * La posizione che il DCIM dichiara per il sito da cui nasce il progetto di questa
+ * sede. Come «Trova», PROPONE: ciò che torna entra nell'elenco dei punti da
+ * scegliere, con la sua etichetta («Dal DCIM: <nome>»), e il punto lo mette chi
+ * clicca «Usa questo punto» — con `source: 'dcim'`. Niente si scrive da solo, e
+ * un punto già scritto non si scavalca: resta lì finché non se ne sceglie un altro.
+ *
+ * L'AMBITO non lo sceglie chi guarda: lo dice il progetto della sede, che registra
+ * da quale sito (o quali) è nato (`state.source.dcim.sites`) — stessa fonte delle
+ * linee WAN. Se i siti sono più d'uno e più d'uno ha una posizione, si propongono
+ * tutti col loro nome: scegliere il primo sarebbe un ripiego, cioè un'affermazione.
+ * E si DICE anche ciò che non è stato proposto (nessuna posizione, posizione
+ * storta, sito sparito), perché il silenzio si leggerebbe come «il DCIM non sa».
+ */
+async function _geoFromDcim(i) {
+  const s = _sites()[i];
+  if (!s || (_st.geoFind && _st.geoFind.busy)) return;
+  if (!s.projectRef) { showAlert(t('org.netsNoProject')); return; }
+  const data = await _fetchProject(s.projectRef);
+  if (data === null) { showAlert(t('org.projectUnreadable')); return; }
+  if (!data.dcimSites.length) { showAlert(t('org.wanNoOrigin')); return; }
+
+  const tok = ++_geoSeq;
+  _st.geoFind = { siteId: s.id, tok, kind: 'dcim', busy: true, candidates: [], error: '', note: '', host: null };
+  _render();
+  let candidates = [], error = '', note = '';
+  try {
+    const r = await fetch('/api/integrations/dcim/sites-geo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ siteIds: data.dcimSites.map(x => x.id) }),
+    });
+    const j = await r.json().catch(() => null);
+    if (r.status === 401 || r.status === 403) error = t('org.saveForbidden');
+    else if (!r.ok || !j) {
+      const code = j && GEODCIM_ERRORS.indexOf(j.code) >= 0 ? j.code : 'generic';
+      error = t('org.geoDcimErr.' + code);
+    } else {
+      candidates = (j.found || []).map(x => ({
+        lat: x.lat, lng: x.lng, source: 'dcim',
+        label: t('org.geoDcimLabel').replace('{name}', x.name || ('#' + x.siteId)),
+      }));
+      const nomi = (righe) => righe.map(x => x.name || ('#' + x.siteId)).join(', ');
+      const parti = [];
+      if ((j.noPosition || []).length) parti.push(t('org.geoDcimNone'));
+      if ((j.invalid || []).length) parti.push(t('org.geoDcimInvalid').replace('{names}', nomi(j.invalid)));
+      if ((j.missing || []).length) parti.push(t('org.geoDcimMissing').replace('{ids}', j.missing.join(', ')));
+      note = parti.join(' ');
+    }
+  } catch (_) {
+    error = t('org.geoDcimErr.generic');
+  }
+  if (!_st.geoFind || _st.geoFind.tok !== tok) return;
+  _st.geoFind = { siteId: s.id, tok, kind: 'dcim', busy: false, candidates, error, note, host: null };
+  _render();
+}
+
+/** Se la ricerca per indirizzo c'è e dove manda l'indirizzo. Un guasto qui non è un
+ *  guasto del pannello: si resta con «non lo so», e il bottone si scopre cliccando. */
+async function _loadGeocoderStatus() {
+  try {
+    const r = await fetch('/api/geocode/status', { headers: { Accept: 'application/json' } });
+    if (!r.ok) return;
+    const j = await r.json();
+    _st.geocoder = { enabled: !!j.enabled, host: j.host || null, reason: j.reason || null };
+    if (_st.tab === 'sites') _render();
+  } catch (_) { /* nessun servizio di stato: il bottone resta com'è */ }
+}
+
 // ── Righe: aggiunta e rimozione ───────────────────────────────────────────
 
 function _addSite() {
   const id = uid('site');
-  _sites().push({ id, name: t('org.newSiteName'), role: 'standalone', projectRef: null, address: null, subnets: [] });
+  _sites().push({ id, name: t('org.newSiteName'), role: 'standalone', projectRef: null, address: null, geo: null, subnets: [] });
   _st.dirty = true; _st.tab = 'sites'; _st.focusNew = id; _render();
 }
 function _addUplink() {
@@ -1083,6 +1337,7 @@ const BADGE = { padX: 9, h: 20, r: 10, margin: 30 };
 const _n = (v) => Math.round(Number(v) * 100) / 100;
 
 function _renderMap(m) {
+  if (_st.mapMode === 'geo') return _renderGeoMap();
   const opts = m ? { boxOf: (id) => m.box[id] || null } : null;
   // Lo spazio non si RESTRINGE mai sotto il default: è il modulo puro a tenere
   // il minimo, qui si dice solo quanto serve IN PIÙ per la pastiglia.
@@ -1096,14 +1351,7 @@ function _renderMap(m) {
     };
   }
   const L = buildInterSiteLayout(_st.org, opts || undefined);
-  if (L.layout === 'empty') {
-    return `<div class="org-empty">
-      <i class="fas fa-sitemap org-empty-icon"></i>
-      <p class="org-empty-title">${escapeHTML(t('org.emptyTitle'))}</p>
-      <p class="org-empty-sub">${escapeHTML(t('org.emptySub'))}</p>
-      ${_isAdmin() ? `<button class="um-btn primary" data-act="org-add-site"><i class="fas fa-plus"></i> ${escapeHTML(t('org.addSite'))}</button>` : ''}
-    </div>`;
-  }
+  if (L.layout === 'empty') return _mapEmptyHtml();
   const byId = Object.create(null);
   for (const n of L.nodes) byId[n.siteId] = n;
   const linkById = Object.create(null);
@@ -1191,6 +1439,7 @@ function _renderMap(m) {
   // ingrandisce: il `viewBox` resta l'inquadratura «tutto dentro» calcolata da
   // `_fitMapViewBox`, e le due cose non si contendono lo stesso numero.
   return `<div class="org-map-wrap">
+    ${_mapModeBar()}
     <div class="org-map-frame">
     <svg class="org-map" viewBox="0 0 ${Number(L.width)} ${Number(L.height)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${escapeHTML(t('org.mapAria'))}">
       <g class="org-map-zoom">${edges}${nodes}</g>
@@ -1208,6 +1457,278 @@ function _renderMap(m) {
       L.edges.length ? ' · ' + escapeHTML(t('org.clickLink')) : ''} · ${escapeHTML(t('org.mapZoomHint'))}</p>
     ${warn}
   </div>`;
+}
+
+// ── La mappa con le strade: le sedi dove sono ─────────────────────────────
+//
+// La stessa scheda Mappa, in due modi: lo SCHEMA dice come sono legate le sedi, la
+// MAPPA dice dove sono — su una carta vera, con le strade di OpenStreetMap e un
+// cerchio per ogni sede. Cosa mettere sulla carta lo decide `lib/inter-site-geo-map.js`
+// (puro e testato); qui si traduce in Leaflet. Le tessere NON le chiede il browser a
+// un terzo: arrivano da `/api/tiles/{z}/{x}/{y}.png`, cioè dal nostro server (CSP
+// `img-src 'self'`, e il README promette «nessun cloud»).
+
+/** Il selettore schema/mappa, in testa alla scheda. */
+function _mapModeBar() {
+  const b = (mode, key) => `<button type="button" class="org-map-mode${_st.mapMode === mode ? ' active' : ''}"
+      data-act="org-map-mode" data-mode="${escapeHTML(mode)}" aria-pressed="${_st.mapMode === mode ? 'true' : 'false'}">${escapeHTML(t(key))}</button>`;
+  return `<div class="org-map-modes" role="group" aria-label="${escapeHTML(t('org.mapModeAria'))}">
+    ${b('schema', 'org.mapModeSchema')}${b('geo', 'org.mapModeGeo')}</div>`;
+}
+
+/** Il pannello senza nemmeno una sede: l'invito ad aggiungerne una. */
+function _mapEmptyHtml() {
+  return `<div class="org-empty">
+      <i class="fas fa-sitemap org-empty-icon"></i>
+      <p class="org-empty-title">${escapeHTML(t('org.emptyTitle'))}</p>
+      <p class="org-empty-sub">${escapeHTML(t('org.emptySub'))}</p>
+      ${_isAdmin() ? `<button class="um-btn primary" data-act="org-add-site"><i class="fas fa-plus"></i> ${escapeHTML(t('org.addSite'))}</button>` : ''}
+    </div>`;
+}
+
+/** Ciò che la mappa NON mostra, e perché (②): le sedi senza posizione e i collegamenti
+ *  che ne dipendono. Una mappa a cui sparisce una sede senza dirlo è peggio di una
+ *  che ne mostra il buco. */
+function _geoMapWarn(model) {
+  const righe = [];
+  if (model.unplaced.length) {
+    righe.push(t('org.geoUnplaced').replace('{n}', String(model.unplaced.length)).replace('{names}', model.unplaced.map(x => x.name).join(', ')));
+  }
+  const conta = (reason) => model.cut.filter(x => x.reason === reason).length;
+  if (conta('unplaced')) righe.push(t('org.geoLinksUnplaced').replace('{n}', String(conta('unplaced'))));
+  if (conta('same-point')) righe.push(t('org.geoLinksClose').replace('{n}', String(conta('same-point'))));
+  return righe.map(r => `<p class="org-warn"><i class="fas fa-triangle-exclamation"></i> ${escapeHTML(r)}</p>`).join('');
+}
+
+/** La scheda in modo «mappa»: un contenitore vuoto che `_mountGeoMap` riempie con
+ *  Leaflet dopo che il pannello è nel documento. */
+function _renderGeoMap() {
+  if (!_sites().length) return _mapEmptyHtml();
+  const model = buildGeoMapModel(_st.org);
+  if (!model.markers.length) {
+    return `<div class="org-map-wrap">${_mapModeBar()}<div class="org-empty">
+      <i class="fas fa-location-dot org-empty-icon"></i>
+      <p class="org-empty-title">${escapeHTML(t('org.geoNoneTitle'))}</p>
+      <p class="org-empty-sub">${escapeHTML(t('org.geoNoneSub'))}</p>
+      <button class="um-btn primary" data-act="org-tab" data-tab="sites"><i class="fas fa-building"></i> ${escapeHTML(t('org.geoNoneGo'))}</button>
+    </div></div>`;
+  }
+  return `<div class="org-map-wrap">
+    ${_mapModeBar()}
+    <div class="org-geo-map-frame"><div id="org-geo-map" class="org-geo-map" role="application" aria-label="${escapeHTML(t('org.geoMapAria'))}"></div>
+      <p class="org-geo-map-note" id="org-geo-map-note" hidden></p></div>
+    <p class="org-map-hint">${escapeHTML(t('org.geoMapHint'))}${model.lines.length ? ' · ' + escapeHTML(t('org.geoClickLine')) : ''}</p>
+    ${_geoMapWarn(model)}
+  </div>`;
+}
+
+/** Leaflet, caricato quando serve: la libreria sta in `vendor/leaflet` (self-hosted,
+ *  come Font Awesome) e un pannello che non apre mai la mappa non la scarica. */
+let _leafletPromise = null;
+function _loadLeaflet() {
+  if (globalThis.L && globalThis.L.map) return Promise.resolve(globalThis.L);
+  if (_leafletPromise) return _leafletPromise;
+  _leafletPromise = new Promise((resolve, reject) => {
+    const falla = () => { _leafletPromise = null; reject(new Error('leaflet')); };
+    const css = document.createElement('link');
+    css.rel = 'stylesheet'; css.href = '/vendor/leaflet/leaflet.css';
+    document.head.appendChild(css);
+    const js = document.createElement('script');
+    js.src = '/vendor/leaflet/leaflet.js';
+    js.onload = () => (globalThis.L && globalThis.L.map ? resolve(globalThis.L) : falla());
+    js.onerror = falla;
+    document.head.appendChild(js);
+  });
+  return _leafletPromise;
+}
+
+/** Se lo sfondo c'è, e quale attribuzione scrivere. Un guasto qui non è un guasto del
+ *  pannello: la mappa resta una mappa senza sfondo. @type {Promise<any>|null} */
+let _tilesStatusPromise = null;
+function _loadTilesStatus() {
+  if (!_tilesStatusPromise) {
+    _tilesStatusPromise = fetch('/api/tiles/status', { headers: { Accept: 'application/json' } })
+      .then(r => (r.ok ? r.json() : null)).catch(() => null);
+  }
+  return _tilesStatusPromise;
+}
+
+/** La mappa viva, se c'è. Si butta a ogni ridisegno del pannello e alla chiusura:
+ *  una Leaflet lasciata attaccata a un contenitore che non esiste più perde memoria. */
+let _geoMap = null;
+function _destroyGeoMap() {
+  if (_geoMap) { try { _geoMap.remove(); } catch (_) { /* contenitore già tolto */ } _geoMap = null; }
+}
+
+/** Un colore dal tema (`--fault-color`…), con un ripiego: Leaflet vuole un colore
+ *  vero in mano, non un `var(--…)`. */
+function _themeColor(nome, ripiego) {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(nome).trim();
+    return v || ripiego;
+  } catch (_) { return ripiego; }
+}
+
+/** Lo stato di una sede, a parole: `problem`/`gap`/`ok` dall'audit (gli stessi tre dello
+ *  schema), `none` per chi non ha un progetto collegato — che non dichiara niente. */
+function _siteTone(siteId, projectRef) {
+  const linked = projectRef && _st.projects.some(p => String(p.id) === String(projectRef));
+  const h = _siteHealth(siteId);
+  if (!(linked && h)) return 'none';
+  if (h.cls === 'is-problem') return 'problem';
+  if (h.cls === 'is-gap') return 'gap';
+  return 'ok';
+}
+
+/** Il peggiore fra più stati: un gruppo di sedi mostra il guaio che c'è dentro, non la media. */
+const _TONE_RANK = { problem: 3, gap: 2, ok: 1, none: 0 };
+const _worseTone = (a, b) => (_TONE_RANK[b] > _TONE_RANK[a] ? b : a);
+
+/** Il colore di uno stato, dal tema (Leaflet vuole un colore vero in mano, non un `var()`). */
+function _toneColor(tone) {
+  if (tone === 'problem') return _themeColor('--fault-color', '#f85149');
+  if (tone === 'gap') return _themeColor('--idle-color', '#d29922');
+  if (tone === 'ok') return _themeColor('--active-color', '#39d353');
+  return _themeColor('--text-muted', '#8b949e');
+}
+
+/** Il segno di un collegamento: colore e tratto dallo stato dichiarato/misurato,
+ *  come sullo schema (su = pieno, giù = tratteggiato rosso, non pronunciato = puntinato). */
+function _lineStyle(link) {
+  const st = _edgeStateAttrs(link);
+  if (st.cls.indexOf('is-up') >= 0) return { color: _themeColor('--active-color', '#39d353'), dashArray: null, title: st.title };
+  if (st.cls.indexOf('is-down') >= 0) return { color: _themeColor('--fault-color', '#f85149'), dashArray: '9 7', title: st.title };
+  return { color: _themeColor('--text-muted', '#8b949e'), dashArray: '2 7', title: st.title };
+}
+
+/** Disegna la mappa nel suo contenitore. È asincrona perché la libreria arriva
+ *  quando serve; se nel frattempo il pannello è stato ridisegnato, si lascia perdere. */
+async function _mountGeoMap() {
+  const el = _el('org-geo-map');
+  if (!el) return;
+  const note = _el('org-geo-map-note');
+  const dillo = (testo) => { if (note) { note.textContent = testo; note.hidden = !testo; } };
+  dillo(t('org.geoMapLoading'));
+  let L;
+  try { L = await _loadLeaflet(); } catch (_) { dillo(t('org.geoMapLoadFailed')); return; }
+  const status = await _loadTilesStatus();
+  // Il pannello può essere stato ridisegnato mentre si aspettava: il contenitore è un altro.
+  if (_el('org-geo-map') !== el || !el.isConnected || _st.mapMode !== 'geo' || _st.tab !== 'map') return;
+  _destroyGeoMap();
+  dillo('');
+
+  const model = buildGeoMapModel(_st.org);
+  const map = L.map(el, { zoomControl: false, worldCopyJump: true, attributionControl: true });
+  _geoMap = map;
+  map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>');
+  L.control.zoom({ position: 'bottomright', zoomInTitle: t('org.zoomIn'), zoomOutTitle: t('org.zoomOut') }).addTo(map);
+  L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
+
+  // Lo sfondo: le tessere dal NOSTRO server. Senza (spento o non raggiungibile) la
+  // mappa resta com'è — le sedi e i collegamenti non dipendono dallo sfondo.
+  if (status && status.enabled) {
+    let errori = 0;
+    // L'attribuzione è obbligatoria (ODbL) e porta al suo avviso. Il testo di un servizio
+    // DIVERSO lo scrive chi lo sceglie e qui passa dall'escape: è testo, mai HTML.
+    const attribuzione = status.host === 'tile.openstreetmap.org'
+      ? '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
+      : escapeHTML(status.attribution || '');
+    const tiles = L.tileLayer('/api/tiles/{z}/{x}/{y}.png', { maxZoom: status.maxZoom || 19, attribution: attribuzione });
+    tiles.on('tileerror', () => { if (++errori === 4) dillo(t('org.geoMapNoTiles')); });
+    tiles.on('tileload', () => { if (errori) { errori = 0; dillo(''); } });
+    tiles.addTo(map);
+  } else {
+    dillo(t('org.geoMapNoTiles'));
+  }
+
+  // I collegamenti sotto, i cerchi sopra: il cerchio è ciò che si clicca.
+  const sitoDi = Object.create(null);
+  for (const s of _sites()) sitoDi[s.id] = s;
+  const linkDi = Object.create(null);
+  for (const l of _links()) linkDi[l.id] = l;
+  for (const ln of model.lines) {
+    const l = linkDi[ln.linkId];
+    const stile = _lineStyle(l);
+    const pl = L.polyline(ln.coords, { color: stile.color, weight: 3, opacity: 0.9, dashArray: stile.dashArray, lineCap: 'round' }).addTo(map);
+    const nome = _siteName(ln.aSiteId) + ' ↔ ' + _siteName(ln.bSiteId);
+    const etichetta = [l && l.provider, l && _natureText(l)].filter(Boolean).join(' · ');
+    pl.bindTooltip(`<b>${escapeHTML(nome)}</b>${etichetta ? '<br>' + escapeHTML(etichetta) : ''}<br>${escapeHTML(stile.title)}`, { sticky: true });
+    pl.on('click', () => _goToLink(ln.linkId));
+  }
+  // I cerchi vivono in un livello a parte e si RIFANNO a ogni zoom: due sedi vicine sullo schermo
+  // diventano un cerchio solo con il numero (come in Prospix), e si separano ingrandendo. La
+  // distanza che conta è quella in pixel, quindi dipende dallo zoom — `clusterMarkers` è puro.
+  const strato = L.layerGroup().addTo(map);
+  const GRUPPO_PX = 46;
+  const marcaDi = Object.create(null);
+  for (const mk of model.markers) marcaDi[mk.siteId] = mk;
+
+  /** Un cerchio per una sede sola, col nome accanto e il dettaglio nel titolo. */
+  const cerchioSede = (mk) => {
+    const s = sitoDi[mk.siteId] || {};
+    const hub = mk.role === 'hub';
+    const cerchio = L.circleMarker([mk.lat, mk.lng], {
+      radius: hub ? 13 : 10, color: '#ffffff', weight: hub ? 3 : 2,
+      fillColor: _toneColor(_siteTone(mk.siteId, s.projectRef)), fillOpacity: 0.92,
+    }).addTo(strato);
+    const linked = s.projectRef && _st.projects.some(p => String(p.id) === String(s.projectRef));
+    const h = _siteHealth(mk.siteId);
+    // Il nome resta scritto accanto al cerchio: su una mappa, un cerchio senza nome non dice di chi è.
+    cerchio.bindTooltip(escapeHTML((hub ? '★ ' : '') + mk.name), { permanent: true, direction: 'right', offset: [12, 0], className: 'org-geo-label' });
+    // Il resto (ruolo, progetto, stato) sta nel titolo del cerchio, come sullo schema: un solo
+    // tooltip per livello in Leaflet, e il nome è già quello visibile.
+    const dettaglio = [mk.name, t('org.role.' + mk.role), linked ? '' : t('org.noProject'), h ? h.title : ''].filter(Boolean).join(' · ');
+    const tracciato = cerchio.getElement();
+    if (tracciato) {
+      const titolo = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      titolo.textContent = dettaglio;
+      tracciato.appendChild(titolo);
+    }
+    cerchio.on('click', () => _openSite(mk.siteId));
+  };
+
+  /** Un cerchio per più sedi vicine: il numero, il colore del PEGGIORE, l'elenco al passaggio, e un
+   *  clic ingrandisce fino a separarle. */
+  const cerchioGruppo = (g) => {
+    const membri = g.ids.map(id => marcaDi[id]).filter(Boolean);
+    const toni = membri.map(mk => _siteTone(mk.siteId, (sitoDi[mk.siteId] || {}).projectRef));
+    const peggiore = toni.reduce(_worseTone, 'none');
+    const icona = L.divIcon({
+      className: 'org-geo-pin-wrap', iconSize: [38, 38], iconAnchor: [19, 19],
+      html: `<span class="org-geo-pin k-${escapeHTML(peggiore)}">${Number(membri.length)}</span>`,
+    });
+    const m = L.marker([g.lat, g.lng], { icon: icona, riseOnHover: true, keyboard: false }).addTo(strato);
+    m.bindTooltip(
+      `<b>${escapeHTML(t('org.geoCluster').replace('{n}', String(membri.length)))}</b>`
+      + membri.map(mk => `<br>${escapeHTML((mk.role === 'hub' ? '★ ' : '') + mk.name)}`).join(''),
+      { direction: 'top', offset: [0, -16] });
+    m.on('click', () => map.fitBounds(membri.map(mk => [mk.lat, mk.lng]), { padding: [100, 100], maxZoom: 15 }));
+  };
+
+  function disegnaCerchi() {
+    if (_geoMap !== map) return;
+    strato.clearLayers();
+    const voci = model.markers.map(mk => {
+      const p = map.latLngToContainerPoint([mk.lat, mk.lng]);
+      return { id: mk.siteId, x: p.x, y: p.y, lat: mk.lat, lng: mk.lng };
+    });
+    for (const g of clusterMarkers(voci, GRUPPO_PX)) {
+      if (g.ids.length === 1) cerchioSede(marcaDi[g.ids[0]]); else cerchioGruppo(g);
+    }
+  }
+  map.on('zoomend', disegnaCerchi);
+
+  // L'inquadratura: tutte le sedi, o la città di quella sola.
+  if (model.fit && model.fit.bounds) {
+    const b = model.fit.bounds;
+    map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [70, 70], maxZoom: model.fit.maxZoom });
+  } else if (model.fit) {
+    map.setView(model.fit.center, model.fit.maxZoom);
+  }
+  disegnaCerchi();
+  // Il contenitore ha la sua misura solo dopo che il pannello è impaginato: a quel punto anche la
+  // distanza in pixel fra le sedi è quella vera, e i gruppi si rifanno.
+  setTimeout(() => { if (_geoMap === map) { map.invalidateSize(); disegnaCerchi(); } }, 0);
 }
 
 // ── Form ──────────────────────────────────────────────────────────────────
@@ -1514,6 +2035,7 @@ function _renderSites() {
         <label class="org-f org-f-wide"><span>${escapeHTML(t('org.address'))}</span>
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(s.address || '')}"
                  data-input="org-field" data-scope="site" data-idx="${i}" data-field="address"></label>
+        ${_geoBlock(s, i, ro)}
         <label class="org-f org-f-wide"><span>${escapeHTML(t('org.subnets'))}</span>
           <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML((s.subnets || []).join(', '))}" placeholder="10.1.0.0/24, 10.1.1.0/24"
                  data-input="org-field" data-scope="site" data-idx="${i}" data-field="subnets">
@@ -2230,6 +2752,9 @@ let _tabDisegnata = null;
 function _render() {
   const body = _el('org-body');
   if (!body) return;
+  // Una mappa Leaflet attaccata a un contenitore che sta per sparire va staccata
+  // PRIMA: si ricrea dopo, se la scheda aperta la vuole ancora.
+  _destroyGeoMap();
 
   // ⚠️ `body.innerHTML = …` rifà TUTTO, e con il contenuto se ne va lo
   // scorrimento. Ogni cambio di valore che ridisegna riportava quindi in cima: si
@@ -2277,7 +2802,10 @@ function _render() {
   // dentro i riquadri si possono misurare per davvero e la geometria si rifà con
   // le larghezze vere. Si fa una volta sola — con un `boxOf` già in mano non si
   // rientra — perché due passate bastano e una terza inseguirebbe sé stessa.
-  if (_st.tab === 'map') {
+  if (_st.tab === 'map' && _st.mapMode === 'geo') {
+    // La mappa vera non ha passate di misura: Leaflet si monta quando il pannello è nel documento.
+    _mountGeoMap();
+  } else if (_st.tab === 'map') {
     const svg = body.querySelector('svg.org-map');
     const misure = _measureBoxes(svg);
     if (misure) {
@@ -2419,18 +2947,32 @@ export function openOrgPanel() {
   ov.classList.add('open');
   if (_st.dirty) { _render(); return; }
   _st.tab = 'map'; _st.dropped = null; _st.wanReport = null; _st.wanBusy = false;
+  _st.geoFind = null;
   _render();
   _load();
+  _loadGeocoderStatus();
 }
 
 export function closeOrgPanel() {
   const ov = _el('org-overlay');
   if (!ov) return;
   if (_st.dirty) {
-    showConfirm(t('org.confirmDiscard'), () => { _st.dirty = false; ov.classList.remove('open'); });
+    showConfirm(t('org.confirmDiscard'), () => { _st.dirty = false; _destroyGeoMap(); ov.classList.remove('open'); });
     return;
   }
+  _destroyGeoMap();
   ov.classList.remove('open');
+}
+
+/** Dal collegamento (la pastiglia sullo schema, la linea sulla mappa) alla sua riga.
+ *  Si scaldano i progetti come fa `org-tab`: le due tendine degli apparati vivono di quelli. */
+function _goToLink(linkId) {
+  _st.focusLink = linkId || null;
+  _st.tab = 'links';
+  _render();
+  _warmProjects(_links()
+    .flatMap(l => [l.aSiteId, l.bSiteId])
+    .map(id => (_sites().find(s => s.id === id) || {}).projectRef));
 }
 
 /** Click su una sede della mappa: si scende nel progetto-sede. Senza un
@@ -2488,16 +3030,16 @@ registerClickActions({
   // ⑭ Dalla mappa alla riga. Si scaldano i progetti come fa `org-tab`: le due
   // tendine degli apparati vivono di quelli, e arrivarci dalla mappa non è un
   // modo diverso di aprire la stessa scheda.
-  'org-link': (el) => {
-    _st.focusLink = el.dataset.link || null;
-    _st.tab = 'links';
-    _render();
-    _warmProjects(_links()
-      .flatMap(l => [l.aSiteId, l.bSiteId])
-      .map(id => (_sites().find(s => s.id === id) || {}).projectRef));
-  },
+  'org-link': (el) => _goToLink(el.dataset.link || null),
   'org-nets-from-project': (el) => { _netsFromProject(Number(el.dataset.idx)); },
   'org-wan-from-dcim': (el) => { _wanFromDcim(Number(el.dataset.idx)); },
+  // Il punto di una sede: «Trova» PROPONE, «Usa» sceglie, «Togli» svuota.
+  // La scheda Mappa: schema o carta.
+  'org-map-mode': (el) => { _st.mapMode = el.dataset.mode === 'geo' ? 'geo' : 'schema'; _render(); },
+  'org-geo-find': (el) => { _geoFind(Number(el.dataset.idx)); },
+  'org-geo-dcim': (el) => { _geoFromDcim(Number(el.dataset.idx)); },
+  'org-geo-use': (el) => _geoUse(Number(el.dataset.idx), Number(el.dataset.cand)),
+  'org-geo-clear': (el) => _geoClear(Number(el.dataset.idx)),
   // L'esito resta finché non lo si congeda: è un elenco da leggere, non un
   // lampo. Chiuderlo non tocca le righe già iscritte.
   'org-wan-clear': () => { _st.wanReport = null; _render(); },
@@ -2509,6 +3051,8 @@ registerInputActions({
   // butterebbe via il cursore. La mappa vive in un'altra tab e si ricostruisce
   // quando ci si torna.
   'org-field': (el) => _setField(el),
+  // Le due coordinate: come gli altri campi, niente ridisegno mentre si scrive.
+  'org-geo': (el) => _setGeoAxis(el),
 });
 
 // ⚠️ `role="button"` senza tastiera è un'etichetta che mente: chi naviga col

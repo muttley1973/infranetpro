@@ -172,3 +172,6 @@ _local/
 # Sicurezza extra: se un render ricrea questi asset in root, restano ignorati
 _li_*
 _gh_social*
+
+# La cache delle tessere della mappa (server/tiles.js): rigenerabile, mai nel repo.
+data/tile-cache/

@@ -347,7 +347,12 @@ const CAPS = {
     // viewBox da `W`/`H`, che vengono dal layout puro (lib/inter-site-layout.js,
     // sotto test). Nessun testo di nessuno le attraversa. Ciò che è TESTO passa
     // invece da `_esc`, cioè dall'escaper XML condiviso, e lo scanner lo prova.
-    'lib/inter-site-svg.js': 25,
+    // La CARTA geografica (buildInterSiteGeoMapSvg) aggiunge altri 47, della stessa
+    // natura e per la stessa ragione: le coordinate dei puntini, delle linee del
+    // reticolo e della barra della scala passano tutte da `_n()`, e vengono dal
+    // layout puro (lib/inter-site-geo.js, sotto test). I nomi delle sedi e i numeri
+    // dei gradi sono TESTO, e passano da `_esc`: lo scanner lo prova, non sta nei 72.
+    'lib/inter-site-svg.js': 72,
     'src/app-audit.js': 3,
     'src/app-auth.js': 6,
     // L'unico residuo e' `${c}` nelle intestazioni dell'anteprima CSV, dove `c`

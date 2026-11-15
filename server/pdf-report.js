@@ -14,7 +14,8 @@ const OV_THRESHOLDS = require('../lib/overview.js');           // soglie DR/cicl
 // modulo del layout è l'unica geometria, il serializzatore la veste d'inchiostro
 // da stampa (fondo bianco, colori negli attributi). → lib/inter-site-svg.js ①
 const { buildInterSiteLayout } = require('../lib/inter-site-layout.js');
-const { buildInterSiteMapSvg, INTER_SITE_SVG_GEOM } = require('../lib/inter-site-svg.js');
+const { buildInterSiteGeoLayout } = require('../lib/inter-site-geo.js');
+const { buildInterSiteMapSvg, buildInterSiteGeoMapSvg, INTER_SITE_SVG_GEOM } = require('../lib/inter-site-svg.js');
 
 let _pdfkitMod = null, _svgToPdfMod = null;
 function _loadPdfDeps() {
@@ -122,6 +123,12 @@ const _RL = {
     // — NON si riscrivono: si leggono da lib/i18n.js (`_wanVoc`), o il dossier
     // finirebbe per chiamare le stesse cose con nomi diversi dallo schermo.
     'title.wan': 'WAN — mappa delle sedi', 'title.wanSites': 'WAN — sedi',
+    // La carta geografica: dove sono le sedi, a scala. Una pagina a parte, e solo
+    // se almeno una sede ha una posizione dichiarata.
+    'title.wanGeo': 'WAN — carta geografica',
+    'sub.wanGeo': 'le sedi dove sono, nord in alto, con la scala',
+    'wan.geoUnplaced': 'Senza posizione, non disegnate: {names}',
+    'wan.geoLinks': '{n} collegamenti non disegnati: una sede non ha posizione, o le due stanno nello stesso punto',
     'title.wanLines': 'WAN — linee', 'title.wanLinks': 'WAN — collegamenti fra sedi',
     'title.wanAudit': 'WAN — cosa non torna',
     'sub.wanSites': 'sedi', 'sub.wanLines': 'linee WAN', 'sub.wanLinks': 'collegamenti',
@@ -239,6 +246,10 @@ const _RL = {
     'col.backupRef': 'Backup (where)', 'col.method': 'Method', 'col.backupDate': 'Backup date',
     // ── Inter-site WAN: the map and the recovery cards ────────────────────
     'title.wan': 'WAN — site map', 'title.wanSites': 'WAN — sites',
+    'title.wanGeo': 'WAN — geographic map',
+    'sub.wanGeo': 'the sites where they are, north up, with the scale',
+    'wan.geoUnplaced': 'No position, not drawn: {names}',
+    'wan.geoLinks': '{n} links not drawn: a site has no position, or the two are on the same point',
     'title.wanLines': 'WAN — lines', 'title.wanLinks': 'WAN — links between sites',
     'title.wanAudit': 'WAN — what does not add up',
     'sub.wanSites': 'sites', 'sub.wanLines': 'WAN lines', 'sub.wanLinks': 'links',
@@ -1492,6 +1503,75 @@ function _wanFactSuffix(f, lang) {
 }
 
 /**
+ * Cosa c'è scritto sulla pastiglia di ogni collegamento, il suo tono su/giù e la
+ * sua larghezza MISURATA — per la mappa a schema e per la carta geografica.
+ *
+ * Una composizione sola, e non per pigrizia: ㉗ vuole che la mappa sulla carta e
+ * quella nel pannello siano LA STESSA mappa, e due composizioni dello stesso testo
+ * divergono alla prima modifica di una delle due. Riempie i tre oggetti passati e
+ * restituisce la più larga, che serve a riservare lo spazio fra due sedi.
+ *
+ * @returns {number} la larghezza della pastiglia più larga (0 se non ce n'è)
+ */
+function _wanEdgeLabels(doc, links, lang, G, edgeLabels, edgeTone, labelW) {
+  let maxLabel = 0;
+  for (const l of links) {
+    if (!l.drawable) continue;                    // ③ non è disegnabile: lo dirà la scheda
+    const portate = l.reach ? (l.reach.value.a.length + l.reach.value.b.length) : 0;
+    // ㉗ Anche qui CHI la vende, e nello stesso ordine dello schermo.
+    const testo = _pdfSafe([l.provider, _wanKindText(l, lang), portate ? _wanNets(portate, lang) : null]
+      .filter(Boolean).join(' · '));
+    edgeLabels[l.id] = testo;
+    edgeTone[l.id] = l.state ? l.state.value : null;
+    const w = _wanTextW(doc, testo, G.labelSize, false);
+    labelW[l.id] = w;
+    if (w > maxLabel) maxLabel = w;
+  }
+  return maxLabel;
+}
+
+/**
+ * La CARTA geografica delle sedi, in SVG vettoriale su fondo bianco: dove sta
+ * ogni sede, con la scala e i collegamenti. Stessa misura-col-motore-del-PDF della
+ * mappa a schema, e le stesse coordinate del pannello (lo stesso modulo puro).
+ *
+ * Il foglio è largo quanto la pagina (`_RW`): le etichette escono a corpo vero,
+ * non rimpicciolite da un ridimensionamento.
+ *
+ * @returns {{svg:string, width:number, height:number, unplaced:string[]}|null}
+ *          `null` se nessuna sede ha un punto: la carta non c'è, e il dossier non
+ *          ne stampa una vuota.
+ */
+function _wanGeoMapSvg(doc, R, lang) {
+  const org = R && R.organization;
+  if (!org || !Array.isArray(org.sites) || !org.sites.some(s => s && s.geo)) return null;
+  const G = INTER_SITE_SVG_GEOM;
+  const sites = Array.isArray(R.sites) ? R.sites : [];
+  const links = Array.isArray(R.links) ? R.links : [];
+
+  const nodeLines = {}, edgeLabels = {}, edgeTone = {}, labelW = {};
+  const box = Object.create(null);
+  let here = null;
+  for (const s of sites) {
+    if (s.here) here = s.id;
+    const nome = _pdfSafe(s.name);
+    nodeLines[s.id] = [{ text: nome }];
+    box[s.id] = { w: _wanTextW(doc, nome, G.geoLabelSize, true) + 18, h: 22 };
+  }
+  _wanEdgeLabels(doc, links, lang, G, edgeLabels, edgeTone, labelW);
+
+  const layout = buildInterSiteGeoLayout(org, {
+    width: _RW, pad: 56, minHeight: 260, maxHeight: 520,
+    boxOf: (id) => box[id] || null,
+    labelOf: (id) => (labelW[id] ? { w: labelW[id] + G.badgePadX * 2, h: G.badgeH } : null),
+  });
+  const svg = buildInterSiteGeoMapSvg(layout, { nodeLines, edgeLabels, edgeTone, labelW, here });
+  if (!svg) return null;
+  const unplaced = layout.undrawable.sites.map(x => _pdfSafe(x.name));
+  return { svg, width: layout.width, height: layout.height, unplaced, links: layout.undrawable.links.length };
+}
+
+/**
  * La mappa, in SVG vettoriale su fondo bianco, misurata col motore del PDF.
  *
  * Tre passi: si compone cosa c'è scritto in ogni riquadro (nella lingua del
@@ -1548,20 +1628,7 @@ function _wanMapSvg(doc, R, lang) {
     box[s.id] = { w: w + G.padX * 2, h: G.padY * 2 + G.nameH + (righe.length - 1) * G.lineH };
   }
 
-  for (const l of links) {
-    if (!l.drawable) continue;                    // ③ non è disegnabile: lo dirà la scheda
-    const portate = l.reach ? (l.reach.value.a.length + l.reach.value.b.length) : 0;
-    // ㉗ Anche qui CHI la vende, e nello stesso ordine dello schermo: la mappa
-    // sulla carta e quella nel pannello sono LA STESSA mappa, e due composizioni
-    // diverse la farebbero divergere alla prima modifica di una delle due.
-    const testo = _pdfSafe([l.provider, _wanKindText(l, lang), portate ? _wanNets(portate, lang) : null]
-      .filter(Boolean).join(' · '));
-    edgeLabels[l.id] = testo;
-    edgeTone[l.id] = l.state ? l.state.value : null;
-    const w = _wanTextW(doc, testo, G.labelSize, false);
-    labelW[l.id] = w;
-    if (w > maxLabel) maxLabel = w;
-  }
+  maxLabel = _wanEdgeLabels(doc, links, lang, G, edgeLabels, edgeTone, labelW);
 
   const layout = buildInterSiteLayout(org, {
     boxOf: (id) => box[id] || null,
@@ -1650,6 +1717,38 @@ function _addWanPages(doc, wan, projName, date, lang = 'it', SVGtoPDF = null) {
     _rHdr(doc, T, projName, date);
     const y0 = _rSub(doc, testata, _TOP);
     doc.font('Helvetica').fontSize(8).fillColor('#94a3b8').text(_rt(L, 'empty.wanMap'), M, y0);
+  }
+
+  // ── La carta geografica ───────────────────────────────────────────────
+  // Una pagina a parte, e solo se almeno una sede ha un punto: una carta vuota
+  // si leggerebbe come un guasto dell'export. Ciò che la carta non mostra (le sedi
+  // senza posizione, i collegamenti che ne dipendono) è scritto sotto — una carta
+  // a cui sparisce una sede senza dirlo è peggio di una che ne mostra il buco.
+  const carta = (typeof SVGtoPDF === 'function') ? _wanGeoMapSvg(doc, R, L) : null;
+  if (carta && carta.svg) {
+    const sW = carta.width || 539, sH = carta.height || 400;
+    const ratio = Math.min(CW / sW, 660 / sH, 1);
+    const rW = Math.round(sW * ratio), rH = Math.round(sH * ratio);
+    doc.addPage({ size: [595, Math.max(320, rH + 130)], margins: { top: 0, bottom: 0, left: 0, right: 0 } });
+    _rHdr(doc, _rt(L, 'title.wanGeo'), projName, date);
+    const yCarta = _rSub(doc, _rt(L, 'sub.wanGeo'), _TOP);
+    try {
+      SVGtoPDF(doc, carta.svg, M, yCarta, {
+        imageCallback: _svgImageCallback,
+        width: rW, height: rH, assumePt: true,
+        preserveAspectRatio: 'xMidYMid meet',
+        fontCallback: (_family, bold) => (bold ? 'Helvetica-Bold' : 'Helvetica'),
+        warningCallback: () => {},
+      });
+    } catch (e) { console.error(`  [PDF] wan-geo-map: ${e.message}`); }
+    const notaGeo = [];
+    if (carta.unplaced.length) notaGeo.push(_rt(L, 'wan.geoUnplaced').replace('{names}', carta.unplaced.join(', ')));
+    if (carta.links) notaGeo.push(_rt(L, 'wan.geoLinks').replace('{n}', String(carta.links)));
+    if (links.some(l => l.state && l.state.value === 'down')) notaGeo.push(_rt(L, 'wan.legendDown'));
+    if (notaGeo.length) {
+      doc.font('Helvetica').fontSize(6.5).fillColor('#64748b')
+         .text(_pdfSafe(notaGeo.join('   ·   ')), M, yCarta + rH + 10, { width: CW });
+    }
   }
 
   // ── Le sedi ───────────────────────────────────────────────────────────

@@ -25,6 +25,8 @@ const HTML = fs.readFileSync(path.join(ROOT, 'netmapper.html'), 'utf8');
 
 const i18n = require('../lib/i18n.js');
 const IS = require('../lib/inter-site.js');
+const { GEOCODE_ERRORS } = require('../lib/geocode.js');
+const { GEODCIM_ERRORS } = require('../lib/dcim-geo.js');
 const { buildInterSiteAudit } = require('../lib/inter-site-audit.js');
 const { ADDR_SCOPES } = require('../lib/cidr.js');
 const prov = require('../lib/provenance.js');
@@ -45,6 +47,12 @@ const CODE = {
   'org.transport.': IS.INTER_SITE_TRANSPORTS,
   'org.tunnel.': IS.INTER_SITE_TUNNELS,
   'org.role.': IS.SITE_ROLES,
+  // Il punto di una sede: come è nato (con «dichiarata» per un documento che non lo
+  // diceva) e i nomi con cui «Trova» può non riuscire — quelli della rotta.
+  'org.geoSource.': IS.GEO_SOURCES.concat(['none']),
+  'org.geoErr.': GEOCODE_ERRORS.concat(['generic']),
+  // E quelli della lettura dal DCIM: i nomi sono quelli della rotta.
+  'org.geoDcimErr.': GEODCIM_ERRORS.concat(['generic']),
   'org.addr.': IS.WAN_ADDRESSING,
   // ㉕ I suggerimenti del tipo di servizio: non è un vocabolario CHIUSO (il campo
   // resta libero), ma le voci che la tendina offre devono avere le loro parole

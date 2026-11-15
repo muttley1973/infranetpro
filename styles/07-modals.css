@@ -1124,6 +1124,50 @@
         .org-row-actions { display:flex; flex-wrap:wrap; gap:var(--space-3); margin-top:4px; }
         .org-mini { padding:4px 9px; font-size:var(--fs-xs); }
         .org-mini:disabled { opacity:.45; cursor:not-allowed; }
+        /* Il punto di una sede sulla carta: due campi corti e i due comandi in una
+           riga, e sotto ciò che «Trova» ha proposto. I candidati sono una LISTA da
+           scegliere, non un elenco da leggere: ognuno porta il suo bottone. */
+        /* La scheda Mappa in due modi: un selettore a due scelte, e la carta con i
+           suoi segni. Il puntino prende l'accento, il filo e il reticolo restano
+           ombre: ciò che conta sono i collegamenti, e il fondo non deve competere. */
+        .org-map-modes { display:inline-flex; align-self:flex-start; border:1px solid var(--panel-border); border-radius:var(--radius-md); overflow:hidden; }
+        .org-map-mode { padding:4px 12px; background:transparent; border:0; color:var(--text-muted); font-size:var(--fs-sm); font-family:inherit; cursor:pointer; }
+        .org-map-mode + .org-map-mode { border-left:1px solid var(--panel-border); }
+        .org-map-mode:hover { color:var(--text-main); }
+        .org-map-mode.active { background:var(--accent-soft); color:var(--accent); font-weight:600; }
+        /* La mappa con le strade (Leaflet + tessere servite dal nostro server). `isolation`
+           chiude i z-index di Leaflet (fino a 1000) dentro il riquadro: il modale e i suoi
+           menu restano sopra. Il nome accanto al cerchio è un tooltip permanente, senza
+           freccia: su una mappa il testo deve restare leggibile sulle strade, quindi fondo chiaro. */
+        .org-geo-map-frame { position:relative; width:100%; border:1px solid var(--panel-border); border-radius:var(--radius-md); overflow:hidden; isolation:isolate; }
+        .org-geo-map { width:100%; height:58vh; min-height:340px; background:var(--panel-bg); }
+        .org-geo-map-note { position:absolute; left:10px; right:10px; top:10px; margin:0; padding:5px 10px; z-index:700; border-radius:var(--radius-md);
+                            background:var(--panel-bg); border:1px solid var(--panel-border); color:var(--text-muted); font-size:var(--fs-xs); text-align:center; }
+        .org-geo-map-note[hidden] { display:none; }
+        .leaflet-tooltip.org-geo-label { background:rgba(255,255,255,.94); color:#0d1117; border:1px solid rgba(13,17,23,.35); border-radius:6px;
+                                          box-shadow:none; padding:1px 6px; font:700 var(--fs-xs)/1.4 var(--font-ui); }
+        .leaflet-tooltip.org-geo-label::before { display:none; }
+        /* Più sedi vicine: un cerchio solo col numero, del colore del PEGGIORE stato che contiene.
+           Su verde e giallo il numero è scuro: bianco lì non si legge. */
+        .org-geo-pin-wrap { background:transparent; border:0; }
+        .org-geo-pin { display:flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:50%; border:3px solid #fff;
+                       color:#fff; font:700 var(--fs-md)/1 var(--font-ui); box-shadow:0 1px 6px rgba(0,0,0,.45); cursor:pointer; }
+        .org-geo-pin.k-problem { background:var(--fault-color); }
+        .org-geo-pin.k-gap     { background:var(--idle-color); color:#0d1117; }
+        .org-geo-pin.k-ok      { background:var(--active-color); color:#0d1117; }
+        .org-geo-pin.k-none    { background:var(--text-muted); }
+        .org-geo { display:flex; flex-direction:column; gap:var(--space-3); font-size:var(--fs-sm); color:var(--text-muted); }
+        .org-geo-row { display:flex; flex-wrap:wrap; align-items:flex-end; gap:var(--space-3) var(--space-5); }
+        .org-geo-axis { display:flex; flex-direction:column; gap:3px; flex:0 1 140px; min-width:110px; }
+        .org-geo-axis input { padding:6px 9px; background:var(--panel-bg); border:1px solid var(--panel-border);
+                              border-radius:var(--radius-md); color:var(--text-main); font-size:var(--fs-md); outline:none; font-family:inherit; }
+        .org-geo-axis input:focus { border-color:var(--accent); }
+        .org-geo-axis input:disabled { opacity:.6; cursor:not-allowed; }
+        .org-geo-cands { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-2); }
+        .org-geo-cand { display:flex; align-items:center; gap:var(--space-4); padding:5px 9px;
+                        border:1px solid var(--panel-border); border-radius:var(--radius-md); background:var(--panel-bg); }
+        .org-geo-cand-label { flex:1; min-width:0; color:var(--text-main); overflow-wrap:anywhere; }
+        .org-geo-cand-xy { font-size:var(--fs-xs); color:var(--text-muted); white-space:nowrap; font-variant-numeric:tabular-nums; }
         /* L'esito della lettura delle linee WAN dal DCIM: sta in cima alla sua
            scheda e resta finche' non lo si congeda, perche' le note sono un
            elenco da leggere e non un lampo. Non e' un errore: colore neutro. */

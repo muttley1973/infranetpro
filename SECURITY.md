@@ -37,6 +37,14 @@ whether a finding is a vulnerability or a deployment choice:
 - **The server binds to `127.0.0.1`.** Publishing it on a network is the operator's decision, and
   is meant to happen behind a TLS reverse proxy (`INFRANET_TRUST_PROXY=1`).
 - **Live egress is admin-chosen.** SNMP polls and DHCP drivers reach only a host an admin entered.
+  The two places where the multi-site map leaves your network are both the **server's**, never
+  the browser's (`connect-src 'self'` and `img-src 'self'` stay, pinned by a test): "Find from the
+  address" sends the address you pressed it on to a geocoder (OpenStreetMap Nominatim by default,
+  `INFRANET_GEOCODER_URL`, admin only), and the Geographic map's tiles are fetched from
+  OpenStreetMap by `server/tiles.js` and cached (`INFRANET_TILES_URL`) — that provider sees your
+  server's address and which tiles are viewed, never who is looking. Each can be set to `off`, in
+  which case nothing is ever sent. Tile coordinates are integers in range and redirects are not
+  followed, so neither path can be pointed at another address by a request.
 
 And one premise that is easy to miss, because it is where the interesting input comes from: **the
 network being documented is untrusted input**. `sysName`, `sysDescr`, LLDP/CDP neighbour names,

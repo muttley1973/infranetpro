@@ -127,6 +127,14 @@ app.get('/vendor/fontawesome/webfonts/:file', (req, res) => {
   res.sendFile(path.join(FA_ROOT, 'webfonts', req.params.file));
 });
 
+// Leaflet 1.9.4 servito localmente da vendor/leaflet (self-hosted, no CDN, no dep npm):
+// la libreria della vista geografica. Esposti solo i due file, nessun traversal.
+const LEAFLET_ROOT = path.join(ROOT, 'vendor', 'leaflet');
+app.get('/vendor/leaflet/:file', (req, res) => {
+  if (!/^leaflet\.(js|css)$/.test(req.params.file)) return res.status(404).end();
+  res.sendFile(path.join(LEAFLET_ROOT, req.params.file));
+});
+
 // ---- REST API v1 (server/routes/api-v1.js) ---------------------------------
 // Read-only, gate a TOKEN Bearer. Montata PRIMA dell'auth di sessione: la
 // superficie esterna NON passa dal requireAuth globale, si autentica solo col
@@ -152,6 +160,13 @@ app.use(require('./server/routes/projects'));
 // Il livello SOPRA i progetti: sedi, uplink WAN e collegamenti inter-sede.
 // UNA per installazione (data/organization.json).
 app.use(require('./server/routes/organization'));
+// «Trova» (server/routes/geocode.js): dall'indirizzo di una sede a un punto
+// PROPOSTO. L'unica uscita verso Internet dell'organizzazione, e solo a un clic.
+app.use(require('./server/routes/geocode'));
+// Le tessere della mappa (server/routes/tiles.js): lo sfondo OpenStreetMap della
+// vista geografica, scaricato e tenuto in cache DAL SERVER — il browser non parla con
+// nessuno (`img-src 'self'`). Dopo il login come ogni altra rotta.
+app.use(require('./server/routes/tiles'));
 
 // ---- Storico progetto (server/routes/history.js) ----------------------------
 app.use(require('./server/routes/history'));
