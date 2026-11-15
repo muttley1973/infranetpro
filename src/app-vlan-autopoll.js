@@ -1121,8 +1121,10 @@ export function setLinkColor(id,color){
     if(same) return;
     pushHistory();
     if(typeof _promoteLinkToManual==='function') _promoteLinkToManual(l);
-    if(color===null){ delete l.colorOvr; delete l.color; }
-    else { l.colorOvr=color; l.color=color; }
+    // Solo `colorOvr`: `color` è il colore del cavo (un dato, per esempio quello di NetBox) e
+    // scegliere o azzerare il colore della LINEA non lo riscrive né lo cancella.
+    if(color===null){ delete l.colorOvr; }
+    else { l.colorOvr=color; }
     if(typeof _normalizeLinkMetadata==='function') _normalizeLinkMetadata(l);
     renderCables(); renderProps(); markDirty();
 }

@@ -293,7 +293,7 @@ test('cavi: un arco per cavo su layer attivabile; porta<->porta; colore rispetta
   const xml = build({
     links: [
       { id: 'L1', src: 'sw1-1', dst: 'srv1-2' },
-      { id: 'L2', src: 'sw1-3', dst: 'srv1-4', color: '#39d353' },
+      { id: 'L2', src: 'sw1-3', dst: 'srv1-4', colorOvr: '#39d353' },
     ],
   });
   // layer cavi: figlio della root '0', inizialmente NASCOSTO (visible=0), nome "Cavi"
@@ -309,6 +309,14 @@ test('cavi: un arco per cavo su layer attivabile; porta<->porta; colore rispetta
   assert.match(e1, /endArrow=none/);            // un cavo non ha verso
   assert.match(e1, /strokeColor=#9aa5b1/);      // default argento
   assert.match(cellOf(xml, 'cbl_L2'), /strokeColor=#39d353/);   // colore esplicito rispettato
+});
+
+test('cavi: il colore del cavo (`color`, un dato del DCIM) non dipinge l\'arco: lo fa solo `colorOvr`', () => {
+  // Stessa regola della mappa: la linea ha il colore che una persona ha scelto per lei, non quello
+  // che NetBox sa della guaina.
+  const xml = build({ links: [{ id: 'L1', src: 'sw1-1', dst: 'srv1-2', color: '#2196f3' }] });
+  assert.match(cellOf(xml, 'cbl_L1'), /strokeColor=#9aa5b1/);
+  assert.doesNotMatch(cellOf(xml, 'cbl_L1'), /#2196f3/);
 });
 
 test('cavi: tabella per VLAN + click-riga evidenzia il cavo (custom action link)', () => {

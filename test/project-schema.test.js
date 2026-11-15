@@ -197,18 +197,23 @@ test('link.miscabled e\' DERIVATO: lo scrive la Verifica, si ricalcola, e non vi
   assert.deepStrictEqual(state.links[0].miscabled, { observed: 'sw9', declared: 'sw2' }, 'l\'originale non si tocca');
 });
 
-test('link.colorOvr è DOCUMENTO come link.color: sono due nomi dello stesso fatto, e una classe sola', () => {
+test('link.color e link.colorOvr sono entrambi DOCUMENTO: il colore del cavo e il colore scelto per la linea', () => {
   // Lo ha trovato il guard sui progetti VERI (15/11): `projects/29.json`, nato da un import NetBox,
-  // aveva un cavo con `colorOvr` e nessuna classe. `_normalizeLinkMetadata` scrive SEMPRE i due
-  // nomi insieme (color↔colorOvr), quindi ogni cavo colorato ce l'ha; `src/app-link-color.js`
-  // legge `colorOvr` per primo («manual-first: vince sempre»). Stessa storia di `length`/`lengthM`.
-  assert.strictEqual(classifyField('link', 'colorOvr'), 'document');
-  assert.strictEqual(exportActionFor('link', 'colorOvr'), 'keep', 'il colore scelto dalla persona esce nell\'export');
+  // aveva un cavo con `colorOvr` e nessuna classe (allora `_normalizeLinkMetadata` copiava l'uno
+  // nell'altro). Oggi sono due cose: `color` è il colore del cavo come lo dichiara chi lo conosce
+  // (l'import dal DCIM), `colorOvr` il colore che una persona sceglie per dipingere la linea
+  // (`src/app-link-color.js`: «manual-first: vince sempre»). Tutte e due le scrive una persona o
+  // un'importazione dichiarata: escono nell'export.
+  for (const k of ['color', 'colorOvr']) {
+    assert.strictEqual(classifyField('link', k), 'document', `link.${k}`);
+    assert.strictEqual(exportActionFor('link', k), 'keep', `link.${k} esce nell'export`);
+  }
 });
 
 test('i due nomi di uno stesso fatto del cavo (alias di link-model) hanno la stessa classe, e nessuno resta senza', () => {
   const { _normalizeLinkMetadata } = require('../lib/link-model.js');
-  const coppie = [['color', 'colorOvr', '#e60000'], ['length', 'lengthM', 5]];
+  // La lunghezza ha due nomi per lo stesso fatto. Il colore NO: color e colorOvr non sono più alias.
+  const coppie = [['length', 'lengthM', 5]];
   for (const [a, b, esempio] of coppie) {
     for (const dato of [a, b]) {
       const l = { id: 'l1', src: 'a-1', dst: 'b-1', [dato]: esempio };

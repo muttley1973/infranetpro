@@ -10,13 +10,26 @@ test('_normalizeLinkMetadata: alias length↔lengthM nei due versi', () => {
   assert.equal(lm._normalizeLinkMetadata({ lengthM: 7 }).length, 7);
 });
 
-test('_normalizeLinkMetadata: alias category↔cableCategory e color↔colorOvr', () => {
+test('_normalizeLinkMetadata: alias category↔cableCategory', () => {
   const a = lm._normalizeLinkMetadata({ category: 'cat6' });
   assert.equal(a.cableCategory, 'cat6');
+});
+
+test('_normalizeLinkMetadata: color e colorOvr NON sono alias — sono due cose, e nessuna crea l\'altra', () => {
+  // `color` è il colore del cavo come lo dichiara chi lo conosce (l'import dal DCIM lo scrive dal
+  // cavo NetBox): un DATO. `colorOvr` è il colore che una persona sceglie per DIPINGERE la linea
+  // sulla mappa, e vince su quello della VLAN. Copiare l'uno nell'altro faceva dipingere la mappa
+  // col colore di NetBox e mostrava come «scelta a mano» una scelta che nessuno aveva fatto.
   const b = lm._normalizeLinkMetadata({ color: '#f00' });
-  assert.equal(b.colorOvr, '#f00');
+  assert.equal(b.color, '#f00');
+  assert.ok(!('colorOvr' in b), 'il colore del cavo non diventa un override della linea');
   const c = lm._normalizeLinkMetadata({ colorOvr: '#0f0' });
-  assert.equal(c.color, '#0f0');
+  assert.equal(c.colorOvr, '#0f0');
+  assert.ok(!('color' in c), 'un colore scelto per la linea non diventa il colore del cavo');
+  // E se ci sono entrambi (un progetto salvato prima di questa regola) non si toccano: un dato salvato
+  // non si riscrive in silenzio.
+  const d = lm._normalizeLinkMetadata({ color: '#2196f3', colorOvr: '#2196f3' });
+  assert.deepStrictEqual([d.color, d.colorOvr], ['#2196f3', '#2196f3']);
 });
 
 test('_normalizeLinkMetadata: cableType vuoto viene rimosso, valido viene trimmato', () => {

@@ -145,11 +145,9 @@ export function setLinkProp(id, key, val){
     if(v===''||v===null||v===undefined) {
         delete l[key];
         if(key==='length') delete l.lengthM;
-        if(key==='colorOvr') delete l.color;
     } else {
         l[key]=v;
         if(key==='length') l.lengthM = v;
-        if(key==='colorOvr') l.color = v;
     }
     _normalizeLinkMetadata(l);
     markDirty();

@@ -787,7 +787,26 @@ export function _renderLinkProps(panel){
                        value="${escapeHTML(l.length!=null?l.length:'')}"
                        placeholder="${t('pnl.gen.lengthPh')}" ${lockAttr}
                        data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="length" data-coerce="num">
-              </div>
+              </div>${(()=>{
+                // Il colore del cavo come DATO (quello che l'import dal DCIM legge da NetBox): sola
+                // lettura, e non dipinge la linea — per quello c'è «Override colore». Il campione
+                // compare solo se il valore è un esadecimale: un valore diverso resta testo.
+                // Attaccato alla chiusura del gruppo precedente: senza colore non aggiunge nemmeno
+                // una riga vuota, e il pannello dei cavi che non ce l'hanno resta identico.
+                const _own = (typeof l.color==='string') ? l.color.trim() : '';
+                if(!_own) return '';
+                const _ownHex = /^#[0-9a-fA-F]{3,8}$/.test(_own) ? _own : '';
+                return `
+
+              <div class="prop-group">
+                <label>${t('cable.colorOwn')}</label>
+                <div style="display:flex;align-items:center;gap:6px;font-size:var(--fs-xs)">
+                  ${_ownHex?`<span style="display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid var(--panel-border);background:${escapeHTML(_ownHex)}"></span>`:''}
+                  <span>${escapeHTML(_own)}</span>
+                </div>
+                <div style="font-size:var(--fs-2xs);color:var(--text-muted);margin-top:3px">${t('cable.colorOwnNote')}</div>
+              </div>`;
+              })()}
 
               <div class="prop-group">
                 <label>${t('cable.installedAt')}</label>

@@ -182,6 +182,15 @@ test('colore: senza VLAN vince il colore manuale del cavo (colorOvr)', () => {
   assert.equal(res.pairs[0].color, '#ff0000');
 });
 
+test('colore: il colore del cavo (`color`, un dato del DCIM) NON dipinge la linea: solo `colorOvr` lo fa', () => {
+  const senza = buildTopoLines(baseModel({ links: [{ id: 'l1', src: 'sw1-1', dst: 'sw2-1' }] }));
+  const conDato = buildTopoLines(baseModel({
+    links: [{ id: 'l1', src: 'sw1-1', dst: 'sw2-1', color: '#2196f3' }],
+  }));
+  assert.notEqual(conDato.pairs[0].color, '#2196f3', 'il colore di NetBox non è una scelta di chi disegna');
+  assert.equal(conDato.pairs[0].color, senza.pairs[0].color, 'con o senza il dato la linea è dipinta uguale');
+});
+
 test('colore: catena (chainColors) come fallback dopo il manuale', () => {
   const res = buildTopoLines(baseModel({
     links: [{ id: 'l1', src: 'sw1-1', dst: 'sw2-1' }],
