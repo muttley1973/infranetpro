@@ -961,6 +961,12 @@ export function applyPollResult(nodeId, data, opts={}){
     // Su poll FALLITO non si tocca: non si e' misurato ne' smentito (come l'inventario).
     if(data.ok !== false){
         n.integration.stp = (data.stp && typeof data.stp === 'object') ? { ...data.stp, at: _pollAt } : null;
+        // Cluster HA letto dal dispositivo (il lettore del suo fornitore, solo dove esiste): una EVIDENZA —
+        // chi sono i membri e chi e' primario — da cui PROPORRE la coppia, mai la dichiarazione dell'utente
+        // (haPeer/haRole/haGroupId non si toccano). Chi non ne ha una lettura valida non porta la chiave:
+        // «non letto» non e' «non e' in un cluster», ma una chiave a null su ogni nodo sarebbe solo rumore.
+        if(data.cluster && typeof data.cluster === 'object') n.integration.cluster = { ...data.cluster, at: _pollAt };
+        else delete n.integration.cluster;
     }
     n.integration.lastPoll = _pollAt;
     // Auto-nome gruppi snmp-lag dall'aggregatore (es. "Port-channel1", "bond0", "LAG1")

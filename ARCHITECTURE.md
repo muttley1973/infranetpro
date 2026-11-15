@@ -907,6 +907,28 @@ mark on another brand. Two limits came out of it, and they are written down rath
   counter is the signal that shows it — a value that keeps climbing on a switch whose ports have not
   moved.
 
+### A cluster read from the device, as evidence
+
+High availability is declared by hand (`spec.haPeer`, `haRole`, `haGroupId`: `lib/ha-pair.js`), and the
+declaration stays the law. What the poll can add is the device's own account of its cluster, kept next
+to the declaration and never over it. There is no standard OID for "these are the members of my
+cluster" — the VRRP-MIB describes groups of virtual addresses, not units — so each vendor publishes its
+own table and the reader is per vendor, written only from a real capture. Today there is one, for the
+FortiGate cluster (FGCP), measured on two FortiGate-VM 7.0.3 on 15 November 2026: read through the
+cluster address, whose answer lists every unit.
+
+The reader is chosen by the enterprise number in `sysObjectID`, which the base walk has already read,
+and only then is the vendor table walked in a pass of its own: every other device pays nothing, which
+matters because a family an agent does not implement is not "not found" but silent, two timeouts each.
+Like the spanning-tree reading it holds as a whole or is `null` ("not read" — not "not in a cluster"):
+an unknown mode, a standalone unit, a row without a valid serial number or a repeated one discards
+everything, and the primary is named only when every row names the same serial and that serial is one
+of the members read — never the first that happens to come. The result is `integration.cluster`
+(`kind`, `mode`, `group`, `primarySerial`, and per member the serial, the name, `primary` and `inSync`
+with `null` meaning unknown), a measurement with its date that the next successful poll replaces or
+removes. It is not shown and not judged yet; it is the evidence from which a failover can be told from
+a replaced unit and a pair can be *proposed*.
+
 ### A VLAN that was never declared
 
 The SNMP reader used to close every interface with `vlan: f.vlan || 1`. A device that
@@ -1428,7 +1450,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,419 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,430 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

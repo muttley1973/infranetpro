@@ -150,7 +150,10 @@ test('CRICCHETTO — la classifica non elenca campi mai visti in nessun progetto
     // Lo spanning-tree (10/11): `integration.stp` e `ports[].stpBlocked` li scrive SOLO il poll di uno switch
     // che pubblica una lettura STP valida (BRIDGE-MIB, albero predefinito); il censimento del 28/08 e' di
     // prima. Misure, non dichiarazioni: non escono nell'export.
-    'stp', 'stpBlocked']);
+    'stp', 'stpBlocked',
+    // Il cluster HA letto dal dispositivo (15/11): `integration.cluster` lo scrive SOLO il poll di un apparato il
+    // cui fornitore ha un lettore (oggi FortiGate); sui progetti di prima non c'e'. Misura: non esce nell'export.
+    'cluster']);
   for (const scope of Object.keys(CENSUS)) {
     const visti = new Set(keysOf(scope));
     const extra = Object.keys(FIELD_CLASS_BY_SCOPE[scope]).filter(k => !visti.has(k) && !attesi.has(k));

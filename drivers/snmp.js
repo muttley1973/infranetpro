@@ -691,6 +691,93 @@ function extractStp(vbs, ctx) {
   return out;
 }
 
+// ---- Cluster HA letto dal dispositivo (lettori per fornitore) -------------------------------------
+//
+// Non esiste un OID STANDARD che dica «questo apparato fa parte di un cluster con QUESTI membri»: il
+// VRRP-MIB (RFC 6527) descrive i gruppi di indirizzi virtuali, non le unita'. Ogni fornitore pubblica la
+// sua tabella, quindi un lettore per enterprise — e SOLO quello dell'enterprise che il sysObjectID
+// dichiara viene camminato: sugli altri apparati il costo e' zero (una famiglia muta costa due timeout,
+// vedi i tetti di walkSession). Un lettore si scrive da una cattura VERA, mai dalla documentazione: oggi
+// c'e' solo quello del cluster FGCP di Fortinet (provato su due FortiGate-VM 7.0.3, 15/11/2026).
+//
+// Come per lo STP, la lettura e' VALIDA per intero o `null`: «non letto» non vuol dire «non e' in un
+// cluster». Il risultato e' una EVIDENZA da cui proporre la coppia — non la dichiarazione dell'utente.
+// ⚠️ Sul cluster di FortiGate si legge dall'indirizzo del cluster: risponde il primario e la sua tabella
+// elenca TUTTE le unita' (il secondario, da solo, non risponde sulle interfacce dati).
+const FORTINET_HA_BASE = '1.3.6.1.4.1.12356.101.13';       // fgHaInfo
+const _FGCP_MODE = { 2: 'active-active', 3: 'active-passive' };   // 1 = standalone: non e' un cluster
+
+// Testo stampabile non vuoto, o '' (mai un valore a meta'). `spaces` = ammessi gli spazi (un nome si', una serie no).
+function _stpText(v, max, spaces) {
+  if (!Buffer.isBuffer(v) && typeof v !== 'string') return '';
+  const s = (Buffer.isBuffer(v) ? v.toString('latin1') : v).trim();
+  if (!s || s.length > max) return '';
+  return (spaces ? /^[\x20-\x7e]+$/ : /^[\x21-\x7e]+$/).test(s) ? s : '';
+}
+
+function _extractFortinetCluster(vbs) {
+  const P = FORTINET_HA_BASE + '.';
+  const sc = {};      // scalari: 1.<oggetto>.0 (modo `.1`, nome del gruppo `.7`)
+  const rows = {};    // fgHaStatsEntry: 2.1.1.<colonna>.<riga>
+  for (const [oid, val] of Object.entries(vbs || {})) {
+    if (!oid.startsWith(P)) continue;
+    const x = oid.slice(P.length).split('.');
+    if (x.length === 3 && x[0] === '1' && x[2] === '0') sc[x[1]] = val;
+    else if (x.length === 5 && x[0] === '2' && x[1] === '1' && x[2] === '1') (rows[x[4]] ??= {})[x[3]] = val;
+  }
+  const mode = sc['1'] === undefined ? null : _FGCP_MODE[bufToInt(sc['1'])];
+  if (!mode) return null;
+  const members = [];
+  const primaries = new Set();
+  const seen = new Set();
+  for (const idx of Object.keys(rows).sort((a, b) => a - b)) {
+    const r = rows[idx];
+    const serial = _stpText(r['2'], 32, false);
+    if (!serial || seen.has(serial)) return null;      // una riga senza serie valida, o ripetuta: la tabella e' guasta
+    seen.add(serial);
+    const m = { serial };
+    const name = _stpText(r['11'], 64, true);
+    if (name) m.name = name;
+    const sync = r['12'] === undefined ? null : bufToInt(r['12']);
+    m.inSync = sync === 1 ? true : sync === 0 ? false : null;
+    const prim = _stpText(r['16'], 32, false);
+    if (prim) primaries.add(prim);
+    members.push(m);
+  }
+  if (!members.length) return null;
+  // Il primario e' quello che TUTTE le righe nominano e che e' fra i membri letti. Righe discordi, o una
+  // serie che nessun membro ha: non si sa — mai il primo che capita.
+  const only = primaries.size === 1 ? [...primaries][0] : null;
+  const primarySerial = only && seen.has(only) ? only : null;
+  for (const m of members) m.primary = primarySerial ? m.serial === primarySerial : null;
+  const out = { kind: 'fortinet-fgcp', mode };
+  const group = _stpText(sc['7'], 64, true);
+  if (group) out.group = group;
+  if (primarySerial) out.primarySerial = primarySerial;
+  out.members = members;
+  return out;
+}
+
+const CLUSTER_READERS = [
+  { enterprise: '12356', base: FORTINET_HA_BASE, extract: _extractFortinetCluster },
+];
+
+// L'enterprise (PEN) del sysObjectID letto nella walk di base: `1.3.6.1.4.1.<PEN>.…`.
+function _enterpriseOf(vbs) {
+  const v = vbs && vbs[`${OID.sysObjectID}.0`];
+  const m = /^1\.3\.6\.1\.4\.1\.(\d+)(?:\.|$)/.exec(typeof v === 'string' ? v : '');
+  return m ? m[1] : null;
+}
+function _clusterReaderFor(vbs) {
+  const e = _enterpriseOf(vbs);
+  return e ? (CLUSTER_READERS.find(r => r.enterprise === e) || null) : null;
+}
+/** Lettura valida del cluster HA, o `null` («non letto»). Pura/testabile. */
+function extractCluster(vbs) {
+  const r = _clusterReaderFor(vbs);
+  return r ? r.extract(vbs) : null;
+}
+
 // ---- Printer-MIB ----------------------------------------------------------
 const _PRT_STATUS ={ 1: 'other', 2: 'unknown', 3: 'idle', 4: 'printing', 5: 'warmup' };
 const _PRT_TYPE   = { 3: 'toner', 4: 'wasteToner', 5: 'ink', 6: 'inkCartridge', 8: 'opc',
@@ -1772,6 +1859,7 @@ function extractData(vbs) {
   // Spanning-tree: lettura valida o null («non letto»). Dopo le interfacce perche' chiede
   // i loro nomi, lo stato e i MAC; `ifaces` e' la mappa GREZZA (ifIndex → campi), non `physical`.
   const stp = extractStp(vbs, { bpToIf, ifaces });
+  const cluster = extractCluster(vbs);
   // La porta bloccata si scrive sulla PORTA, accanto a adminDown/operUp (stessa scadenza:
   // lib/port-state.js `forgetPortMeasure`). Un aggregatore bloccato non e' una porta del
   // documento: resta nell'elenco `stp.blocked`, per nome, e non si spalma sui suoi membri.
@@ -1783,7 +1871,7 @@ function extractData(vbs) {
   const ip6 = _ownIp6FromVbs(vbs);
 
   snmpDebug(`  [VLANS] ${hostname||'?'}: ${vlansOut.length} VLAN rilevate (PVID+egress+trunk): [${vlansOut.join(',')}]`);
-  return { hostname, interfaces: physical, lags, subInterfaces: subIfs, vlans: vlansOut, vlanNames, inventory, system, printer, hostResources, stp, ip6 };
+  return { hostname, interfaces: physical, lags, subInterfaces: subIfs, vlans: vlansOut, vlanNames, inventory, system, printer, hostResources, stp, cluster, ip6 };
 }
 
 // ---- Session factory -------------------------------------------------------
@@ -1866,6 +1954,13 @@ async function poll(cfg) {
     // in un passaggio supplementare. Stack robusti → concorrenza di default ok.
     if (cfg.hostResources) {
       await _runWalks(session, HOSTRES_BASES, vbs, 'SNMP-HR', WALK_CONCURRENCY, { deadline: _walkDeadline(timeout, 5, 25000) });
+    }
+    // Cluster HA: la tabella del fornitore si cammina SOLO se l'enterprise del sysObjectID (gia' letto
+    // nella walk di base) ha un lettore — sugli altri apparati non costa nulla. Un secondo passaggio
+    // suo, a budget fresco: un agente muto sulla MIB HA non deve affamare il resto.
+    const clusterReader = _clusterReaderFor(vbs);
+    if (clusterReader) {
+      await _runWalks(session, [clusterReader.base], vbs, 'SNMP-HA', 1, { deadline: _walkDeadline(timeout, 5, 25000) });
     }
     return extractData(vbs);
   } finally {
@@ -2693,7 +2788,7 @@ module.exports._internals = {
   extractNeighbors, N_OID,
   bufToStr, bufToInt, decodePortList, isRealMac, macToStr, macFromText, lldpMac,
   logicalLagIdFromName, lastIdx, extractData, extractEntityInventory,
-  extractSystem, extractStp, _formatUptime, extractPrinter, _supplyColorKey,
+  extractSystem, extractStp, extractCluster, _formatUptime, extractPrinter, _supplyColorKey,
   extractHostResources, _isPathPrefix, OID, PRT_OID, HR_OID, _oidGt,
   _v3RemoteEngineDiscovered, _runWalks, FDB_RETRY_BASES, _walkDeadline,
   _ownIp4FromVbs, _ipv4FromAddrOid, _isUsableOwnIp4, _createSnmpSession,
