@@ -940,6 +940,15 @@ the **only** identity difference (a different model on top is a different story)
 no cluster reading, or a serial the cluster does not name, stays "device replaced" exactly as before. It
 was seen on the lab on 15 November 2026, on the real cluster that had swapped its primary by itself.
 
+The same row can also be explained by the **document**, for any brand and with no reader at all: when
+you declared the pair (both sides name each other) or put the units in one cluster group, and you wrote
+the serial number of the partner too, a serial that answers and is the partner's is the partner
+answering. The snapshot carries each node's declared partners with their serials (`haPartners`; a pair
+declared from one side only is not a declared pair, and a partner with no serial proves nothing), and the
+report applies the same single-difference rule. When the device did list its cluster, that reading wins —
+it is the device's word, not our deduction — and the row says which of the two proved it
+(`failover.source`: `cluster` or `declared`).
+
 ### A VLAN that was never declared
 
 The SNMP reader used to close every interface with `vlan: f.vlan || 1`. A device that
@@ -1461,7 +1470,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,441 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,454 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

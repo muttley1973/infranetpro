@@ -744,7 +744,7 @@ test('failover: serie documentata e serie letta sono membri dello stesso cluster
   assert.equal(r.counts.identityFirmware, 0, 'e non e\' nemmeno «solo firmware»');
   const row = r.identityDrift[0];
   assert.equal(row.identity, false);
-  assert.deepEqual(row.failover, { group: 'LAB-HA', mode: 'active-passive', docName: 'FGT-B', realName: 'FGT-A' });
+  assert.deepEqual(row.failover, { source: 'cluster', group: 'LAB-HA', mode: 'active-passive', docName: 'FGT-B', realName: 'FGT-A' });
   assert.equal(row.diffs.find(d => d.field === 'serialNumber').kind, 'failover');
   assert.equal(row.patch, null, 'niente «adotta»: riscriverebbe la serie documentata con quella dell\'altra unita\'');
   assert.equal(driftBannerKind(r.counts, r), 'aligned', 'un failover non allarma il banner');
@@ -796,6 +796,71 @@ test('failover + firmware diverso: la riga resta un failover, non diventa «firm
 test('failover: un membro senza nome non fa inventare un nome', () => {
   const r = _failover('SER-B', 'SER-A', { cluster: { group: 'G', mode: 'active-passive', members: [{ serial: 'SER-A' }, { serial: 'SER-B' }] } });
   assert.equal('docName' in r.identityDrift[0].failover, false);
+  assert.equal('realName' in r.identityDrift[0].failover, false);
+});
+
+// ── FAILOVER spiegato dal DOCUMENTO: la coppia HA dichiarata e le sue due serie ───────────────
+// Vale per QUALUNQUE marca, senza nessun lettore: se la serie che risponde e' quella che l'utente stesso ha
+// documentato per il COMPAGNO di una coppia (o di un cluster) che ha dichiarato, e' cambiata l'unita' che
+// risponde, non e' stato sostituito niente. La prova e' il documento: due serie scritte, una coppia dichiarata.
+function _declared(docId, realId, partners, { docExtra = {}, realExtra = {}, cluster = null } = {}) {
+  return buildDriftReport(
+    { responded: { fw: true }, measuredIds: { fw: { serialNumber: realId, ...realExtra, ...(cluster ? { cluster } : {}) } } },
+    { identities: [{ nodeId: 'fw', label: 'FW-B', serialNumber: docId, ...(partners ? { haPartners: partners } : {}), ...docExtra }] }, [], {});
+}
+const _PA = [{ nodeId: 'fw2', name: 'FW-A', serialNumber: 'SER-A' }];
+
+test('failover dichiarato: la serie che risponde e\' quella del compagno di coppia → informativo, senza lettore', () => {
+  const r = _declared('SER-B', 'SER-A', _PA);
+  assert.equal(r.counts.identityDrift, 0);
+  assert.equal(r.counts.identityFirmware, 0);
+  const row = r.identityDrift[0];
+  assert.equal(row.identity, false);
+  assert.deepEqual(row.failover, { source: 'declared', docName: 'FW-B', realName: 'FW-A' });
+  assert.equal(row.diffs.find(d => d.field === 'serialNumber').kind, 'failover');
+  assert.equal(row.patch, null, 'niente «adotta»');
+  assert.equal(driftBannerKind(r.counts, r), 'aligned');
+});
+
+test('failover dichiarato: se la serie che risponde NON e\' quella di nessun compagno, resta un apparato sostituito', () => {
+  const r = _declared('SER-B', 'SER-Z', _PA);
+  assert.equal(r.counts.identityDrift, 1);
+  assert.equal(r.identityDrift[0].identity, true);
+  assert.equal(r.identityDrift[0].failover, undefined);
+});
+
+test('failover dichiarato: senza compagni dichiarati non si inventa (come prima)', () => {
+  assert.equal(_declared('SER-B', 'SER-A', null).counts.identityDrift, 1);
+  assert.equal(_declared('SER-B', 'SER-A', []).counts.identityDrift, 1);
+});
+
+test('failover dichiarato: con un cluster di tre unita\' basta che la serie sia di UNO dei compagni', () => {
+  const trio = [{ nodeId: 'a', name: 'W-A', serialNumber: 'SER-A' }, { nodeId: 'c', name: 'W-C', serialNumber: 'SER-C' }];
+  const r = _declared('SER-B', 'SER-C', trio);
+  assert.equal(r.counts.identityDrift, 0);
+  assert.equal(r.identityDrift[0].failover.realName, 'W-C');
+});
+
+test('failover dichiarato: le serie si confrontano senza badare a spazi e maiuscole', () => {
+  const r = _declared('SER-B', ' ser-a ', _PA);
+  assert.equal(r.counts.identityDrift, 0);
+});
+
+test('failover dichiarato: se cambia anche il MODELLO resta un apparato sostituito', () => {
+  const r = _declared('SER-B', 'SER-A', _PA, { docExtra: { model: 'FW-100' }, realExtra: { model: 'FW-200' } });
+  assert.equal(r.counts.identityDrift, 1);
+  assert.equal(r.identityDrift[0].failover, undefined);
+});
+
+test('failover: se il dispositivo ha elencato il cluster, la prova e\' LA SUA (source cluster), non quella del documento', () => {
+  const cl = { group: 'G', mode: 'active-passive', members: [{ serial: 'SER-A', name: 'FGT-A' }, { serial: 'SER-B', name: 'FGT-B' }] };
+  const r = _declared('SER-B', 'SER-A', _PA, { cluster: cl });
+  assert.equal(r.identityDrift[0].failover.source, 'cluster');
+  assert.equal(r.identityDrift[0].failover.realName, 'FGT-A');
+});
+
+test('failover dichiarato: un compagno senza nome non fa inventare un nome', () => {
+  const r = _declared('SER-B', 'SER-A', [{ nodeId: 'fw2', name: '', serialNumber: 'SER-A' }]);
   assert.equal('realName' in r.identityDrift[0].failover, false);
 });
 

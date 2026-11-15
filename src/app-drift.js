@@ -764,7 +764,7 @@ export function _driftRowHtml(cat, r){
         const badge = r.identity
             ? `<span class="drift-why"><span class="drift-why-tag drift-id-swap" title="${esc(t('drift.idSwapTip'))}"><i class="fas fa-triangle-exclamation"></i> ${esc(t('drift.idSwap'))}</span></span>`
             : _fo
-                ? `<span class="drift-why"><span class="drift-why-tag" title="${esc(t('drift.idFailoverTip', { from: _fo.docName || _sd.doc || '?', to: _fo.realName || _sd.real || '?' }))}"><i class="fas fa-right-left"></i> ${esc(t('drift.idFailover'))}</span></span>`
+                ? `<span class="drift-why"><span class="drift-why-tag" title="${esc(t(_fo.source === 'declared' ? 'drift.idFailoverDeclaredTip' : 'drift.idFailoverTip', { from: _fo.docName || _sd.doc || '?', to: _fo.realName || _sd.real || '?' }))}"><i class="fas fa-right-left"></i> ${esc(t('drift.idFailover'))}</span></span>`
                 : `<span class="drift-why"><span class="drift-why-tag" title="${esc(t('drift.idFwTip'))}">${esc(t('drift.idFwOnly'))}</span></span>`;
         main = `<span class="drift-row-main">${esc(r.label)}</span><span class="drift-row-sub">${diffs}</span>${badge}`;
         const applyBtn = r.patch

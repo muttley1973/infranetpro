@@ -516,6 +516,48 @@ test('snmpSnap: measuredIds solo dai device che HANNO risposto (inventory persis
   assert.equal(s.measuredIds.sw1.serialNumber, 'ABC123');
 });
 
+// ── i compagni HA DICHIARATI e le loro serie viaggiano con l'identità documentata ───────────
+const _ha = (id, name, serial, spec = {}) => ({ id, name, serialNumber: serial, spec, ip: '', mac: '' });
+const _docIds = (nodes) => buildDocSnapshot({ nodes, links: [], ports: {}, normMac: lower, nodeLabel: n => n.name || n.id }).identities;
+
+test('docSnap: una coppia HA dichiarata da entrambi i lati porta le serie dei compagni', () => {
+  const ids = _docIds([_ha('fw1', 'FW-A', 'SER-A', { haPeer: 'fw2' }), _ha('fw2', 'FW-B', 'SER-B', { haPeer: 'fw1' })]);
+  assert.deepEqual(ids.find(x => x.nodeId === 'fw2').haPartners, [{ nodeId: 'fw1', name: 'FW-A', serialNumber: 'SER-A' }]);
+  assert.deepEqual(ids.find(x => x.nodeId === 'fw1').haPartners, [{ nodeId: 'fw2', name: 'FW-B', serialNumber: 'SER-B' }]);
+});
+
+test('docSnap: una coppia dichiarata da un lato solo NON e\' una coppia dichiarata', () => {
+  const ids = _docIds([_ha('fw1', 'FW-A', 'SER-A', { haPeer: 'fw2' }), _ha('fw2', 'FW-B', 'SER-B', {})]);
+  assert.equal('haPartners' in ids.find(x => x.nodeId === 'fw1'), false);
+  assert.equal('haPartners' in ids.find(x => x.nodeId === 'fw2'), false);
+});
+
+test('docSnap: in un cluster (stesso gruppo) i compagni sono gli ALTRI membri, solo quelli con una serie', () => {
+  const ids = _docIds([
+    _ha('a', 'W-A', 'SER-A', { haGroupId: 'g' }), _ha('b', 'W-B', 'SER-B', { haGroupId: 'g' }),
+    _ha('c', 'W-C', '', { haGroupId: 'g', model: 'x' }), _ha('z', 'ALTRO', 'SER-Z', { haGroupId: 'altro' }),
+  ]);
+  assert.deepEqual(ids.find(x => x.nodeId === 'a').haPartners, [{ nodeId: 'b', name: 'W-B', serialNumber: 'SER-B' }],
+    'W-C non ha una serie documentata, ALTRO e\' di un altro gruppo');
+});
+
+test('docSnap: chi non e\' in HA non porta la chiave (gli snapshot di prima restano identici)', () => {
+  const ids = _docIds([_ha('sw', 'SW', 'S1')]);
+  assert.equal('haPartners' in ids[0], false);
+});
+
+test('round-trip: la coppia dichiarata spiega il failover SENZA nessuna lettura del cluster', () => {
+  const nodes = [
+    { ..._ha('fw1', 'FW-A', 'SER-A', { haPeer: 'fw2' }), ip: '10.0.0.1' },
+    { ..._ha('fw2', 'FW-B', 'SER-B', { haPeer: 'fw1' }), ip: '10.0.0.50', snmpStatus: 'ok', integration: { host: '10.0.0.50', inventory: { serialNumber: 'SER-A' } } },
+  ];
+  const doc = buildDocSnapshot({ nodes, links: [], ports: {}, normMac: lower, nodeLabel: n => n.name });
+  const snmp = buildSnmpSnapshot({ nodes, docPorts: doc.ports, ports: {} });
+  const r = buildDriftReport(snmp, doc, [], {});
+  assert.equal(r.counts.identityDrift, 0);
+  assert.deepEqual(r.identityDrift[0].failover, { source: 'declared', docName: 'FW-B', realName: 'FW-A' });
+});
+
 test('snmpSnap: i membri del cluster letto viaggiano con l\'identità misurata, solo se il device ha risposto', () => {
   const cluster = { kind: 'fortinet-fgcp', mode: 'active-passive', group: 'LAB-HA', primarySerial: 'SER-A', at: '2026-11-15T10:00:00Z',
     members: [{ serial: 'SER-A', name: 'FGT-A', primary: true, inSync: true }, { serial: 'SER-B', name: 'FGT-B', primary: false, inSync: true }] };
