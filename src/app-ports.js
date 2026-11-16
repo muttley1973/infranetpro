@@ -21,6 +21,7 @@ import { escapeHTML, uid, normalizePortStatus, hasPortStatus, hasPortVlan, portA
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _patchPanelOffset } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { radioLabelForPid } from '../lib/radio.js';   // il nome di una radio sta sul modello, non nel pid
 import { forgetFromRead } from '../lib/field-provenance.js';   // la regola: scrivere/ripristinare a mano toglie la provenienza «copiato dalla lettura»
+import { portStpBlockedState } from '../lib/port-state.js';   // «questa porta è bloccata da STP?» (diretta o membro di un aggregato): una definizione sola
 import { propagateVlans, _effPortVlan, _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -500,7 +501,8 @@ export function portTip(pid){
     }
     // Lo spanning-tree la tiene in blocco: la PAROLA (e l'ambito) sul LED, perche' il segno da solo
     // obbliga a chiedere cosa vuol dire. La stessa lettura del chip nel pannello porta.
-    if(pi.stpBlocked === 'blocking' || pi.stpBlocked === 'broken') parts.push(t('port.stpTitle', { state: pi.stpBlocked }));
+    const _stpBlk = portStpBlockedState(pid, state.ports, state.lagGroups);
+    if(_stpBlk) parts.push(t('port.stpTitle', { state: _stpBlk }));
     return parts.join(' · ');
 }
 
