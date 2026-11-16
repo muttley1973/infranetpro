@@ -839,6 +839,9 @@ function exportDrawio(){
             // Porte spente a mano / senza link: STESSA regola del rack a schermo
             // (lib/port-state.js, <script> caricato prima di questo).
             portShade:          (typeof portShade === 'function')          ? portShade          : null,
+            // Spanning-tree in blocco (anche come membro di un aggregato): STESSA regola del rack
+            // (lib/port-state.js). Serve a disegnare la diagonale sul LED della porta.
+            stpBlocked:         pid => (typeof portStpBlockedState === 'function') ? !!portStpBlockedState(pid, state.ports, state.lagGroups) : false,
             isAbsent:           n => _absentIds.has(n.id) && n.snmpStatus !== 'ok',
             // Colore cavo = stessa convenzione della vista live (topologia/fanout):
             // override manuale, poi colore VLAN; null -> il builder usa il default.
@@ -1026,6 +1029,13 @@ function _buildRackSVG(rackId, opts){
             const px = cx - pSize / 2, py = ledCenterY - pSize / 2;
             let g = `<g><title>${safe(portName(pid))} - VLAN ${safe(vlan)}${lag ? ' - LAG' : ''}</title>`
                 +`<rect x="${px.toFixed(1)}" y="${py.toFixed(1)}" width="${pSize.toFixed(1)}" height="${pSize.toFixed(1)}" rx="1.2" fill="${ledFill}" stroke="#334155" stroke-width="0.55"/>`;
+            // Spanning-tree in blocco (anche come membro di un Port-channel bloccato): una diagonale
+            // sottile sul LED, da vertice a vertice, come sul rack dal vivo. La regola è una sola
+            // (lib/port-state.js): qui l'export dice la stessa cosa dello schermo, non meno.
+            if(typeof portStpBlockedState === 'function' && portStpBlockedState(pid, state.ports, state.lagGroups)){
+                const dsw = Math.max(0.35, pSize * 0.12), di = dsw / 2;
+                g += `<line x1="${(px+di).toFixed(1)}" y1="${(py+di).toFixed(1)}" x2="${(px+pSize-di).toFixed(1)}" y2="${(py+pSize-di).toFixed(1)}" stroke="#11161c" stroke-width="${dsw.toFixed(2)}" stroke-linecap="round"/>`;
+            }
             // Numero dentro il LED: font proporzionale (più stretto per 2 cifre),
             // colore scuro per contrasto sui LED colorati. Nascosto se il LED è
             // troppo piccolo per contenerlo in modo leggibile.

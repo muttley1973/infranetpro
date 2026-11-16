@@ -148,6 +148,27 @@ test('export: la distinta cavi del dossier porta il colore DEL CAVO, non l\'over
     'il colore del cavo (color) resta nella distinta');
 });
 
+test('export: una porta bloccata da STP porta la diagonale nel rack del dossier', () => {
+  // Lo stesso segno del rack dal vivo: una diagonale (#11161c) sul LED della porta che lo
+  // spanning-tree tiene in blocco. Prima non c'era — gli export disegnavano le tinte ma non il blocco.
+  const out = run(APP.ctx, `(() => {
+    try {
+      ${SETUP}
+      const _sw = state.nodes.find(n => n.id === 'sw');
+      const _rackId = _sw.rackId;
+      const svgOf = () => (_exportInternals._buildRackSVG(_rackId, { pdfMode:true }) || {}).svg || '';
+      const before = svgOf();
+      state.ports[_sw.id + '-1'] = Object.assign(state.ports[_sw.id + '-1'] || {}, { stpBlocked: 'blocking' });
+      const after = svgOf();
+      return JSON.stringify({ ok:true, beforeHas: before.includes('#11161c'), afterHas: after.includes('#11161c') });
+    } catch(e){ return JSON.stringify({ ok:false, err:String(e&&e.stack||e) }); }
+  })()`);
+  const r = JSON.parse(out);
+  assert.ok(r.ok, 'il builder lancia: ' + r.err);
+  assert.ok(!r.beforeHas, 'senza blocchi non c\'è nessuna diagonale nel rack');
+  assert.ok(r.afterHas, 'con una porta bloccata la diagonale compare nel rack del dossier');
+});
+
 test('export: «apparato sostituito» nel dossier solo da una misura RICONFERMATA', () => {
   // Il capitolo Ripristino scriveva «sostituito» confrontando il seriale dichiarato
   // con quello misurato, senza guardare l'ETÀ della misura. Se la walk ENTITY-MIB si

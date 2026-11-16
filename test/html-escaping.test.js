@@ -340,8 +340,16 @@ test('scanner: il corpus non è vuoto (il cricchetto non è vacuo)', () => {
 // generati, frammenti gia' controllati dove nascono, o il limite dichiarato dello
 // scanner sui parametri di funzione.
 const CAPS = {
-    'export.js': 149,
-    'lib/drawio-export.js': 21,
+    // +4 (16/11): la diagonale dello spanning-tree su una porta bloccata nel rack del dossier.
+    // Sono NUMERI — le coordinate dei due vertici e lo spessore, via `.toFixed()`, dalla geometria
+    // pura del LED; nessun testo le attraversa, come le altre coordinate di questo export.
+    'export.js': 153,
+    // +5 (16/11): la diagonale dello spanning-tree su una porta bloccata (`_stpDiag`). Sono
+    // NUMERI — le quattro coordinate dei due vertici e lo spessore passano da `_n()`
+    // (arrotondamento a 0.01) e vengono dalla geometria pura della porta; l'id e il parent
+    // passano da `_escXml`. Nessun testo di nessuno le attraversa. Stessa natura e stessa
+    // ragione dei residui qui sotto: lo scanner non sa che `_n` è il number-prover di questo file.
+    'lib/drawio-export.js': 26,
     // La mappa inter-sede del dossier (2.11). I 25 residui sono NUMERI, tutti:
     // le coordinate passano da `_n()` — arrotondamento a 0.01 — e la misura del
     // viewBox da `W`/`H`, che vengono dal layout puro (lib/inter-site-layout.js,

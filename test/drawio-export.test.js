@@ -40,6 +40,19 @@ function uobjOf(xml, id) {
   return m ? m[0] : null;
 }
 
+test('porte: lo spanning-tree in blocco disegna una diagonale (anche via l\'aggregato, da H.stpBlocked)', () => {
+  // In draw.io una porta è una scatola: il blocco è un mxCell «linea» a parte, da vertice a vertice.
+  // Chi è bloccato lo dice H.stpBlocked (nel prodotto = lib/port-state.js, membri inclusi): qui lo
+  // stub ne blocca una sola, e la diagonale compare solo su quella.
+  const xml = build({
+    helpers: { types: TYPES, hasSnmpIntegration: n => !!n.snmpStatus, stpBlocked: pid => pid === 'sw1-2' },
+  });
+  assert.match(xml, /id="sw1-2__stp"/, 'la porta bloccata ha la diagonale');
+  assert.match(cellOf(xml, 'sw1-2__stp') || '', /strokeColor=#11161c/, 'la diagonale è scura come sul rack');
+  assert.match(cellOf(xml, 'sw1-2__stp') || '', /edge="1"/, 'è una linea, non una scatola');
+  assert.doesNotMatch(xml, /id="sw1-1__stp"/, 'una porta non bloccata non porta il segno');
+});
+
 test('root: <mxfile> con host', () => {
   const xml = build();
   assert.match(xml, /^<mxfile host="InfraNetPro">/);
