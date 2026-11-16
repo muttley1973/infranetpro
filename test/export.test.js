@@ -127,6 +127,27 @@ test('export: _buildPdfReportData — forma completa del report senza crash', ()
   assert.equal(r.swPorts, 24, 'l’assegnazione porte elenca le 24 porte dello switch');
 });
 
+test('export: la distinta cavi del dossier porta il colore DEL CAVO, non l\'override della linea', () => {
+  // Stessa regola della mappa: `colorOvr` è il colore scelto per dipingere la linea, non il colore
+  // del cavo fisico, quindi non deve comparire nella colonna «colore» della distinta.
+  const out = run(APP.ctx, `(() => {
+    try {
+      ${SETUP}
+      for (const l of state.links) { l.colorOvr = '#ff0000'; delete l.color; }
+      const soloOvr = _exportInternals._buildPdfReportData().cables.map(c => c.color);
+      for (const l of state.links) { l.color = '#0066cc'; delete l.colorOvr; }
+      const conDato = _exportInternals._buildPdfReportData().cables.map(c => c.color);
+      return JSON.stringify({ ok:true, soloOvr, conDato });
+    } catch(e){ return JSON.stringify({ ok:false, err:String(e&&e.stack||e) }); }
+  })()`);
+  const r = JSON.parse(out);
+  assert.ok(r.ok, 'il builder lancia: ' + r.err);
+  assert.ok(r.soloOvr.length > 0 && r.soloOvr.every(c => c === ''),
+    'un colore di linea (colorOvr) non riempie la colonna colore della distinta');
+  assert.ok(r.conDato.length > 0 && r.conDato.every(c => c === '#0066cc'),
+    'il colore del cavo (color) resta nella distinta');
+});
+
 test('export: «apparato sostituito» nel dossier solo da una misura RICONFERMATA', () => {
   // Il capitolo Ripristino scriveva «sostituito» confrontando il seriale dichiarato
   // con quello misurato, senza guardare l'ETÀ della misura. Se la walk ENTITY-MIB si

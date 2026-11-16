@@ -1259,7 +1259,8 @@ function _buildPdfReportData() {
             medium:   l.medium   || '',
             length:   l.lengthM != null ? String(l.lengthM) : (l.length != null ? String(l.length) : ''),
             category: l.cableCategory || l.category || '',
-            color:    l.color || l.colorOvr || '',
+            // Colore DEL CAVO (dato), non `colorOvr` (colore scelto per la linea sulla mappa).
+            color:    l.color || '',
             installedAt: l.installedAt || '',
             installedBy: l.installedBy || '',
             isPermanent: !!l.isPermanent,

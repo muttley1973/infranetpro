@@ -107,15 +107,18 @@ test('vlan: >1 popolata con nome, 1/0/assente → null', () => {
   assert.equal(rows[2].vlanName, '');
 });
 
-test('color: l.color ha priorita, fallback colorOvr', () => {
+test('color: la distinta mostra il colore DEL CAVO (`color`), non l\'override della linea (`colorOvr`)', () => {
+  // `color` è il colore del cavo come dato (per esempio da NetBox): va sull'etichetta e nel CSV.
+  // `colorOvr` è il colore che una persona sceglie per dipingere la LINEA sulla mappa — non è una
+  // proprietà del cavo fisico, quindi non finisce nella distinta.
   const rows = buildCableLabelRows(mkModel([
     { id: 'a', src: 'x-1', dst: 'y-1', color: '#0066cc' },
     { id: 'b', src: 'x-2', dst: 'y-2', colorOvr: '#ff0000' },
     { id: 'c', src: 'x-3', dst: 'y-3' },
   ]));
-  assert.equal(rows[0].color, '#0066cc');
-  assert.equal(rows[1].color, '#ff0000');
-  assert.equal(rows[2].color, '');
+  assert.equal(rows[0].color, '#0066cc', 'il colore del cavo resta');
+  assert.equal(rows[1].color, '', 'un colore scelto per la linea non è il colore del cavo');
+  assert.equal(rows[2].color, '', 'senza colore, vuoto');
 });
 
 test('campi cabling: cableType (fallback categoria), isPermanent, installedAt/By, notes', () => {
