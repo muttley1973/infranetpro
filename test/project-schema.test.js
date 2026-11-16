@@ -94,6 +94,11 @@ test('CRICCHETTO — la classifica non elenca campi mai visti in nessun progetto
   const attesi = new Set(['proof', 'modelMatch', 'portsMeasured', 'osTypeMeasured', 'portsReal',
     'portsManual', 'backup', 'snmp', 'srcDevice', 'srcRack',
     'color', 'colorOvr', 'lengthM', 'length', 'overflow',
+    // Gli altri campi del pannello cavo (`cableType`, `installedAt`, `installedBy`) e l'alias
+    // storico `category`: classificati `document` il 16/11 perché la GUARDIA ALIAS ha mostrato
+    // che la normalizzazione li lascia sul link. Nessuno dei progetti del campione aveva un cavo
+    // con questi campi compilati, quindi il censimento non poteva vederli — campi veri, non finti.
+    'cableType', 'category', 'installedAt', 'installedBy',
     // Il blocco SNMPv3 e il `timeout`: li scrive il pannello Integrazione
     // (`data-ikey`), ma nessuno dei 17 progetti del campione usa la v3. Campi che
     // il campione non poteva contenere, non campi finti. `hostManual` lo scrive il
@@ -227,6 +232,29 @@ test('i due nomi di uno stesso fatto del cavo (alias di link-model) hanno la ste
     assert.strictEqual(classifyField('link', a), classifyField('link', b),
       `«${a}» e «${b}» sono lo stesso fatto: una classe sola`);
   }
+});
+
+test('GUARDIA ALIAS — la normalizzazione di un cavo non lascia NESSUN campo link senza classe', () => {
+  // Generalizza il bug del 15/11 (colorOvr): se `_normalizeLinkMetadata` (lib/link-model.js)
+  // mette un campo sul link — un alias storico o un campo che il pannello scrive — lo schema
+  // deve sapere cos'è. Un campo senza classe esce dall'export per il default `keep`, senza che
+  // nessuno l'abbia deciso, e il guard sui progetti VERI lo scopre solo se un progetto quel
+  // campo ce l'ha davvero. Questa guardia lo scopre a SECCO, con un cavo che porta OGNI nome
+  // che la normalizzazione accetta o produce (alias length/lengthM, category→cableCategory,
+  // più i campi del pannello cavo). Aggiungere un alias a link-model senza classificarlo qui
+  // la fa diventare rossa.
+  const { _normalizeLinkMetadata } = require('../lib/link-model.js');
+  // Controprova: il riconoscitore vede davvero un campo senza classe (altrimenti è vacua).
+  assert.strictEqual(classifyField('link', '__mai_esistito__'), null,
+    'classifyfield deve rispondere null su un nome sconosciuto');
+  const l = { id: 'l1', src: 'a-1', dst: 'b-1',
+    length: 5, lengthM: 5, category: 'Cat6', cableCategory: 'Cat6', cableType: 'cat6a-ftp',
+    color: '#112233', colorOvr: '#445566', isPermanent: true,
+    installedAt: '2024-01-01', installedBy: 'Mario' };
+  _normalizeLinkMetadata(l);
+  const orfani = Object.keys(l).filter(k => classifyField('link', k) === null).sort();
+  assert.deepStrictEqual(orfani, [],
+    'campi che la normalizzazione produce su un link e che lo schema non classifica:\n  ' + orfani.join('\n  '));
 });
 
 test('spec: piattaforma, RAM e storage dell\'hypervisor, VLAN di gestione e sistema operativo sono DOCUMENTO e restano nell\'export', () => {
