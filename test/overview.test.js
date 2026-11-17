@@ -1788,8 +1788,8 @@ test('perimetro: lo STP e\' «altrove» (letto e mostrato nella card e sul rack)
   // …e la voce dice cosa si vede e cosa NON si giudica (resta dichiarato il confine).
   assert.match(DICT.it['ov.blindHint.stp'], /scheda|rack/i);
   assert.match(DICT.en['ov.blindHint.stp'], /card|rack/i);
-  assert.match(DICT.it['ov.blindHint.stp'], /giudica nessuno/i);
-  assert.match(DICT.en['ov.blindHint.stp'], /judged nowhere/i);
+  assert.match(DICT.it['ov.blindHint.stp'], /non rientra nella Panoramica/i);
+  assert.match(DICT.en['ov.blindHint.stp'], /outside the Overview/i);
 });
 
 // ── N13: la provenienza non si eredita per distrazione ─────────────────────
