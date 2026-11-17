@@ -10,7 +10,7 @@
 // solo per i pochi simboli lib-script (stack/ha-pair) ancora sul ponte + lo stato
 // via store. selId/selType via store; t dal ponte. Nessun cambiamento di logica.
 // ============================================================
-import { win, expose, t } from './_bridge.js';
+import { win, expose, t, getLang } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizeNumber } from './app-util.js';
 import { nodeById, getNodeDisplayName, selected, _patchPanelOffset, _enableManualValueInProps, _activatePropsTab, getNodeRackSize, _patchPanelChainOptions, isRackTopNumbered, rackUToVisible, updateN, updateFrontPanel, getPortNodeId, deleteNode, visibleUToRackU, markDirty, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
@@ -944,12 +944,12 @@ ${showFiber ? `<div class="prop-row2">
                 const snmpStatusBlock = showSnmp ? (() => {
                   const st = n.snmpStatus;
                   if(!st) return '';
-                  const lastOkStr  = n.snmpLastOk  ? new Date(n.snmpLastOk).toLocaleString('it-IT')  : '—';
+                  const lastOkStr  = n.snmpLastOk  ? new Date(n.snmpLastOk).toLocaleString(getLang())  : '—';
                   const lastErrMsg = n.snmpError   ? escapeHTML(n.snmpError) : '';
                   if(st === 'ok'){
                     return `<div style="display:flex;align-items:center;gap:6px;margin-top:10px;padding:6px 8px;background:rgba(57,211,83,.08);border:1px solid rgba(57,211,83,.25);border-radius:5px;font-size:var(--fs-2xs)">` + `<span class="snmp-dot ok" style="flex-shrink:0"></span>` + `<span style="color:#39d353;font-weight:600">SNMP OK</span>` + `<span style="color:var(--text-muted);margin-left:auto"><i class="fas fa-clock" style="margin-right:3px"></i>${lastOkStr}</span>` + `</div>`;
                   } else {
-                    return `<div style="display:flex;flex-direction:column;gap:4px;margin-top:10px;padding:6px 8px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3);border-radius:5px;font-size:var(--fs-2xs)">` + `<div style="display:flex;align-items:center;gap:6px">` + `<i class="fas fa-circle-exclamation" style="color:#f85149;flex-shrink:0"></i>` + `<span style="color:#f85149;font-weight:600">${t('pnl.node.snmpNotResponding')}</span>` + `<span style="color:var(--text-muted);margin-left:auto"><i class="fas fa-clock" style="margin-right:3px"></i>${intg.lastPoll ? new Date(intg.lastPoll).toLocaleString('it-IT') : '—'}</span>` + `</div>` + (lastErrMsg ? `<div style="color:var(--text-muted);padding-left:18px">${lastErrMsg}</div>` : '') + (n.snmpLastOk ? `<div style="color:var(--text-muted);padding-left:18px">${t('pnl.node.lastOk',{when:lastOkStr})}</div>` : '') + `</div>`;
+                    return `<div style="display:flex;flex-direction:column;gap:4px;margin-top:10px;padding:6px 8px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3);border-radius:5px;font-size:var(--fs-2xs)">` + `<div style="display:flex;align-items:center;gap:6px">` + `<i class="fas fa-circle-exclamation" style="color:#f85149;flex-shrink:0"></i>` + `<span style="color:#f85149;font-weight:600">${t('pnl.node.snmpNotResponding')}</span>` + `<span style="color:var(--text-muted);margin-left:auto"><i class="fas fa-clock" style="margin-right:3px"></i>${intg.lastPoll ? new Date(intg.lastPoll).toLocaleString(getLang()) : '—'}</span>` + `</div>` + (lastErrMsg ? `<div style="color:var(--text-muted);padding-left:18px">${lastErrMsg}</div>` : '') + (n.snmpLastOk ? `<div style="color:var(--text-muted);padding-left:18px">${t('pnl.node.lastOk',{when:lastOkStr})}</div>` : '') + `</div>`;
                   }
                 })() : '';
                 // Info di sistema live (sysLocation/sysContact/uptime) — card
@@ -992,7 +992,7 @@ ${showFiber ? `<div class="prop-row2">
                     if(typeof st.topologyChanges === 'number') stpRows.push(_stpRow(t('intg.stpChanges'), String(st.topologyChanges)));
                     const bl = Array.isArray(st.blocked) ? st.blocked : null;
                     stpRows.push(_stpRow(t('intg.stpBlocked'), bl === null ? t('intg.stpBlockedUnknown') : (bl.length ? bl.map(b => String(b.name || b.ifIndex) + (b.state === 'broken' ? ' (broken)' : '')).join(', ') : t('intg.stpNoBlocked'))));
-                    if(st.at) stpRows.push(_stpRow('', t('intg.stpAt', { when: new Date(st.at).toLocaleString('it-IT') })));
+                    if(st.at) stpRows.push(_stpRow('', t('intg.stpAt', { when: new Date(st.at).toLocaleString(getLang()) })));
                   }
                   const tip = escapeHTML(t(st ? 'intg.stpScopeTip' : 'intg.stpUnreadTip'));
                   return `<div style="display:flex;flex-direction:column;gap:5px;margin-top:8px;padding:7px 9px;background:rgba(139,148,158,.07);border:1px solid rgba(139,148,158,.25);border-radius:5px;font-size:var(--fs-2xs)"><div style="color:var(--text-muted)" data-tip="${tip}"><i class="fas fa-sitemap" style="width:13px;text-align:center;margin-right:6px"></i>${t('intg.stpTitle')} · ${t('intg.stpScope')}</div>${stpRows.join('')}</div>`;
@@ -1012,7 +1012,7 @@ ${showFiber ? `<div class="prop-row2">
                     return `<div style="display:flex;align-items:center;gap:7px"${tip}><span style="width:9px;height:9px;border-radius:2px;background:${sw};border:1px solid rgba(201,209,217,.25);flex-shrink:0"></span><span style="color:var(--text-muted);width:80px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHTML(s.name||'')}</span><span style="flex:1;height:5px;background:rgba(139,148,158,.18);border-radius:3px;overflow:hidden">${fill}</span><span style="color:${pctCol};min-width:30px;text-align:right">${pct===null?'—':pct+'%'}</span></div>`;
                   });
                   const foot = [];
-                  if(pr.pageCount) foot.push(`<span><i class="fas fa-file-lines" style="margin-right:4px"></i>${t('prt.pages')}: <span style="color:var(--text-main)">${Number(pr.pageCount).toLocaleString('it-IT')}</span></span>`);
+                  if(pr.pageCount) foot.push(`<span><i class="fas fa-file-lines" style="margin-right:4px"></i>${t('prt.pages')}: <span style="color:var(--text-main)">${Number(pr.pageCount).toLocaleString(getLang())}</span></span>`);
                   if(pr.status)    foot.push(`<span><i class="fas fa-circle" style="font-size:7px;vertical-align:1px;margin-right:4px;color:${pr.status==='idle'?'#39d353':pr.status==='printing'?'#58a6ff':'#8b949e'}"></i>${t('prt.st.'+pr.status)}</span>`);
                   if(pr.hasError)  foot.push(`<span style="color:#f85149"><i class="fas fa-triangle-exclamation" style="margin-right:4px"></i>${t('prt.error')}</span>`);
                   const footHtml = foot.length ? `<div style="display:flex;gap:12px;flex-wrap:wrap;color:var(--text-muted);padding-top:4px;border-top:1px solid rgba(139,148,158,.15);margin-top:1px">${foot.join('')}</div>` : '';

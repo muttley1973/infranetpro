@@ -40,10 +40,11 @@ function uobjOf(xml, id) {
   return m ? m[0] : null;
 }
 
-test('porte: lo spanning-tree in blocco disegna una diagonale (anche via l\'aggregato, da H.stpBlocked)', () => {
+test('porte: lo spanning-tree in blocco disegna una diagonale (da H.stpBlocked)', () => {
   // In draw.io una porta è una scatola: il blocco è un mxCell «linea» a parte, da vertice a vertice.
-  // Chi è bloccato lo dice H.stpBlocked (nel prodotto = lib/port-state.js, membri inclusi): qui lo
-  // stub ne blocca una sola, e la diagonale compare solo su quella.
+  // Chi è bloccato lo dice H.stpBlocked (nel prodotto = lib/port-state.js sul campo della porta; i membri
+  // di un Port-channel bloccato lo portano dal poll — v. test/export.test.js): qui lo stub ne blocca una
+  // sola, e la diagonale compare solo su quella.
   const xml = build({
     helpers: { types: TYPES, hasSnmpIntegration: n => !!n.snmpStatus, stpBlocked: pid => pid === 'sw1-2' },
   });

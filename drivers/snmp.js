@@ -674,16 +674,26 @@ function extractStp(vbs, ctx) {
   if (sc['4'] !== undefined) out.topologyChanges = bufToInt(sc['4']);
 
   // Porte bloccate: solo blocking/broken (listening/learning durano secondi: lampeggerebbero),
-  // solo se la porta ha link (una porta giu' non e' «bloccata», e' giu'). `null` = tabella
-  // porte non letta: di porte bloccate non si dice ne' sì ne' no.
+  // solo se la porta ha link (una porta giu' non e' «bloccata», e' giu').
+  // `null` = NON SI SA, e «nessuna» e' un'affermazione che si fa solo su una tabella letta per intero.
+  // La walk puo' fermarsi a meta' (il tetto di tempo sacrifica la coda, e lo STP e' in coda) e il driver
+  // non riporta quante subtree sono fallite: lo si riconosce dalla FORMA del dato. Quindi null quando
+  //   · la tabella porte non c'e';
+  //   · una porta ha righe ma non ha lo STATO (tabella tagliata dentro o prima della colonna 3);
+  //   · una porta in blocco non si sa nominare (dot1dBasePortIfIndex tagliata) o non se ne conosce il link
+  //     (ifOperStatus assente o `unknown(4)`: come per SNMP-M2, «non letto» non e' «giu'»).
+  // Scartare in silenzio quelle porte direbbe «non e' bloccata» su una lettura che dice il contrario.
   if (!hasPortRows) { out.blocked = null; return out; }
   const blocked = [];
   for (const [bp, p] of Object.entries(port)) {
+    if (p['3'] === undefined) { out.blocked = null; return out; }
     const state = _STP_BLOCKED[bufToInt(p['3'])];
     if (!state) continue;
     const ix = bpToIf[bp];
-    if (!(ix > 0)) continue;
-    if (!ifaces[ix] || ifaces[ix].oper !== 1) continue;
+    if (!(ix > 0)) { out.blocked = null; return out; }
+    const oper = ifaces[ix] && ifaces[ix].oper;
+    if (!(oper > 0) || oper === 4) { out.blocked = null; return out; }
+    if (oper !== 1) continue;   // giu', in prova, dormiente…: c'e' una risposta, ed e' «non ha link»
     blocked.push({ ifIndex: ix, name: ifaces[ix].name || '', state });
   }
   blocked.sort((a, b) => a.ifIndex - b.ifIndex);
@@ -1861,11 +1871,18 @@ function extractData(vbs) {
   const stp = extractStp(vbs, { bpToIf, ifaces });
   const cluster = extractCluster(vbs);
   // La porta bloccata si scrive sulla PORTA, accanto a adminDown/operUp (stessa scadenza:
-  // lib/port-state.js `forgetPortMeasure`). Un aggregatore bloccato non e' una porta del
-  // documento: resta nell'elenco `stp.blocked`, per nome, e non si spalma sui suoi membri.
+  // lib/port-state.js `forgetPortMeasure`). Un Port-channel e' UNA porta per lo spanning-tree: la lettura
+  // arriva sull'ifIndex dell'AGGREGATORE, che non e' una porta del documento (sta in `lags`) e sul rack non ha
+  // un LED — i LED sono dei suoi MEMBRI. L'appartenenza e' MISURATA (`lagIfIndex`: ifStackTable / LACP), quindi
+  // lo stato dell'aggregato si scrive su ognuno dei membri senza indovinare niente, e da li' viaggia come
+  // qualunque altra misura di porta (scrittura, scadenza, export). Il nome dell'aggregato resta nell'elenco
+  // `stp.blocked`, per la card. Lo stato PROPRIO di una porta (non membro) vince su quello ereditato.
   if (stp && Array.isArray(stp.blocked) && stp.blocked.length) {
-    const byIndex = new Map(physical.map(p => [p.index, p]));
-    for (const b of stp.blocked) { const p = byIndex.get(b.ifIndex); if (p) p.stpState = b.state; }
+    const stateByIfIndex = new Map(stp.blocked.map(b => [b.ifIndex, b.state]));
+    for (const p of physical) {
+      const s = stateByIfIndex.get(p.index) || stateByIfIndex.get(p.lagIfIndex);
+      if (s) p.stpState = s;
+    }
   }
 
   const ip6 = _ownIp6FromVbs(vbs);

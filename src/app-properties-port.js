@@ -15,7 +15,7 @@
 import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, normalizePortStatus, hasPortStatus, hasPortVlan } from './app-util.js';
-import { DOWN_STREAK_N, portShade, portStatusSource, portStpBlockedState } from '../lib/port-state.js';   // lib pura importata ESM: la stessa misura che colora il LED
+import { DOWN_STREAK_N, portShade, portStatusSource, stpBlockedState } from '../lib/port-state.js';   // lib pura importata ESM: la stessa misura che colora il LED
 import { nodeById, getNodeByPortId, getPortNodeId, _isRadioPid, _enableManualValueInProps } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor, _voipVoiceVlan, _portEffTrunk,
@@ -279,8 +279,8 @@ export function _renderPortProps(panel){
         // passa. Neutro come `operWait`, per la stessa ragione — qui si CITA, non si dipinge: l'ambra della
         // barra SNMP vuol dire «vai a guardare», e un blocco ordinario e' la ridondanza che lavora. La parola
         // dell'apparato non si traduce; il suggerimento dice anche l'ambito (albero predefinito).
-        // Blocco EFFETTIVO: il suo, o quello dell'aggregato se è un membro (port-state.js).
-        const _stpBlk = portStpBlockedState(pid, store.state.ports, store.state.lagGroups);
+        // Un membro di un Port-channel bloccato porta lo stato dell'aggregato dal poll (drivers/snmp.js).
+        const _stpBlk = stpBlockedState(pi);
         const _stpChip = () => {
             const w = _stpBlk;
             if(w !== 'blocking' && w !== 'broken') return '';

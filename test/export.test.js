@@ -169,6 +169,44 @@ test('export: una porta bloccata da STP porta la diagonale nel rack del dossier'
   assert.ok(r.afterHas, 'con una porta bloccata la diagonale compare nel rack del dossier');
 });
 
+test('export: dal POLL — i membri di un Port-channel bloccato hanno la diagonale nel PDF e nell\'helper del draw.io', () => {
+  // Il percorso intero: extractData → applyPollResult → export. Il test sopra scrive il campo a mano; qui il
+  // campo lo scrive il poll, sui membri (l'aggregatore non e' una porta del documento). Fixture SINTETICA.
+  const { extractData } = require('../drivers/snmp.js')._internals;
+  const { ciscoPoll } = require('./fixtures/stp-poll.js');
+  const poll = (po1State) => JSON.stringify(JSON.parse(JSON.stringify(extractData(ciscoPoll({ po1State })))));
+  const out = run(APP.ctx, `(() => {
+    try {
+      ${SETUP}
+      // uno switch SENZA cavi tirati a mano: su una porta posizionale cablata a mano e senza ifName la regola
+      // manual-first salta ogni misura (stato, VLAN, e quindi anche lo STP) — e' una regola esistente, non di questo test
+      const rackId = state.nodes.find(n => n.id === 'sw').rackId;
+      state.nodes.push({ id:'sx', type:'switch', name:'SX', rackId, rackU:10, sizeU:1, ports:24 });
+      if (typeof _invalidateIdx === 'function') _invalidateIdx();
+      const diagonali = () => ((_exportInternals._buildRackSVG(rackId, { pdfMode:true }) || {}).svg || '').split('stroke="#11161c"').length - 1;
+      // l'helper che export.js passa al builder draw.io: intercetto la chiamata (exportDrawio scaricherebbe un file)
+      const helperDrawio = () => {
+        const cap = {}; const real = buildDrawioXml;
+        buildDrawioXml = (m) => { cap.m = m; return '<mxfile/>'; };
+        try { exportDrawio(); } catch(e) { cap.err = String(e); } finally { buildDrawioXml = real; }
+        const f = cap.m && cap.m.helpers && cap.m.helpers.stpBlocked;
+        return f ? [1,2,3,4,5].map(i => !!f('sx-' + i)) : cap.err || 'helper assente';
+      };
+      applyPollResult('sx', ${poll(2)}, { noHistory:true });
+      const bloccato = { pdf: diagonali(), drawio: helperDrawio() };
+      applyPollResult('sx', ${poll(5)}, { noHistory:true });
+      const inoltra = { pdf: diagonali(), drawio: helperDrawio() };
+      return JSON.stringify({ ok:true, bloccato, inoltra });
+    } catch(e){ return JSON.stringify({ ok:false, err:String(e&&e.stack||e) }); }
+  })()`);
+  const r = JSON.parse(out);
+  assert.ok(r.ok, 'il builder lancia: ' + r.err);
+  assert.equal(r.bloccato.pdf, 2, 'una diagonale per ciascuno dei DUE membri del Po1 bloccato (Gi0/1, Gi0/2), nessuna per le altre');
+  assert.deepEqual(r.bloccato.drawio, [true, true, false, false, false], 'l\'helper del draw.io dice bloccate le stesse due porte');
+  assert.equal(r.inoltra.pdf, 0, 'un poll in cui il Po1 inoltra toglie le diagonali');
+  assert.deepEqual(r.inoltra.drawio, [false, false, false, false, false]);
+});
+
 test('export: «apparato sostituito» nel dossier solo da una misura RICONFERMATA', () => {
   // Il capitolo Ripristino scriveva «sostituito» confrontando il seriale dichiarato
   // con quello misurato, senza guardare l'ETÀ della misura. Se la walk ENTITY-MIB si

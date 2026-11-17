@@ -1769,6 +1769,29 @@ test('perimetro: ogni dimensione ha etichetta E tooltip, in ENTRAMBE le lingue',
   assert.deepEqual(mancanti, [], 'chiavi i18n mancanti per il perimetro');
 });
 
+// ── Lo spanning-tree si LEGGE e si MOSTRA: non e' «non modellato» ──────────
+test('perimetro: lo STP e\' «altrove» (letto e mostrato nella card e sul rack), e nessuna voce «altrove» dice «non modellato»', () => {
+  // Dal 12/11 radice, costo, porta radice e porte bloccate si leggono dal BRIDGE-MIB e si mostrano nella card
+  // dello switch e sul rack. Dire in Panoramica «non modellati» era falso in quella direzione — la stessa bugia
+  // che il tier `elsewhere` esiste per evitare (v. la WAN). NON entra in un verdetto: il perimetro lo dice ancora.
+  const stp = _BLIND_SPOTS.find((b) => b.key === 'stp');
+  assert.ok(stp, 'lo STP resta nel perimetro: nessun verdetto lo giudica');
+  assert.equal(stp.tier, 'elsewhere', 'letto e mostrato altrove, non «non modellato»');
+  // La regola vale per TUTTE le voci `elsewhere`, in entrambe le lingue: il tier e le parole non si contraddicono.
+  const DICT = require('../lib/i18n.js')._i18nDict;
+  for (const b of _BLIND_SPOTS.filter((x) => x.tier === 'elsewhere')) {
+    for (const lang of ['it', 'en']) {
+      assert.doesNotMatch(DICT[lang]['ov.blindHint.' + b.key], /non modellat|not model+ed/i,
+        `${lang} · ${b.key}: una voce «altrove» non puo' dire che non e' modellata`);
+    }
+  }
+  // …e la voce dice cosa si vede e cosa NON si giudica (resta dichiarato il confine).
+  assert.match(DICT.it['ov.blindHint.stp'], /scheda|rack/i);
+  assert.match(DICT.en['ov.blindHint.stp'], /card|rack/i);
+  assert.match(DICT.it['ov.blindHint.stp'], /giudica nessuno/i);
+  assert.match(DICT.en['ov.blindHint.stp'], /judged nowhere/i);
+});
+
 // ── N13: la provenienza non si eredita per distrazione ─────────────────────
 test('② ogni riga DICHIARA la sua provenienza: il default e\' «non dichiarato», non «dichiarato»', () => {
   // Guardia strutturale sul SORGENTE, come il test di parità i18n sui validatori.

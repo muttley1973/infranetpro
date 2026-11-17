@@ -247,6 +247,106 @@ test('extractData: dalla lettura STP alle porte di un bridge vero (bridge-port �
   assert.equal(byIdx[1].stpState, undefined, 'una porta che inoltra non porta nessun segno');
 });
 
+// ---- Port-channel: lo spanning-tree lo vede come UNA porta, ma i LED del rack sono dei MEMBRI ----
+// La lettura (BRIDGE-MIB) arriva sull'ifIndex dell'AGGREGATORE, e l'aggregatore non e' una porta del
+// documento (sta in `lags`). Se il driver non porta lo stato fino ai membri, la card dice «Port-channel1
+// bloccato» e sul rack non si accende niente: due racconti diversi dello stesso fatto. L'appartenenza
+// e' MISURATA (`lagIfIndex`, da ifStackTable/LACP), quindi lo stato dell'aggregato non e' un'ipotesi.
+// Fixture SINTETICA nella forma del banco vIOS (v. test/fixtures/stp-poll.js).
+const { ciscoPoll, col } = require('./fixtures/stp-poll.js');
+const stpPerNome = (r) => Object.fromEntries(r.interfaces.map((i) => [i.name, i.stpState]));
+
+test('Port-channel bloccato: lo stato arriva su OGNI suo membro, e solo su quelli', () => {
+  const r = extractData(ciscoPoll({ po1State: 2 }));
+  assert.deepEqual(r.stp.blocked, [{ ifIndex: 11, name: 'Port-channel1', state: 'blocking' }], 'la card legge l\'aggregato per nome');
+  const s = stpPerNome(r);
+  assert.equal(s['GigabitEthernet0/1'], 'blocking', 'membro del Po1 bloccato');
+  assert.equal(s['GigabitEthernet0/2'], 'blocking', 'l\'altro membro');
+  assert.equal(s['GigabitEthernet0/3'], undefined, 'porta radice, fuori da ogni LAG');
+  assert.equal(s['GigabitEthernet0/4'], undefined, 'membro di un ALTRO aggregato (Po2 inoltra)');
+  assert.equal(s['GigabitEthernet0/5'], undefined);
+});
+
+test('Port-channel «broken»: i membri portano broken, non blocking', () => {
+  const s = stpPerNome(extractData(ciscoPoll({ po2State: 6 })));
+  assert.equal(s['GigabitEthernet0/4'], 'broken');
+  assert.equal(s['GigabitEthernet0/5'], 'broken');
+  assert.equal(s['GigabitEthernet0/1'], undefined, 'il Po1 inoltra');
+});
+
+test('Port-channel che inoltra: nessun membro portato in blocco', () => {
+  const r = extractData(ciscoPoll());
+  assert.deepEqual(r.stp.blocked, []);
+  assert.ok(r.interfaces.every((i) => i.stpState === undefined));
+});
+
+// ---- Una lettura PARZIALE non e' «nessuna porta bloccata» ----
+// «nessuna» e' un'affermazione: si fa solo su una tabella letta per intero. Se la walk si taglia a meta'
+// (il tetto di tempo sacrifica la coda, e lo STP e' in coda) il driver non lo dice — `walkSession` non
+// riporta quante subtree sono fallite — quindi lo si riconosce dalla FORMA del dato: una porta che ha
+// righe ma non ha lo stato, uno stato letto senza il link per giudicarlo, un blocco che non sappiamo nominare.
+const _tagliata = (rimuovi) => {
+  const v = ciscoPoll({ po1State: 2 });
+  for (const k of rimuovi(v)) delete v[k];
+  return extractData(v);
+};
+
+test('tabella porte TAGLIATA dentro la colonna dello stato → «porte bloccate» e\' SCONOSCIUTO, il resto della lettura tiene', () => {
+  // le righe di colonna 1 e 2 sono arrivate per tutte; lo stato (colonna 3) solo per la prima
+  const r = _tagliata(() => [col(3, 2), col(3, 3)]);
+  assert.ok(r.stp, 'radice, costo, porta radice si leggono lo stesso');
+  assert.equal(r.stp.isRoot, false);
+  assert.equal(r.stp.blocked, null, 'una tabella a meta\' non dice «nessuna bloccata»');
+  assert.ok(r.interfaces.every((i) => i.stpState === undefined), 'e nessun LED riceve un segno su una lettura incompleta');
+});
+
+test('tabella porte tagliata PRIMA della colonna dello stato → SCONOSCIUTO, non «nessuna»', () => {
+  const r = _tagliata(() => [col(3, 1), col(3, 2), col(3, 3)]);
+  assert.equal(r.stp.blocked, null);
+});
+
+test('OGNI taglio possibile della subtree STP: mai «nessuna porta bloccata» quando una porta e\' bloccata', () => {
+  // Una walk che si ferma produce un PREFISSO dell'ordine OID. Si provano tutti: da zero varbind a tutti.
+  // Il risultato ammesso e' uno solo di tre — STP non letto, porte bloccate non lette, oppure la lettura
+  // completa — e MAI «nessuna». (Provato anche sui varbind VERI di uno switch del banco il 17/11/2026:
+  // 35 tagli, 7 «non letto», 13 «non lette», 15 complete, 0 «nessuna».)
+  const { _oidGt } = require('../drivers/snmp.js')._internals;
+  const v = ciscoPoll({ po1State: 2 });
+  const stpKeys = Object.keys(v).filter((k) => k.startsWith(OID.dot1dStp + '.')).sort((a, b) => (_oidGt(a, b) ? 1 : -1));
+  assert.ok(stpKeys.length >= 10, 'la fixture ha una subtree STP con scalari e tabella porte (' + stpKeys.length + ' varbind)');
+  const esiti = new Set();
+  for (let n = 0; n <= stpKeys.length; n++) {
+    const cut = { ...v };
+    for (const k of stpKeys) delete cut[k];
+    for (const k of stpKeys.slice(0, n)) cut[k] = v[k];
+    const r = extractData(cut);
+    const esito = !r.stp ? 'stp-null' : r.stp.blocked === null ? 'non-lette' : r.stp.blocked.length === 0 ? 'NESSUNA' : 'complete';
+    esiti.add(esito);
+    assert.notEqual(esito, 'NESSUNA', `taglio dopo ${n} varbind (${stpKeys[n - 1]}): «nessuna» su una tabella a meta'`);
+  }
+  assert.deepEqual([...esiti].sort(), ['complete', 'non-lette', 'stp-null'], 'tutti e tre gli esiti onesti compaiono: il test attraversa davvero la tabella');
+});
+
+test('ifOperStatus NON letto per una porta in blocco → SCONOSCIUTO, non «nessuna» (SNMP-M2: assente non e\' down)', () => {
+  // un ifOperStatus assente e' una walk troncata, non una porta giu': scartarla in silenzio la fa sparire
+  const v = ciscoPoll({ po1State: 2 });
+  delete v[`${OID.ifOperStatus}.11`];
+  assert.equal(extractData(v).stp.blocked, null);
+});
+
+test('ifOperStatus unknown(4): l\'agente dice «non lo so» → SCONOSCIUTO; giu\'(2) → non e\' bloccata, e\' giu\'', () => {
+  assert.equal(extractData(Object.assign(ciscoPoll({ po1State: 2 }), { [`${OID.ifOperStatus}.11`]: Buffer.from([0, 0, 0, 4]) })).stp.blocked, null);
+  const giu = extractData(Object.assign(ciscoPoll({ po1State: 2 }), { [`${OID.ifOperStatus}.11`]: Buffer.from([0, 0, 0, 2]) }));
+  assert.deepEqual(giu.stp.blocked, [], 'una porta giu\' non e\' «bloccata»: lo si sa, quindi si dice «nessuna»');
+});
+
+test('porta in blocco che il bridge non sa nominare (bridge-port senza ifIndex) → SCONOSCIUTO', () => {
+  // dot1dBasePortIfIndex troncata: «qualcosa e\' bloccato» si sa, «cosa» no — dirlo con un elenco sarebbe inventarlo
+  const v = ciscoPoll({ po1State: 2 });
+  delete v[`${OID.bridgePortIf}.2`];
+  assert.equal(extractData(v).stp.blocked, null);
+});
+
 test('il segno sul LED scade come le altre misure di porta (forgetPortMeasure)', () => {
   const { forgetPortMeasure } = require('../lib/port-state.js');
   const pi = { ifName: 'Gi0/2', stpBlocked: 'blocking' };

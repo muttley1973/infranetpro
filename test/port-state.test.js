@@ -14,7 +14,7 @@
 // ============================================================
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { DOWN_STREAK_N, portShade, stpBlockedState, portStpBlockedState, stpBlockedPorts } = require('../lib/port-state.js');
+const { DOWN_STREAK_N, portShade, stpBlockedState } = require('../lib/port-state.js');
 
 test('soglia: DOWN_STREAK_N è la stessa del «cavo fantasma» (3)', () => {
   assert.equal(DOWN_STREAK_N, 3);
@@ -209,11 +209,17 @@ test('streak: input degeneri non esplodono', () => {
   assert.equal(nextDownStreak({ operUp: false, downStreak: 'tanti' }), 1);
 });
 
-// ── Spanning-tree: blocco diretto, e il membro di un aggregato bloccato ──────────
+// ── Spanning-tree: il blocco e' un campo DELLA PORTA ─────────────────────────────
 // Un Port-channel è UNA porta per lo spanning-tree: la lettura arriva sull'ifIndex
 // dell'aggregatore, non sui membri. Il blocco va mostrato ANCHE sui membri, che sul
-// rack sono le uniche porte disegnate (il Po logico non ha un LED). La regola vive
-// qui, non nei renderer, per non divergere (come portShade).
+// rack sono le uniche porte disegnate (il Po logico non ha un LED): ci pensa il DRIVER,
+// che scrive lo stato dell'aggregato sui membri (test/stp-read.test.js, e dal poll al LED
+// in test/stp-member-mark.test.js). Qui resta la regola di lettura, in un posto solo (come portShade).
+// ⚠️ Prima c'erano qui anche `portStpBlockedState` e `stpBlockedPorts`, che facevano ereditare ai
+// membri CERCANDO fra le porte di tutti i nodi quella con lo stesso nome dell'aggregato: provate
+// su record che nessun poll crea, e sbagliate dove un poll c'e' (due switch con lo stesso
+// «Port-channel1» si contagiavano, il gruppo rinominato a mano perdeva il segno). Tolte: quei test
+// provavano un meccanismo che non esiste piu'; la funzione che proteggevano ha ora le sue prove vere.
 test('stpBlockedState: solo blocking/broken, mai un altro valore', () => {
   assert.equal(stpBlockedState({ stpBlocked: 'blocking' }), 'blocking');
   assert.equal(stpBlockedState({ stpBlocked: 'broken' }), 'broken');
@@ -222,53 +228,9 @@ test('stpBlockedState: solo blocking/broken, mai un altro valore', () => {
   assert.equal(stpBlockedState(null), null);
 });
 
-test('portStpBlockedState: porta bloccata direttamente', () => {
-  const ports = { 'sw-1': { ifName: 'Gi0/1', stpBlocked: 'blocking' }, 'sw-2': { ifName: 'Gi0/2' } };
-  assert.equal(portStpBlockedState('sw-1', ports, {}), 'blocking');
-  assert.equal(portStpBlockedState('sw-2', ports, {}), null);
+test('stpBlockedState legge SOLO la porta: un nome di gruppo o un aggregato accanto non cambiano la risposta', () => {
+  const ports = { 'sw-po': { ifName: 'Port-channel1', stpBlocked: 'blocking' }, 'sw-1': { ifName: 'Gi0/1', lagGroup: 'g1' } };
+  assert.equal(stpBlockedState(ports['sw-1']), null, 'il membro non eredita per nome: lo porta, se e\' bloccato, il proprio campo');
+  assert.equal(stpBlockedState(ports['sw-po']), 'blocking');
 });
 
-test('portStpBlockedState: il membro di un Port-channel bloccato EREDITA il blocco', () => {
-  // L'aggregatore «Port-channel1» è bloccato; i due membri hanno lagGroup = g1,
-  // e lagGroups[g1] = «Port-channel1». Entrambi i membri risultano bloccati.
-  const ports = {
-    'sw-po': { ifName: 'Port-channel1', stpBlocked: 'blocking' },
-    'sw-1':  { ifName: 'Gi0/1', lagGroup: 'g1' },
-    'sw-2':  { ifName: 'Gi0/2', lagGroup: 'g1' },
-    'sw-3':  { ifName: 'Gi0/3' },
-  };
-  const lagGroups = { g1: 'Port-channel1' };
-  assert.equal(portStpBlockedState('sw-po', ports, lagGroups), 'blocking', 'l\'aggregatore è bloccato di suo');
-  assert.equal(portStpBlockedState('sw-1', ports, lagGroups), 'blocking', 'il membro eredita');
-  assert.equal(portStpBlockedState('sw-2', ports, lagGroups), 'blocking', 'anche l\'altro membro');
-  assert.equal(portStpBlockedState('sw-3', ports, lagGroups), null, 'una porta fuori dal LAG no');
-});
-
-test('portStpBlockedState: aggregato NON bloccato -> il membro non è bloccato', () => {
-  const ports = {
-    'sw-po': { ifName: 'Port-channel1' },
-    'sw-1':  { ifName: 'Gi0/1', lagGroup: 'g1' },
-  };
-  assert.equal(portStpBlockedState('sw-1', ports, { g1: 'Port-channel1' }), null);
-});
-
-test('portStpBlockedState: il nome dell\'aggregato si confronta normalizzato (maiuscole/trattini)', () => {
-  const ports = {
-    'sw-po': { ifName: 'Port-Channel 1', stpBlocked: 'broken' },
-    'sw-1':  { ifName: 'Gi0/1', lagGroup: 'g1' },
-  };
-  assert.equal(portStpBlockedState('sw-1', ports, { g1: 'port-channel1' }), 'broken');
-});
-
-test('stpBlockedPorts: l\'insieme dei pid bloccati, diretti e membri', () => {
-  const ports = {
-    'sw-po': { ifName: 'Port-channel1', stpBlocked: 'blocking' },
-    'sw-1':  { ifName: 'Gi0/1', lagGroup: 'g1' },
-    'sw-2':  { ifName: 'Gi0/2', lagGroup: 'g1' },
-    'sw-x':  { ifName: 'Gi0/9', stpBlocked: 'broken' },
-    'sw-ok': { ifName: 'Gi0/5' },
-  };
-  const set = stpBlockedPorts(ports, { g1: 'Port-channel1' });
-  assert.deepEqual([...set].sort(), ['sw-1', 'sw-2', 'sw-po', 'sw-x']);
-  assert.equal(stpBlockedPorts(null, null).size, 0);
-});

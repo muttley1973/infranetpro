@@ -876,8 +876,17 @@ successful poll, left alone by a failed one and shown with its date) and `ports[
 (`blocking` or `broken`, only for ports that have link — a port that is down is down, not
 blocked). The second is the **fifth** measure `forgetPortMeasure()` drops with the others when the
 switch stops confirming it, and every poll without a valid reading clears it: a mark on a port must
-not outlive the evidence for it. A blocked Port-channel is not a port of the document, so it
-appears in the card by name and does not paint its members.
+not outlive the evidence for it. A blocked Port-channel is not a port of the document (it lives in
+`lags` and has no LED), so the card names it, and the driver writes its state on every **member** —
+the membership is measured (`lagIfIndex`, from `ifStackTable` or LACP), not guessed — which are the
+ports the rack draws. The state then travels as the member's own measure: it is written, expires and
+exports like any other, and nothing matches ports by aggregate *name* across nodes (two switches that
+each have a `Port-channel1` would contaminate each other, and a group renamed by hand would lose the
+mark). "Blocked ports" is `null` — *not read*, never "none" — when the table cannot be trusted whole:
+a port that has rows but no state (the walk was cut short; spanning-tree is last in the OID list, so
+it is the first thing a time budget drops), a blocked port the bridge cannot name, or a blocked port
+whose `ifOperStatus` was not read or reads `unknown(4)` (as for SNMP-M2, *not read* is not *down*).
+"None" is said only of a table read in full.
 
 It is **shown, not judged**. The switch's Properties get a card (root or "this device", priority,
 cost, root port, topology changes, blocked ports; "not read" for a declared switch the poll could
@@ -886,7 +895,8 @@ corner — in CSS on the generated front panel and as a `<line>` on a vector ski
 renderers. It is deliberately not amber: on the ports amber already means "go and look", and a
 blocked port is redundancy doing its job. The mark does not grow on hover the way the other LEDs
 do: it has to stay still while someone reads the tooltip. Nothing reaches Verify or the Overview,
-and `stp` stays in the Overview's list of things it does not look at, because judging needs what
+and `stp` stays in the Overview's list of things it does not look at — marked *elsewhere* (read and
+shown in the card and on the rack), not "not modelled" — because judging needs what
 the standard subtree cannot give — per-VLAN trees, port roles, MSTP regions — and a real capture of
 each device.
 
@@ -1548,7 +1558,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,669 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,686 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
