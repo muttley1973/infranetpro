@@ -193,7 +193,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 
 **📡 Live SNMP**
 - v1 / v2c / v3 discovery of interfaces, VLANs, LAG, LLDP/CDP neighbours and ENTITY-MIB inventory; wireless associations from the bridge FDB and the L3 neighbour table.
-- Read-only live cards (system, spanning-tree, Printer-MIB, HOST-RESOURCES, UPS/ATS) that never overwrite what you typed. The spanning-tree card shows the root, the root port and the blocked ports of the default tree, and a blocked port gets a thin diagonal line on its LED — a reading, never a verdict.
+- Read-only live cards (system, spanning-tree, Printer-MIB, HOST-RESOURCES, UPS/ATS) that never overwrite what you typed. The spanning-tree card shows the root, the root port and the blocked ports of the default tree, and a blocked port — or every member of a blocked Port-channel — gets a thin diagonal line on its LED — a reading, never a verdict.
 - Topology walk, off-segment discovery through the SNMP ARP table, port mapping by ifName, deep scan with confidence scoring, mDNS/SSDP/ONVIF listen; one device per chassis — the NICs of one box are folded together on authoritative keys only, never on a name or a MAC.
 - A port shut on purpose is told apart from one simply without link, in the rack, the PDF and draw.io.
 - **Reality Check / Drift Report** — nine categories: consistent ports, state discrepancies, hardware identity changed, IP change on the same MAC, documented-but-absent, not verifiable, on-network-but-undocumented, ghost cables, cables on a shut port.
