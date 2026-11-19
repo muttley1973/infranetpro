@@ -14,6 +14,8 @@
 
 ### Changed
 
+- **The Docker image runs on Node.js 24, and the CI also tests Node 22 and 24.** The image was built on Node 20, which stopped getting security fixes on 30 April 2026; it now uses the 24 LTS line. The CI still proves 18 and 20 — the oldest Node the project supports — and adds 22 and 24 on top, so a newer Node cannot break the build unseen. The README said the CI ran only `npm run check` and `npm test`; it also runs the linter, the type check and the browser end-to-end suite, and the sentence now says so.
+
 - **The README and `package.json` now say Node.js 18 or newer, not 16.** They said 16 or newer, but the build step runs esbuild, which asks for Node 18, and the CI runs 18 and 20: they now say what is true.
 
 - **The hardware catalogue is rebuilt on a newer snapshot of the NetBox device library.** The library now holds 12,757 models (12,386 before) and the catalogue in use 5,616 (5,502 before, including the access points and repeaters the filter below brings back), across 295 vendors. 371 models were added to the library, 7 changed and none was removed; what the role filter leaves out stays out.

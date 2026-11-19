@@ -1,7 +1,7 @@
 # InfraNet Pro — immagine Docker
 #   Build:  docker build -t infranetpro .
 #   Run:    docker compose up -d        (vedi docker-compose.yml e README → Docker)
-FROM node:20-bookworm-slim
+FROM node:24-bookworm-slim
 
 # Strumenti runtime per lo scanner di rete (ping/ARP) + init come PID 1 + CA certs.
 # net-snmp è puro JS (UDP) → nessun binario; nbtstat/net sono Windows-only e degradano da soli.

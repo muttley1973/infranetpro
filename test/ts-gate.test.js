@@ -9,7 +9,7 @@
 //
 //   · `package.json` dichiara `engines: { node: ">=18.0.0" }` — è un prodotto
 //     self-hosted, gira su macchine altrui;
-//   · la CI gira su **Node 18.x e 20.x** (`.github/workflows/ci.yml`);
+//   · la CI gira su **Node 18.x, 20.x, 22.x e 24.x** (`.github/workflows/ci.yml`): il più basso, 18, è quello che conta;
 //   · il type-stripping nativo di Node esiste solo da **22.18**;
 //   · e il loader CommonJS conosce SOLO `.js`, `.json`, `.node`: un'estensione
 //     ignota finisce al gestore `.js`, quindi un `.ts` viene letto come JavaScript
