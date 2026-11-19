@@ -30,6 +30,9 @@ function mockMuteAgent(silentMs) {
     subtree(base, maxReps, feedCb, doneCb) {
       calls.push(base);
       if (base === OID.sysName) return setImmediate(() => { feedCb([{ oid: OID.sysName + '.0', value: S('GS1900') }]); doneCb(null); });
+      // sysObjectID viaggia con sysName nella prima ondata (v. snmp-vendor-gate.test.js): qui l'agente non lo
+      // pubblica, quindi nessuna prova contraria e si leggono tutte le famiglie, come prima.
+      if (base === OID.sysObjectID) return setImmediate(() => doneCb(null));
       if (ENTITY_BASES.includes(base)) return setImmediate(() => doneCb(null));
       if (LAG_BASES.includes(base)) {
         return setImmediate(() => {
@@ -64,7 +67,7 @@ test('LAG: si legge PRIMA di qualunque altra famiglia, dopo l\'identita\'', asyn
   const idx = (b) => sess.calls.indexOf(b);
   const ultimaLag = Math.max(...LAG_BASES.map(idx));
   const ultimaEnt = Math.max(...ENTITY_BASES.map(idx));
-  const altre = sess.calls.filter((b) => b !== OID.sysName && !ENTITY_BASES.includes(b) && !LAG_BASES.includes(b));
+  const altre = sess.calls.filter((b) => b !== OID.sysName && b !== OID.sysObjectID && !ENTITY_BASES.includes(b) && !LAG_BASES.includes(b));
   assert.ok(altre.length > 0, 'le altre famiglie vengono interrogate');
   assert.ok(ultimaEnt < Math.min(...LAG_BASES.map(idx)), 'l\'identita\' resta la prima');
   assert.ok(ultimaLag < Math.min(...altre.map(idx)), `LAG (ultima @${ultimaLag}) prima delle altre (prima @${Math.min(...altre.map(idx))})`);

@@ -39,6 +39,9 @@ function mockMuteAgent(silentMs) {
         setImmediate(() => { feedCb([{ oid: OID.sysName + '.0', value: S('GS1900') }]); doneCb(null); });
         return;
       }
+      // sysObjectID viaggia con sysName nella prima ondata (v. snmp-vendor-gate.test.js): qui l'agente non lo
+      // pubblica, quindi nessuna prova contraria e si leggono tutte le famiglie, come prima.
+      if (base === OID.sysObjectID) { setImmediate(() => doneCb(null)); return; }
       if (ENT_ROWS[base] || ENTITY_BASES.includes(base)) {
         setImmediate(() => {
           const col = ENT_ROWS[base] || {};
@@ -76,7 +79,7 @@ test('identità: l\'ENTITY-MIB si legge PRIMA di qualunque famiglia opzionale', 
   const sess = mockMuteAgent(1);
   await walkSession(sess, { deadline: Date.now() + 5000 });
   const ultimaEnt = Math.max(...ENTITY_BASES.map(b => sess.calls.indexOf(b)));
-  const altre = sess.calls.filter(b => b !== OID.sysName && !ENTITY_BASES.includes(b));
+  const altre = sess.calls.filter(b => b !== OID.sysName && b !== OID.sysObjectID && !ENTITY_BASES.includes(b));
   assert.ok(altre.length > 0, 'le altre famiglie vengono interrogate');
   const primaDelleAltre = Math.min(...altre.map(b => sess.calls.indexOf(b)));
   assert.ok(ultimaEnt < primaDelleAltre, `ENTITY-MIB (ultima @${ultimaEnt}) prima delle altre (prima @${primaDelleAltre})`);

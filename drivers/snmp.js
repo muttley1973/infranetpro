@@ -786,8 +786,25 @@ const CLUSTER_READERS = [
 // L'enterprise (PEN) del sysObjectID letto nella walk di base: `1.3.6.1.4.1.<PEN>.…`.
 function _enterpriseOf(vbs) {
   const v = vbs && vbs[`${OID.sysObjectID}.0`];
-  const m = /^1\.3\.6\.1\.4\.1\.(\d+)(?:\.|$)/.exec(typeof v === 'string' ? v : '');
+  return typeof v === 'string' ? _basePen(v) : null;
+}
+// L'enterprise (PEN) a cui APPARTIENE una base: `1.3.6.1.4.1.<PEN>.…`, o null per le MIB standard
+// (mib-2, IEEE, …) — le MIB standard le implementa chiunque e non hanno proprietario.
+const _ENTERPRISE_OID_RE = /^1\.3\.6\.1\.4\.1\.(\d+)(?:\.|$)/;
+function _basePen(base) {
+  const m = _ENTERPRISE_OID_RE.exec(String(base || ''));
   return m ? m[1] : null;
+}
+// Va letta questa base da un apparato di enterprise `agentPen`? Le MIB di UN fornitore si leggono dove
+// l'apparato dice di essere di quel fornitore: la regola e' derivata dall'OID stesso (nessun elenco di
+// marche) e vale per qualunque famiglia proprietaria aggiunta domani. Costruita sull'ASSENZA di
+// prova contraria: se il sysObjectID non c'e' o non ha la forma enterprise (`agentPen` null), non si
+// salta niente — una lettura non si perde per mancanza di evidenza. Stesso criterio dei lettori HA
+// (`_clusterReaderFor`), dalla parte opposta: la' si legge SOLO se il PEN combacia, qui si salta SOLO se
+// e' un altro. Misurato su uno Zyxel (PEN 890) che non risponde alle MIB Cisco: 30 s → vedi CHANGELOG.
+function _baseApplies(base, agentPen) {
+  const owner = _basePen(base);
+  return !owner || !agentPen || owner === String(agentPen);
 }
 function _clusterReaderFor(vbs) {
   const e = _enterpriseOf(vbs);
@@ -986,11 +1003,15 @@ async function walkSession(session, opts = {}) {
   // Se non risponde, il device è giù → esci subito (evita di attendere il
   // timeout di tutte le altre walk, che con la concorrenza limitata si
   // sommerebbero in sequenza allungando enormemente l'attesa su host morti).
-  await _runWalks(session, [OID.sysName], result, 'SNMP');
+  // Nella STESSA ondata di sysName viaggia sysObjectID: due richieste in parallelo non allungano il
+  // test di raggiungibilita' (un host morto le perde insieme), e dice a CHI appartiene l'apparato
+  // prima che si scelgano le famiglie da leggere (v. `_baseApplies`).
+  await _runWalks(session, [OID.sysName, OID.sysObjectID], result, 'SNMP');
   const hasSysName = Object.keys(result).some(oid => oid.startsWith(OID.sysName + '.'));
   if (!hasSysName) {
     throw new Error('Host irraggiungibile o SNMP non risponde (sysName non risponde)');
   }
+  const agentPen = _enterpriseOf(result);
   // L'IDENTITÀ (ENTITY-MIB) si legge PRIMA di tutto il resto, in un passaggio suo.
   // Prima stava in coda alla tabella OID, e la coda è esattamente ciò che il tetto
   // wall-clock sacrifica: misurato su uno switch Zyxel GS1900, dove le famiglie che
@@ -1019,7 +1040,9 @@ async function walkSession(session, opts = {}) {
   // così non si sommerge l'agente SNMP (root-cause del troncamento delle walk).
   // Deadline (opzionale): stesso guard-rail della walk vicini per un device che
   // risponde a sysName ma poi va in timeout sulle tabelle — ritorna il parziale.
-  const rest = BASE_OIDS.filter(b => b !== OID.sysName && !ENTITY_BASES.includes(b) && !LAG_BASES.includes(b));
+  // Le famiglie proprietarie di un ALTRO fornitore non si chiedono (v. `_baseApplies`): su un agente che
+  // non le implementa e non risponde ne' «non esiste» ne' altro, ognuna costa quattro timeout.
+  const rest = BASE_OIDS.filter(b => b !== OID.sysName && b !== OID.sysObjectID && !ENTITY_BASES.includes(b) && !LAG_BASES.includes(b) && _baseApplies(b, agentPen));
   await _runWalks(session, rest, result, 'SNMP', WALK_CONCURRENCY, { deadline: opts.deadline });
   return result;
 }
@@ -2850,7 +2873,7 @@ module.exports._internals = {
   bufToStr, bufToInt, decodePortList, isRealMac, macToStr, macFromText, lldpMac,
   logicalLagIdFromName, lastIdx, extractData, extractEntityInventory,
   extractSystem, extractStp, extractCluster, _formatUptime, extractPrinter, _supplyColorKey,
-  extractHostResources, _isPathPrefix, OID, PRT_OID, HR_OID, _oidGt,
+  extractHostResources, _isPathPrefix, OID, PRT_OID, HR_OID, _oidGt, _basePen, _baseApplies, _enterpriseOf,
   _v3RemoteEngineDiscovered, _runWalks, FDB_RETRY_BASES, _walkDeadline,
   _ownIp4FromVbs, _ipv4FromAddrOid, _isUsableOwnIp4, _createSnmpSession,
   walkSession, ENTITY_BASES, LAG_BASES, _ifDescrMissing,

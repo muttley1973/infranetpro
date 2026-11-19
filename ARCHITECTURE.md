@@ -1402,13 +1402,23 @@ is organised, not what it is.
 reads `sysName`, then the ENTITY-MIB (identity), then link-aggregation membership (`ifStackTable` and the
 802.3ad tables, `LAG_BASES`), then everything else — the two early passes each get a third of the
 remaining budget, so a family that stays mute cannot starve the ports. A device that does not implement a
-family does not say "no such object": it stays silent, and each silent family costs two timeouts (a
-Zyxel GS1900 loses ~12 s to the three Cisco VTP ones). What the 25 s cap then drops is whatever is last.
+family does not say "no such object": it stays silent, and each silent family costs several timeouts (a
+Zyxel GS1900 spent ~22 s of a 30 s poll on the Cisco-only ones). What the 25 s cap then drops is whatever is last.
 This was measured to be fragile, not assumed: on that switch, **adding one column to the common list**
 moved the grouping of the concurrent requests and changed *what* was skipped (the 802.3ad tables, absent
 in 6 reads of 6, were present in 6 of 6). So a read that not every device needs does not go in the
 common list: it gets a pass of its own, gated on the evidence that it is needed — as for printers,
 host resources, the HA readers and `ifName` (read only when an `ifDescr` is empty).
+
+The other half of that cost is simply not paid. `sysObjectID` travels in the first wave with `sysName`, and
+a base that lives under one vendor's enterprise number (`1.3.6.1.4.1.<PEN>.…`) is read only when the device's
+enterprise is that one (`_baseApplies`). The rule is derived from the OID itself — no list of brands — so it
+covers any proprietary family added later; standard MIBs have no owner and are always read. It rests on the
+*absence of evidence against*: a missing `sysObjectID`, or one that is not enterprise-shaped, skips nothing.
+This is the same gate Checkmk applies (`detect` on `sysObjectID`/`sysDescr` before any walk) and Observium
+(a MIB list per OS); no tool surveyed caches silent OIDs. The same Zyxel went from 30.0 s to 7.6 s, with the
+same number of values in every family. The neighbour crawl (CDP) is not filtered: other vendors do
+implement the CDP MIB.
 
 **`lib/identity-reconcile.js`** holds the rule, in three states: *reconfirmed* (this
 poll measured it: `measuredAt`, no flag), *last known* (the poll succeeded but brought
@@ -1570,7 +1580,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,698 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,710 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
