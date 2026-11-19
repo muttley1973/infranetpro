@@ -304,9 +304,20 @@ const OID = {
 };
 
 const BASE_OIDS = Object.values(OID);
+// ifName (IF-MIB ifXTable, colonna 1): il nome dell'interfaccia dove `ifDescr` e' VUOTO (un FortiGate lo lascia
+// a «» e mette «port1»…: senza, le porte uscivano come `if1…if4`, un nome inventato dal driver). ⚠️ NON sta in
+// `OID`: tutto cio' che e' in `OID` lo cammina OGNI apparato, e aggiungere una subtree sposta il raggruppamento
+// delle richieste sotto il tetto di tempo — misurato il 18/11/2026 su uno Zyxel reale, che per questo smetteva di
+// saltare la subtree 802.3ad. Si legge in un passaggio a parte, SOLO se ifDescr manca (`_ifDescrMissing`).
+const IFNAME_OID = '1.3.6.1.2.1.31.1.1.1.1';
 // Le colonne d'IDENTITÀ hardware (ENTITY-MIB). Derivate dal nome, non elencate: una
 // colonna nuova aggiunta alla tabella sopra entra da sola nel passaggio dedicato.
 const ENTITY_BASES = Object.keys(OID).filter(k => k.startsWith('entPhysical')).map(k => OID[k]);
+// L'APPARTENENZA ai LAG: ifStack (L0) e le tre colonne dell'802.3ad (L1 PortList, L2 AttachedAggID e
+// ActorOperState). Un gruppo a parte, letto subito dopo l'identita' (v. `walkSession`): sul banco uno Zyxel
+// con un LAG statico (LAG1 = porte 3+6) perdeva i membri perche' il tetto di tempo tagliava il fondo
+// dell'elenco comune, dove le famiglie mute (VTP Cisco) avevano gia' consumato 12 s.
+const LAG_BASES = [OID.ifStackStatus, OID.aggMemberPorts, OID.lagAttached, OID.lagOperState];
 
 // ---- Printer-MIB (RFC 3805) + stato stampante (HOST-RESOURCES RFC 2790) ------
 // Colonne usate da extractPrinter. DELIBERATAMENTE fuori da BASE_OIDS: gli stack
@@ -993,11 +1004,22 @@ async function walkSession(session, opts = {}) {
     ? Math.min(opts.deadline, Date.now() + Math.ceil((opts.deadline - Date.now()) / 3))
     : 0;
   await _runWalks(session, ENTITY_BASES, result, 'SNMP-ENT', WALK_CONCURRENCY, { deadline: entityDeadline });
+  // L'APPARTENENZA ai LAG (ifStack + 802.3ad) si legge SUBITO DOPO, nello stesso modo e per la stessa
+  // ragione: stava nel fondo dell'elenco comune, e il fondo e' cio' che il tetto di tempo sacrifica.
+  // Misurato il 18/11/2026 su uno Zyxel GS1900 con un LAG STATICO (LAG1 = porte 3+6): le tre subtree
+  // Cisco VTP, che quell'agente non implementa, restano mute (12 s), l'ultimo gruppo — con l'802.3ad —
+  // parte a 19 s e il tetto di 25 s lo taglia: 0 varbind su 6 giri, le porte 3 e 6 senza LAG. Letto da
+  // solo, risponde in un attimo. Sotto-budget di un terzo di quel che resta, come l'identita': un agente
+  // muto sull'802.3ad non deve affamare le interfacce.
+  const lagDeadline = opts.deadline
+    ? Math.min(opts.deadline, Date.now() + Math.ceil((opts.deadline - Date.now()) / 3))
+    : 0;
+  await _runWalks(session, LAG_BASES, result, 'SNMP-LAG', WALK_CONCURRENCY, { deadline: lagDeadline });
   // Device raggiungibile: interroga il resto degli OID a concorrenza limitata,
   // così non si sommerge l'agente SNMP (root-cause del troncamento delle walk).
   // Deadline (opzionale): stesso guard-rail della walk vicini per un device che
   // risponde a sysName ma poi va in timeout sulle tabelle — ritorna il parziale.
-  const rest = BASE_OIDS.filter(b => b !== OID.sysName && !ENTITY_BASES.includes(b));
+  const rest = BASE_OIDS.filter(b => b !== OID.sysName && !ENTITY_BASES.includes(b) && !LAG_BASES.includes(b));
   await _runWalks(session, rest, result, 'SNMP', WALK_CONCURRENCY, { deadline: opts.deadline });
   return result;
 }
@@ -1080,6 +1102,7 @@ function extractData(vbs) {
       conv: v => { const s = bufToInt(v); return s >= 0xFFFFFFFF ? 0 : Math.round(s / 1_000_000); } },
     { base: OID.ifHighSpeed,   field: 'hispeed', conv: bufToInt },
     { base: OID.ifAlias,       field: 'alias',   conv: bufToStr },
+    { base: IFNAME_OID,        field: 'ifname',  conv: bufToStr },   // solo ripiego di `name`: v. la normalizzazione piu' sotto
   ];
 
   // Per-port VLAN membership (trunk detection)
@@ -1130,7 +1153,7 @@ function extractData(vbs) {
       hostname = bufToStr(val); continue;
     }
 
-    // tabelle scalari per-interfaccia (7 prefissi, uscita anticipata al primo match)
+    // tabelle scalari per-interfaccia (uscita anticipata al primo match)
     let hit = false;
     for (const t of tables) {
       if (oid.startsWith(t.base + '.')) {
@@ -1350,6 +1373,14 @@ function extractData(vbs) {
   // ifIndex → bridge port (reverse, needed for trunk detection)
   const ifToBp = {};
   for (const [bp, ix] of Object.entries(bpToIf)) ifToBp[ix] = parseInt(bp, 10);
+
+  // Il NOME di una porta: `ifDescr`, e `ifName` dove `ifDescr` non dice niente (un FortiGate lo lascia
+  // vuoto: il nome vero e' «port1»). Una volta sola e PRIMA di L0, perche' chi viene dopo — il
+  // riconoscimento dell'aggregatore, i nomi virtuali, il nome di una porta bloccata dallo STP — guarda
+  // `name` e deve vedere lo stesso nome. Dove `ifDescr` c'e' resta lui (i progetti salvati hanno
+  // `ifName`=«GigabitEthernet0/1»: cambiare preferenza riscriverebbe ogni nome); se non c'e' nessuno dei
+  // due resta il ripiego `if<ifIndex>` piu' sotto.
+  for (const f of Object.values(ifaces)) if (!f.name && f.ifname) f.name = f.ifname;
 
   // ==========================================================================
   // L0 — ifStackTable (primario)
@@ -1942,6 +1973,17 @@ function _createSnmpSession(driver, host, port, timeout, cfg, retries = 1) {
 
 // ---- public API ------------------------------------------------------------
 
+// ifDescr vuoto o assente per almeno un'interfaccia? Solo allora serve leggere ifName (passaggio a parte).
+function _ifDescrMissing(vbs) {
+  const T = OID.ifType + '.', D = OID.ifDescr + '.';
+  for (const k of Object.keys(vbs || {})) {
+    if (!k.startsWith(T)) continue;
+    const v = vbs[D + k.slice(T.length)];
+    if (v === undefined || (Buffer.isBuffer(v) ? v.length === 0 : String(v) === '')) return true;
+  }
+  return false;
+}
+
 async function poll(cfg) {
   const host    = (cfg.host || '').trim();
   const port    = parseInt(cfg.port)    || 161;
@@ -1959,6 +2001,8 @@ async function poll(cfg) {
     // viene cappato. I passaggi isolati sotto ricevono un budget FRESCO ciascuno
     // (le stampanti a concorrenza 1 sono lente per progetto, non vanno affamate).
     const vbs = await walkSession(session, { deadline: _walkDeadline(timeout, 5, 25000) });
+    // ifName: un passaggio a parte e SOLO dove ifDescr manca (FortiGate): costo zero per tutti gli altri.
+    if (_ifDescrMissing(vbs)) await _runWalks(session, [IFNAME_OID], vbs, 'SNMP-IFN', 1, { deadline: _walkDeadline(timeout, 2, 6000) });
     // Stampanti: secondo passaggio in ISOLAMENTO (concorrenza 1) per il
     // Printer-MIB. Gli stack SNMP deboli (HP JetDirect) troncano i materiali
     // sotto la walk concorrente multi-OID; letti da soli e in sequenza tornano
@@ -2809,6 +2853,6 @@ module.exports._internals = {
   extractHostResources, _isPathPrefix, OID, PRT_OID, HR_OID, _oidGt,
   _v3RemoteEngineDiscovered, _runWalks, FDB_RETRY_BASES, _walkDeadline,
   _ownIp4FromVbs, _ipv4FromAddrOid, _isUsableOwnIp4, _createSnmpSession,
-  walkSession, ENTITY_BASES,
+  walkSession, ENTITY_BASES, LAG_BASES, _ifDescrMissing,
   walkNeighbors, NEIGHBOR_OIDS, EVIDENCE_LLDP, EVIDENCE_CDP,
 };

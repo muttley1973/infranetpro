@@ -1398,6 +1398,18 @@ therefore leaves the accessory rows and the scorer crowns the survivor — so
 (class 3) or a MODULE (class 9): classes 11 (stack) and 5 (slot) describe how a device
 is organised, not what it is.
 
+**The order of the SNMP walk is a decision, because the time budget cuts from the end.** `walkSession`
+reads `sysName`, then the ENTITY-MIB (identity), then link-aggregation membership (`ifStackTable` and the
+802.3ad tables, `LAG_BASES`), then everything else — the two early passes each get a third of the
+remaining budget, so a family that stays mute cannot starve the ports. A device that does not implement a
+family does not say "no such object": it stays silent, and each silent family costs two timeouts (a
+Zyxel GS1900 loses ~12 s to the three Cisco VTP ones). What the 25 s cap then drops is whatever is last.
+This was measured to be fragile, not assumed: on that switch, **adding one column to the common list**
+moved the grouping of the concurrent requests and changed *what* was skipped (the 802.3ad tables, absent
+in 6 reads of 6, were present in 6 of 6). So a read that not every device needs does not go in the
+common list: it gets a pass of its own, gated on the evidence that it is needed — as for printers,
+host resources, the HA readers and `ifName` (read only when an `ifDescr` is empty).
+
 **`lib/identity-reconcile.js`** holds the rule, in three states: *reconfirmed* (this
 poll measured it: `measuredAt`, no flag), *last known* (the poll succeeded but brought
 no identity — the previous measurement is kept, marked `stale`, with its original
@@ -1558,7 +1570,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,686 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,698 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
