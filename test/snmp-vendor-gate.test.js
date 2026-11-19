@@ -17,11 +17,18 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { _internals } = require('../drivers/snmp.js');
-const { walkSession, OID } = _internals;
+const { walkSession, OID, _basePen } = _internals;
 
 const TIMEOUT = () => new Error('Request timed out');
 const isEnterprise = (b) => /^1\.3\.6\.1\.4\.1\.\d+(\.|$)/.test(b);
 const PROPRIETARIE = Object.values(OID).filter(isEnterprise);
+// ⚠️ Questo file NON sa chi possiede le basi proprietarie di `OID` (oggi sono di un solo fornitore, domani
+// potrebbero essere di piu'): i proprietari si ricavano dalla tabella, e ogni attesa e' scritta in termini di
+// «chi ne e' il proprietario». Cosi' aggiungere una famiglia di un altro fornitore non rompe niente — che e'
+// esattamente cio' che la regola promette.
+const OWNERS = [...new Set(PROPRIETARIE.map(_basePen))];
+const diPen = (pen) => (b) => b.startsWith(`1.3.6.1.4.1.${pen}.`);
+const altrui = (pen, basi) => basi.filter((b) => isEnterprise(b) && !diPen(pen)(b));   // proprietarie di QUALCUN ALTRO
 
 // Agente che risponde a tutto subito, TRANNE le famiglie proprietarie se `mute`: quelle restano
 // silenziose `silentMs` (come lo Zyxel sul VTP). `sysObjectID`: il valore che pubblica (o niente).
@@ -42,36 +49,42 @@ const walk = async (a, ms = 5000) => walkSession(a, { deadline: Date.now() + ms 
 const chieste = (a) => [...new Set(a.calls)];
 
 test('la tabella OID ha famiglie proprietarie (se un giorno non ne ha, questo file non prova piu\' niente)', () => {
-  assert.ok(PROPRIETARIE.length >= 5, `famiglie sotto 1.3.6.1.4.1: ${PROPRIETARIE.length}`);
-  assert.ok(PROPRIETARIE.every((b) => b.startsWith('1.3.6.1.4.1.9.')), 'oggi sono tutte Cisco (PEN 9)');
+  assert.ok(PROPRIETARIE.length >= 1, `famiglie sotto 1.3.6.1.4.1: ${PROPRIETARIE.length}`);
+  assert.ok(OWNERS.length >= 1);
 });
 
-test('apparato di un ALTRO fornitore (PEN 890): nessuna base proprietaria Cisco viene interrogata', async () => {
+test('apparato di un ALTRO fornitore (PEN 890): nessuna base proprietaria di altri viene interrogata', async () => {
   const a = agente({ sysObjectID: '1.3.6.1.4.1.890.1.15' });
   await walk(a);
-  assert.deepEqual(chieste(a).filter(isEnterprise), [], 'le MIB di Cisco non si chiedono a chi non e\' Cisco');
+  assert.deepEqual(altrui('890', chieste(a)), [], 'la MIB di un fornitore non si chiede a chi e\' di un altro');
 });
 
-test('apparato di un altro fornitore: perde SOLO le proprietarie — ogni altra base resta, una volta sola', async () => {
+test('apparato di un altro fornitore: perde SOLO le proprietarie altrui — ogni altra base resta, una volta sola', async () => {
   const a = agente({ sysObjectID: '1.3.6.1.4.1.890.1.15' });
   await walk(a);
-  const attese = Object.values(OID).filter((b) => !isEnterprise(b));
+  const attese = Object.values(OID).filter((b) => !isEnterprise(b) || diPen('890')(b));
   assert.deepEqual(chieste(a).sort(), [...attese].sort());
   for (const b of attese) assert.equal(a.calls.filter((c) => c === b).length, 1, `${b} letta una volta`);
 });
 
-test('apparato Cisco (PEN 9): le legge TUTTE, una volta sola (nessuna lettura perduta)', async () => {
-  const a = agente({ sysObjectID: '1.3.6.1.4.1.9.1.1745' });
-  await walk(a);
-  assert.deepEqual(chieste(a).sort(), Object.values(OID).sort());
-  for (const b of PROPRIETARIE) assert.equal(a.calls.filter((c) => c === b).length, 1, `${b} letta una volta`);
+test('apparato del fornitore PROPRIETARIO: legge tutte le sue, una volta sola (nessuna lettura perduta)', async () => {
+  for (const pen of OWNERS) {
+    const a = agente({ sysObjectID: `1.3.6.1.4.1.${pen}.1.1745` });
+    await walk(a);
+    const attese = Object.values(OID).filter((b) => !isEnterprise(b) || diPen(pen)(b));
+    assert.deepEqual(chieste(a).sort(), [...attese].sort(), `PEN ${pen}: le sue + le standard`);
+    for (const b of attese.filter(isEnterprise)) assert.equal(a.calls.filter((c) => c === b).length, 1, `${b} letta una volta`);
+  }
 });
 
-test('il PEN si confronta INTERO: 98 e 90 non sono 9', async () => {
-  for (const pen of ['98', '90', '900', '19']) {
+test('il PEN si confronta INTERO: un PEN che ne CONTIENE un altro come prefisso non lo e\'', async () => {
+  // per ogni proprietario P della tabella: P+"0", P+"8", "1"+P non sono P
+  const falsi = [...new Set(OWNERS.flatMap((p) => [`${p}0`, `${p}8`, `1${p}`]))].filter((p) => !OWNERS.includes(p));
+  assert.ok(falsi.length >= 3);
+  for (const pen of falsi) {
     const a = agente({ sysObjectID: `1.3.6.1.4.1.${pen}.1.2` });
     await walk(a);
-    assert.deepEqual(chieste(a).filter(isEnterprise), [], `PEN ${pen}: non e' Cisco`);
+    assert.deepEqual(altrui(pen, chieste(a)), [], `PEN ${pen}: non e' un proprietario della tabella`);
   }
 });
 
@@ -102,15 +115,15 @@ test('il costo che si toglie e\' QUELLO MISURATO: proprietarie mute, apparato di
   assert.ok(Object.keys(vbs).some((o) => o.startsWith(OID.ifDescr + '.')), 'le interfacce arrivano');
 });
 
-test('stesso agente muto sulle proprietarie ma Cisco: le paga (il filtro non le salta a chi le ha)', async () => {
-  const a = agente({ sysObjectID: '1.3.6.1.4.1.9.1.1745', mute: true });
+test('stesso agente muto sulle proprietarie ma del fornitore PROPRIETARIO: le paga (il filtro non le salta a chi le ha)', async () => {
+  const a = agente({ sysObjectID: `1.3.6.1.4.1.${OWNERS[0]}.1.1745`, mute: true });
   const t0 = Date.now();
   await walk(a);
-  assert.ok(Date.now() - t0 >= 400, 'un agente Cisco silenzioso paga il timeout: e\' il suo');
+  assert.ok(Date.now() - t0 >= 400, 'un agente silenzioso sulle SUE famiglie paga il timeout: e\' il suo');
 });
 
 // ---- La regola, da sola ----
-const { _basePen, _baseApplies, _enterpriseOf } = _internals;
+const { _baseApplies, _enterpriseOf } = _internals;
 const CISCO = '1.3.6.1.4.1.9.9.46.1.6.1.1.13';
 const FORTI = '1.3.6.1.4.1.12356.101.13';
 const STD = '1.3.6.1.2.1.2.2.1.2';
