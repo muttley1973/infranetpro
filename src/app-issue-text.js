@@ -30,6 +30,12 @@ function _localizedParams(ns, i) {
         p.snmpL = t('cbl.medium.' + p.snmp);
         p.docL = t('cbl.medium.' + p.doc);
     }
+    // Pannello solo-fibra: il mezzo e la famiglia ottica escono come CHIAVI (rame/DAC, sm/mm): le parole le mette il renderer.
+    if (ns === 'cbl' && i.code === 'fiber-panel-medium') p.docL = t('cbl.medium.' + p.doc);
+    if (ns === 'cbl' && i.code === 'fiber-panel-class') {
+        p.panelL = t('cbl.fiberFam.' + p.panelFam);
+        p.cableL = t('cbl.fiberFam.' + p.cableFam);
+    }
     return p;
 }
 

@@ -17,6 +17,7 @@ import { _linkAutoColor, _linkPaintLabel } from './app-link-color.js';   // colo
 import { _routeHopRemovable, enterRoutingMode, removeRouteHop } from './app-cabling-editor.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { _wifiAssocHtml } from './app-wifi.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { cableIssueTexts, chainWarnTexts } from './app-issue-text.js';   // le PAROLE dei validatori puri (i18n), che le lib non hanno più
+import { fiberOnlyPanel } from '../lib/fiber-slot.js';   // quale nodo accetta SOLO fibra (cassetto ottico, patch panel «fibra»): una definizione sola
 import { registerClickActions, registerChangeActions, registerBlurActions } from './app-delegation.js';   // ASSE B: handler del pannello cavo via event delegation (ex on* inline)
 
 // ASSE B (ritiro ponte): gli handler inline del pannello CAVO passano a data-act/
@@ -585,8 +586,17 @@ export function _renderLinkProps(panel){
                 const _sAct = !!TYPES[getNodeByPortId(l.src)?.type]?.isActive;
                 const _dAct = !!TYPES[getNodeByPortId(l.dst)?.type]?.isActive;
                 const _bothActive = _sAct && _dAct;
+                // I pannelli SOLO-FIBRA ai capi del cavo (cassetto ottico, patch panel «fibra»): uno per NODO, anche se i
+                // due capi stanno sullo stesso. Chi e' un pannello solo-fibra lo dice `fiberOnlyPanel`; il validatore
+                // confronta soltanto cio' che e' dichiarato.
+                const _fiberEnds = [];
+                for(const _fpid of [l.src, l.dst]){
+                    const _fnd = getNodeByPortId(_fpid), _fp = fiberOnlyPanel(_fnd);
+                    if(_fp && !_fiberEnds.some(e => e.id === _fnd.id)) _fiberEnds.push({ id: _fnd.id, name: getNodeDisplayName(_fnd), mode: _fp.mode });
+                }
                 const _cableIssues = (!_wlOn && typeof win.validateCable === 'function')
-                    ? win.validateCable(l, { snmpSpeedMbps: _vsp.speed || _vdp.speed || 0,
+                    ? win.validateCable(l, { fiberEnds: _fiberEnds,
+                                         snmpSpeedMbps: _vsp.speed || _vdp.speed || 0,
                                          snmpMedium: _vsp.snmpMedium || _vdp.snmpMedium || null,
                                          isTrunk: tk.mode === 'trunk',
                                          srcNative: _bothActive ? _effPortVlan(l.src) : null,

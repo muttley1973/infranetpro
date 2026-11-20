@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="4,918 tests, 0 failing" src="https://img.shields.io/badge/tests-4%2C918%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="4,941 tests, 0 failing" src="https://img.shields.io/badge/tests-4%2C941%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="161 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-161%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#discovery--classification-engines"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -170,7 +170,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 - Front panels with a dedicated MGMT block and a separate SFP block; per-device port layout.
 - Floor plan with storeys and rooms; cables as bezier curves; labels say what a thing is without ever rewriting the name you declared.
 - Multi-port floor devices; wall sockets and VoIP phones as pass-through.
-- **Fiber drawer** — a passive 1U drawer whose vertical slots show the openings of the connector you declare (LC duplex or quad, SC, SC duplex, ST, FC, MTP/MPO). A window composes it slot by slot, with blank plates: drag a module, or tap it and sweep over the slots with a finger. Ports follow the modules, and before you apply it says which cables sit on ports that move.
+- **Fiber drawer** — a passive 1U drawer whose vertical slots show the openings of the connector you declare (LC duplex or quad, SC, SC duplex, ST, FC, MTP/MPO). A window composes it slot by slot, with blank plates: drag a module, or tap it and sweep over the slots with a finger. Ports follow the modules, and before you apply it says which cables sit on ports that move. A cable that is not fibre — or is the other family, single-mode against multimode — on a fibre-only panel is flagged in the cable's panel.
 - Catalogue of NVR, SD-WAN edge, VPN concentrator, door controller and panelboard; stacking (StackWise, VSF, Virtual Chassis, IRF) and HA pairs; UPS and PDU outlet groups.
 - A declared life-cycle status (planned, in service, out of service…) that changes how silence is read: a planned device that stays quiet is expected, not a fault.
 - **VMs under their host** — hypervisor, home lab, storage array or NAS: a VM list plus a VM card (identity, network, resources, handover), several vNICs, optional SNMP polling kept apart from what you declared. The Verify run records beside the state you declared whether the network sees the VM (an answer is proof, silence is not), and a yellow icon says when the two disagree; an optional switch lets the run set the state, never over one you set by hand. Drag a discovered tile onto its host to absorb it; a machine is documented once.
@@ -507,8 +507,8 @@ RUN_E2E=1 npm run e2e # headless end-to-end in a real Chrome — off by default
 - Coverage focuses on the pure logic that has historically broken: SNMP parsing, discovery and classification, the three engines, cable validation, IPAM and LAG audits — plus an app-wide smoke test that loads every script into a DOM stub and asserts rendering never throws.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **630** of them.
-- `npm test` runs the full regression suite (currently **4,918 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **161 flows**).
+- `npm run check` parses every JS source of the product — **631** of them.
+- `npm test` runs the full regression suite (currently **4,941 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **161 flows**).
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that lists something, and the test count measured against what the suite really prints.
 
 **CI** ([GitHub Actions](.github/workflows/ci.yml)) runs `npm run check`, `npm run lint`, `npm run typecheck`, `npm test` and the browser end-to-end suite (`npm run e2e`) on every push and pull request to `main`, on Node 18, 20, 22 and 24.

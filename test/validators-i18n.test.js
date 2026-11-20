@@ -36,6 +36,8 @@ const CABLE_CASES = [
   [{ medium: 'copper' }, { snmpMedium: 'fiber' }],
   [{}, { isTrunk: true, srcNative: 1, dstNative: 99 }],
   [{}, { ipVlanMismatch: { ip: 99, port: 1 } }],
+  [{ medium: 'copper' }, { fiberEnds: [{ name: 'ODF-1', mode: 'sm-os2' }] }],
+  [{ medium: 'fiber', cableCategory: 'OM4' }, { fiberEnds: [{ name: 'ODF-1', mode: 'sm-os2' }] }],
 ];
 const WIFI_CASES = [
   { band: '2.4', channel: 99 },
@@ -84,6 +86,8 @@ test('ogni codice emesso ha le sue chiavi i18n in ENTRAMBE le lingue', () => {
   for (const w of _allChain()) need.add('chn.' + w.code);
   // Le etichette dei mezzi: params grezzi (copper/fiber/dac) resi a parole.
   for (const m of ['copper', 'fiber', 'dac']) need.add('cbl.medium.' + m);
+  // E le famiglie ottiche del pannello solo-fibra: `sm`/`mm` escono come chiavi.
+  for (const f of ['sm', 'mm']) need.add('cbl.fiberFam.' + f);
 
   // Sigle e acronimi sono gli stessi in ogni lingua: non sono traduzioni saltate.
   const SAME_OK = new Set(['cbl.medium.dac']);
@@ -113,6 +117,8 @@ test('i params bastano a comporre la frase: nessun {segnaposto} resta scoperto',
     // Il renderer aggiunge le etichette localizzate del mezzo: le simulo.
     const p = Object.assign({}, i.params);
     if (i.code === 'medium-vs-snmp') { p.snmpL = 'x'; p.docL = 'y'; }
+    if (i.code === 'fiber-panel-medium') p.docL = 'y';
+    if (i.code === 'fiber-panel-class') { p.panelL = 'x'; p.cableL = 'y'; }
     check(b + '.t', p, i.code); check(b + '.w', p, i.code);
     if (p.tail) check(b + '.' + p.tail, p, i.code);
   }

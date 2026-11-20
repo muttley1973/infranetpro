@@ -642,6 +642,14 @@ generic builder: the html-escaping scan can prove each piece only that way.
 
 The drawer belongs to the passive-panel family with the patch panel (`patchLike` in `TYPES`, `isPatchLike()`):
 hostname only, numbering in series between panels of the same kind, jacks in port descriptions.
+It is also where the cable and the panel finally speak: `fiberOnlyPanel(node)` (`lib/fiber-slot.js`) is the one
+definition of a fibre-only node — the drawer, and a patch panel declared "fibre", never "mixed" or undeclared —
+and the cable panel hands those ends to `validateCable` (`opts.fiberEnds`). Rule 14 flags copper or DAC on such a
+panel (`error`, from the declared medium, or from a copper category when no medium is declared); rule 15 flags
+single-mode against multimode (`warn`: from outside a deliberate choice and a slip look the same). It compares
+the *family*, not the grade — OM3 on an OM4 panel is only a shorter reach — and only when both sides are
+declared. The connector is deliberately not compared: a cable has one connector field for two ends, and an
+LC–SC cord is an ordinary product.
 Every opening is a number from `lib/fiber-slot.js` passed through `Number()`, so no text from a project can
 reach the markup. Tests: `fiber-compose.test.js` (the pure part), `fiberdrawer-compose-front.test.js` and
 `fiberdrawer-compose-props.test.js` (the rack and the panel in the stub DOM) and
@@ -1638,7 +1646,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,918 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,941 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
