@@ -233,6 +233,14 @@ lib/                   Shared browser + test modules (the heart of the app)
                     the SAME prefix list — producer and consumer must be handed it  (pure)
   netnames.js linkstate.js correlate.js cabling.js
   topo-lines.js frontpanel.js stack.js ha-pair.js
+  device-model-kind.js  The TYPE of a catalogue model, and which models "Apply model" offers a device.
+                    The CC0 library gives a model, never a type: `roleOf` (tools/import-device-types.js)
+                    reads structure (outlets, serial ports, radios, port density) and `networkKind`
+                    adds, for a network device, only what the NAME says without doubt (switch, router,
+                    firewall, other = server/storage/controller). A rule table applied by the generator
+                    at EVERY catalogue update (`role` in each model), never a fixed list of models: what
+                    the rules cannot tell stays `network` and is offered to every network type, and one
+                    model can be corrected by hand (`role` in data/device-types-overrides.json)  (pure)
   topology-plan.js  buildTopologyPlan / inferUnmanagedNodes / classifyIntermediary:
                     assemble tiered links from a Sync poll + infer a hidden multi-port
                     intermediary behind a 2–4-MAC access port and suggest its role
@@ -1580,7 +1588,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,878 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,902 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

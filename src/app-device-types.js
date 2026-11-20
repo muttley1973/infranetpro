@@ -17,14 +17,17 @@ import { renderProps } from './app-properties.js';
 import { registerClickActions, registerChangeActions } from './app-delegation.js';
 import { hasPowerOutlets } from '../lib/pdu-layout.js';   // «ha prese», non «è un PDU»: unica definizione
 import { powerGroups } from '../lib/power-groups.js';     // i gruppi dichiarati dall'utente non si toccano
-import { _ensureNodeSpec } from './app-types.js';         // i campi `spec` si scrivono in `spec`, come fa il pannello
+import { _ensureNodeSpec, typeName } from './app-types.js';         // i campi `spec` si scrivono in `spec`, come fa il pannello
 import { buildIndexes, resolveCatalogEntry } from '../lib/device-catalog.js';
+import { modelListFor, modelInList } from '../lib/device-model-kind.js';   // quali modelli propone «Applica modello» per un tipo
 
 let _catalog = [];
 let _byKey = {};   // "brand model" (lower) -> template
 let _bySourceSlug = {};
 let _catalogVersion = '';
 let _catIndexes = null;   // indici model-core + partNumber, costruiti una volta dal catalogo
+let _listCount = {};      // quanti modelli ha ogni elenco per tipo (switch, firewall…), costruito alla prima richiesta
+let _showAllModels = false;   // «Mostra tutti i modelli»: solo della sessione, non si salva
 
 /** Carica il catalogo device-type dal server nella cache (chiamata al boot). */
 export async function loadDeviceTypes() {
@@ -50,6 +53,9 @@ export async function loadDeviceTypes() {
     // opt-in). Costruiti una volta: stesso resolver dell'import DCIM
     // (lib/device-catalog.js), nessun drift.
     _catIndexes = buildIndexes(_catalog);
+    // Gli elenchi per tipo si costruiscono alla prima richiesta: un catalogo nuovo li invalida tutti.
+    if (typeof document !== 'undefined') document.querySelectorAll('datalist[id^="devtype-options-"]').forEach(function (dl) { dl.remove(); });
+    _listCount = {};
     _ensureDeviceTypeDatalist();
 }
 
@@ -69,6 +75,26 @@ function _ensureDeviceTypeDatalist() {
     dl.innerHTML = _catalog.map(function (c) {
         return `<option value="${escapeHTML(c.brand + ' ' + c.model)}"></option>`;
     }).join('');
+}
+
+/** L'elenco dei modelli di UN tipo (switch, router, firewall, alimentazione…): un <datalist> a parte, costruito alla
+ *  prima richiesta e tenuto in document.body come quello completo. Ci sono i modelli di quel tipo e quelli che il
+ *  catalogo non sa classificare (non si nasconde ciò che non si sa). Ritorna quanti sono. */
+function _ensureModelList(list) {
+    if (typeof document === 'undefined' || !document.body) return 0;
+    const id = 'devtype-options-' + list;
+    let dl = document.getElementById(id);
+    if (!dl) {
+        dl = document.createElement('datalist');
+        dl.id = id;
+        document.body.appendChild(dl);
+        const items = _catalog.filter(function (c) { return modelInList(c, list); });
+        dl.innerHTML = items.map(function (c) {
+            return `<option value="${escapeHTML(c.brand + ' ' + c.model)}"></option>`;
+        }).join('');
+        _listCount[list] = items.length;
+    }
+    return _listCount[list] || 0;
 }
 
 /** PURA: applica un template ai campi NATIVI del nodo. Ritorna true se applicato.
@@ -162,8 +188,23 @@ export function _deviceTypeApplyHtml(node) {
         <i class="fas fa-arrows-rotate"></i><span style="flex:1">${escapeHTML(t('devtype.updated'))}</span>
         <button type="button" class="um-btn" data-act="apply-current-device-type" style="padding:2px 7px;font-size:var(--fs-2xs)">${escapeHTML(t('devtype.applyCurrent'))}</button>
       </div>` : '';
+    // L'elenco segue il TIPO del dispositivo: a uno switch si propongono gli switch, a un firewall i firewall, a un UPS
+    // gli UPS. Un tipo per cui il catalogo non ha una classe (un server, un hypervisor…) vede tutti i modelli; e per gli
+    // altri «Mostra tutti i modelli» li ridà tutti — il catalogo non sa classificare ogni modello, e quello giusto non
+    // deve mai essere irraggiungibile (si può anche scrivere «Marca Modello» a mano: l'elenco è un suggerimento).
+    const list = modelListFor(node && node.type);
+    let listId = 'devtype-options';
+    let scope = '';
+    if (list) {
+        if (!_showAllModels) {
+            const shown = _ensureModelList(list);
+            listId = 'devtype-options-' + list;
+            scope = `<div class="devtype-scope" style="font-size:var(--fs-2xs);color:var(--text-muted);margin-top:4px">${escapeHTML(t('devtype.listOf', { kind: typeName(node.type), n: Number(shown) }))}</div>`;
+        }
+        scope += `<label class="devtype-all" style="display:flex;align-items:center;gap:6px;font-size:var(--fs-2xs);color:var(--text-muted);margin-top:4px"><input type="checkbox" data-change="devtype-show-all"${_showAllModels ? ' checked' : ''}> ${escapeHTML(t('devtype.showAll', { n: Number(_catalog.length) }))}</label>`;
+    }
     return `${_recognizedModelBanner(node)}<div class="prop-group" style="margin-top:6px"><label>${t('devtype.apply')}</label>
-      <input type="text" list="devtype-options" placeholder="${escapeHTML(t('devtype.placeholder'))}" data-change="apply-device-type" data-tip="${escapeHTML(t('devtype.tip'))}">
+      <input type="text" list="${escapeHTML(listId)}" placeholder="${escapeHTML(t('devtype.placeholder'))}" data-change="apply-device-type" data-tip="${escapeHTML(t('devtype.tip'))}">${scope}
     </div>${update}`;
 }
 
@@ -276,6 +317,7 @@ function adoptRecognizedModel(){
 
 // Delega: il change sull'input "Applica modello" (data-change) chiama l'handler.
 registerChangeActions({ 'apply-device-type': (el) => applyDeviceType(el.value) });
+registerChangeActions({ 'devtype-show-all': (el) => { _showAllModels = !!el.checked; renderProps(); } });
 registerClickActions({ 'apply-current-device-type': () => applyCurrentDeviceType() });
 registerClickActions({ 'adopt-recognized-model': () => adoptRecognizedModel() });
 

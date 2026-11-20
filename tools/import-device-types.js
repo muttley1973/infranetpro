@@ -20,6 +20,7 @@
 const fs = require('fs');
 const path = require('path');
 const { parsePanelSkin } = require('../lib/panel-skin');
+const { networkKind } = require('../lib/device-model-kind');   // il TIPO di un apparato di rete (switch/router/firewall), dal nome
 
 // Proporzione (larghezza:altezza) di uno slot rack 1U in InfraNet (da
 // src/app-panel-skin.js): una skin 1U ~10.86:1 riempie lo slot con margine ~0.
@@ -410,4 +411,14 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { parseDeviceType, buildTemplate, roleOf, walk, classify };
+/** Il RUOLO che il catalogo scrive in ogni modello (`role`), e che «Applica modello» legge per proporre solo i modelli
+ *  del tipo giusto. Parte da `roleOf` (segnali strutturali: power, nas, console, ap, chassis, network, router) e, per un
+ *  apparato di rete, lo precisa col tipo che il NOME dice senza equivoci (switch, router, firewall, other = server,
+ *  storage, controllore). Dove il nome non dice niente il ruolo resta quello di `roleOf`: «non so» si propone a tutti. */
+function entryRole(dt, counts) {
+  const r = roleOf(dt, counts);
+  if (r.role === 'network' || r.role === 'chassis' || r.role === 'router') return networkKind(dt.manufacturer, dt.model) || r.role;
+  return r.role;
+}
+
+module.exports = { parseDeviceType, buildTemplate, roleOf, entryRole, walk, classify };

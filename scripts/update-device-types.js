@@ -6,8 +6,9 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { buildTemplate, roleOf, parseDeviceType } = require('../tools/import-device-types');
+const { buildTemplate, roleOf, entryRole, parseDeviceType } = require('../tools/import-device-types');
 const { deriveOutletGroups } = require('../lib/power-groups');
+const { ALL_ROLES } = require('../lib/device-model-kind');   // i valori che `role` puo' avere
 
 const DEFAULT_SOURCE = 'https://github.com/netbox-community/devicetype-library.git';
 const ROOT = path.resolve(__dirname, '..');
@@ -155,6 +156,9 @@ function shallowMerge(base, patch) {
   for (const key of ['ports', 'rackU', 'isFullDepth']) {
     if (patch && patch[key] != null) out[key] = patch[key];
   }
+  // Il TIPO di UN modello si corregge a mano qui quando la regola sul nome sbaglia o non sa (v. lib/device-model-kind.js):
+  // vale solo un valore del vocabolario, e un refuso non scrive un ruolo che nessun elenco conosce.
+  if (patch && typeof patch.role === 'string' && ALL_ROLES.includes(patch.role)) out.role = patch.role;
   if (patch && patch.counts && typeof patch.counts === 'object') out.counts = Object.assign({}, out.counts || {}, patch.counts);
   if (patch && patch.frontPanel && typeof patch.frontPanel === 'object') out.frontPanel = Object.assign({}, out.frontPanel || {}, patch.frontPanel);
   return out;
@@ -228,6 +232,9 @@ function runtimeModel(dt, template) {
     isFullDepth: bool(dt.is_full_depth),
     frontPanel: template.frontPanel,
     counts: template.counts,
+    // Il TIPO del modello (switch, router, firewall, power, nas, ap…): «Applica modello» propone a ogni dispositivo i
+    // modelli del suo tipo. Un solo punto lo scrive, per tutti e due i percorsi (sorgente e --from-canonical).
+    role: entryRole(dt, template.counts),
     // Assenti quando non ce ne sono: il catalogo non porta chiavi vuote in giro
     // per 5296 modelli.
     ...(power ? { powerOutlets: power.powerOutlets } : {}),

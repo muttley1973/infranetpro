@@ -17,6 +17,7 @@
 
 ### Changed
 
+- **"Apply model" proposes the models of the device's type.** It suggested all 5,616 catalogue models to every device — a firewall or a PDU to a switch. Each model now carries a type (switch, router, firewall, power, NAS, console server, wireless, or none of those: servers, storage, controllers), and a switch is offered the switches, a firewall the firewalls, a UPS the UPS. The library never says what a model is, so the type comes from rules applied at every catalogue update — structure (outlets, serial ports, radios) and, for a network device, only what the name says without doubt; a model the rules cannot tell is offered to every network type, and "Show all models" lists everything. One model can be corrected by hand with a `role` in `data/device-types-overrides.json`.
 - **The Docker image runs on Node.js 24, and the CI also tests Node 22 and 24.** The image was built on Node 20, which stopped getting security fixes on 30 April 2026; it now uses the 24 LTS line. The CI still proves 18 and 20 — the oldest Node the project supports — and adds 22 and 24 on top, so a newer Node cannot break the build unseen. The README said the CI ran only `npm run check` and `npm test`; it also runs the linter, the type check and the browser end-to-end suite, and the sentence now says so.
 
 - **The README and `package.json` now say Node.js 18 or newer, not 16.** They said 16 or newer, but the build step runs esbuild, which asks for Node 18, and the CI runs 18 and 20: they now say what is true.
