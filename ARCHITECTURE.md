@@ -233,6 +233,12 @@ lib/                   Shared browser + test modules (the heart of the app)
                     the SAME prefix list — producer and consumer must be handed it  (pure)
   netnames.js linkstate.js correlate.js cabling.js
   topo-lines.js frontpanel.js stack.js ha-pair.js
+  fiber-slot.js     The fiber drawer, planned one slot at a time: the openings of each connector
+                    (LC duplex/quad, SC, SC duplex, ST, FC, MTP/MPO), `fiberNodeLayout` — a uniform
+                    drawer or a COMPOSED one (`spec.fdSlots`: one key per slot, `blank` = blank
+                    plate) through the SAME layout — the rows (24 slots per U, ONE rule for both),
+                    the counts, the words, and which port numbers move when a module changes.
+                    Lays out only; which connector is mounted is always a declared field  (pure)
   device-model-kind.js  The TYPE of a catalogue model, and which models "Apply model" offers a device.
                     The CC0 library gives a model, never a type: `roleOf` (tools/import-device-types.js)
                     reads structure (outlets, serial ports, radios, port density) and `networkKind`
@@ -563,6 +569,10 @@ src/app-inter-site.js, the Map tab has two modes — schematic (SVG) and geograp
                        the Sites tab has the position fields: two coordinates, "Find" (candidates, chosen by
                        you) and "Remove". What is being typed lives apart from the document until it is two
                        valid coordinates; a half-typed point is not a point.
+src/app-fiberdrawer-composer.js  The fiber drawer's composer window: a palette of modules, drag and
+                       paint built on pointer events (the HTML5 drag does not work with a finger), a
+                       draft until Apply (one undo step), and the count of cables that sit on ports
+                       that move. The logic is in lib/fiber-slot.js; this file is gestures and markup.
 src/app-org-context.js "Where am I": answers whether the OPEN project is a site declared by the
                        organisation (site.projectRef — read, never guessed by name), so the
                        sub-header can offer the step back up. Imports NOTHING on purpose: the
@@ -596,6 +606,38 @@ disables the historical fixed translations. It does not reorder ports, change
 The regression scenario in `test/render-density.test.js` protects a 54-port device
 with 12 SFP slots and one MGMT slot, asserting that all 54 data interfaces and the
 dedicated management interface remain rendered.
+
+### The fiber drawer: slots, not LEDs
+
+A fiber drawer is drawn as rows of vertical slots (24 to a row, one row per U) with the openings of the
+mounted connector, from `lib/fiber-slot.js`; past that, or with the sequential or alternating layout chosen
+by hand, it falls back to the usual port squares and the properties say so. The tile is deliberately not to
+scale (about 1.25x wide and 1.4x tall, so the openings can be read); the proportions INSIDE the tile are the
+true ones.
+
+There are two shapes of one model. A **uniform** drawer has one declared connector
+(`spec.ppFiberConnector`) and `n.ports` ports, as it always had. A **composed** one adds
+`spec.fdSlots`, an array with one key per slot (a connector, or `blank` for a plate); every slot is then
+planned on its own (`fiberModulePlan`) and the box is as tall as the tallest module present. Both go through
+`fiberNodeLayout` and `fiberLayoutRows`, so there is one rule for the rows. Three decisions that are not
+visible from the code:
+
+- **Ports are DERIVED from the modules** in a composed drawer: the composer writes `n.ports` as the sum of
+  the modules' cells (a blank has none) and sets `portsManual`, and the Properties field is read-only.
+  Everything else in the app keeps reading `n.ports`.
+- **Numbering follows the modules, cables follow the numbers.** Changing a module with more or fewer ports
+  renumbers the ones after it (the manufacturers number by fibre, module by module). A port's identity is
+  slot + cell + module, `fiberLayoutChanges` says which numbers move, and the composer counts the cables on
+  them BEFORE applying — a warning, not a block.
+- **The composer works on a draft** and writes once, after `pushHistory()`: one undo step. When every slot
+  ends up the same the drawer is written back as a uniform one (`fiberComposeResult`).
+
+The drawer belongs to the passive-panel family with the patch panel (`patchLike` in `TYPES`, `isPatchLike()`):
+hostname only, numbering in series between panels of the same kind, jacks in port descriptions.
+Every opening is a number from `lib/fiber-slot.js` passed through `Number()`, so no text from a project can
+reach the markup. Tests: `fiber-compose.test.js` (the pure part), `fiberdrawer-compose-front.test.js` and
+`fiberdrawer-compose-props.test.js` (the rack and the panel in the stub DOM) and
+`test/e2e/fiberdrawer-composer.test.js` (the gestures: mouse, keyboard, finger).
 
 ## 3. The key pattern: pure lib + glue
 

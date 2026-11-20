@@ -99,18 +99,18 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 - 🖥️ **Windows:** double-click `avvia.bat`. Details in [Installation](#installation) and [Configuration](#configuration).
 - **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.12.0) — the Verify run looks at your virtual machines, a VM's state is the colour of its icon, and Undo and Redo keep what you did.**
+> 📰 **What's new (v2.13.0) — a fiber drawer you can compose slot by slot, sites on a real map, and spanning-tree read and shown.**
 >
-> - The Verify run now looks at VMs: what the network says sits beside the state you declared, and an optional *Follow VM state* lets the run set it — never over a state you set by hand.
-> - A VM's state is the colour of the icon next to its name (green, red, yellow for attention) and a small on/off switch changes it.
-> - Panning no longer breaks Undo and Redo, a redo no longer overwrites a later change, the four `npm audit` findings are gone — run `npm ci` — and `users.json.bak` stays out of git.
+> - A new passive rack device, the fiber drawer: vertical slots showing the openings of the connector you declare (LC, SC, MTP/MPO…), and a window to give each slot its own module — drag it, or tap and sweep with a finger — that says which cables sit on ports that move.
+> - Each site can carry a position (typed, found from its address, or read from the DCIM) and the Sites map has a geographic view on OpenStreetMap; spanning-tree is read and shown on the switch card, with a mark on blocked ports.
+> - A FortiGate cluster is read as evidence and a failover is explained from the declared HA pair; a slow switch no longer loses its LAG, and the Docker image runs Node 24.
 >
 > Earlier:
+> - **v2.12.0** — the Verify run looks at your virtual machines, a VM's state is the colour of its icon, and Undo and Redo keep what you did.
 > - **v2.11.19** — the dossier lives inside Export PDF, the catalogue update works again, and the manuals describe the interface as it is.
 > - **v2.11.18** — a machine you documented stays documented, Ctrl+Z does what it says, and the VM card closes like the host panel.
 > - **v2.11.17** — a neighbour is created as what it announces over LLDP/CDP; a hostile id can no longer run code; "0 found" says when the scan could not look.
 > - **v2.11.16** — a value says where it comes from; a model you typed is no longer called a swapped device.
-> - **v2.11.15** — the map and the rack work with a finger on a tablet; the History says what the Sync really read.
 >
 > Every release, in detail: [CHANGELOG.md](CHANGELOG.md).
 
@@ -170,6 +170,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 - Front panels with a dedicated MGMT block and a separate SFP block; per-device port layout.
 - Floor plan with storeys and rooms; cables as bezier curves; labels say what a thing is without ever rewriting the name you declared.
 - Multi-port floor devices; wall sockets and VoIP phones as pass-through.
+- **Fiber drawer** — a passive 1U drawer whose vertical slots show the openings of the connector you declare (LC duplex or quad, SC, SC duplex, ST, FC, MTP/MPO). A window composes it slot by slot, with blank plates: drag a module, or tap it and sweep over the slots with a finger. Ports follow the modules, and before you apply it says which cables sit on ports that move.
 - Catalogue of NVR, SD-WAN edge, VPN concentrator, door controller and panelboard; stacking (StackWise, VSF, Virtual Chassis, IRF) and HA pairs; UPS and PDU outlet groups.
 - A declared life-cycle status (planned, in service, out of service…) that changes how silence is read: a planned device that stays quiet is expected, not a fault.
 - **VMs under their host** — hypervisor, home lab, storage array or NAS: a VM list plus a VM card (identity, network, resources, handover), several vNICs, optional SNMP polling kept apart from what you declared. The Verify run records beside the state you declared whether the network sees the VM (an answer is proof, silence is not), and a yellow icon says when the two disagree; an optional switch lets the run set the state, never over one you set by hand. Drag a discovered tile onto its host to absorb it; a machine is documented once.
