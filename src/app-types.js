@@ -7,7 +7,7 @@
 // NODE_ID_PREFIX esposto (lo legge _nextNodeId in app.js); il resto è module-local.
 // ============================================================
 import { win, expose, t } from './_bridge.js';
-import { fiberNodePlan, fiberSlotRows } from '../lib/fiber-slot.js';   // lib pura: piano e file degli slot del cassetto ottico
+import { fiberNodeLayout, fiberLayoutRows } from '../lib/fiber-slot.js';   // lib pura: layout e file degli slot del cassetto ottico
 import { _patchPanelOffset } from './app.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 
 // Catalogo immutabile dei tipi di dispositivo. Costante: definita una volta,
@@ -149,7 +149,7 @@ export function _fixedRackLabel(type){
 }
 
 const NODE_SPEC_FIELDS = new Set([
-    'ppMedia','ppCopperCat','ppCopperShield','ppFiberConnector','ppFiberMode','ppFiberPortUnit',
+    'ppMedia','ppCopperCat','ppCopperShield','ppFiberConnector','ppFiberMode','ppFiberPortUnit','fdSlots',
     'ssid','band','wifiStd','channel24','channel5','apController','powerType','mgmtVlan','mountType','installHeight','coverageRadius',
     'lens','coverageZone','recorder','installStatus','irEnabled','audioEnabled',
     'printProto','vlanPrint','colorPrint','duplexPrint',
@@ -248,21 +248,24 @@ export function _frontPanelSharedSlots(node, portCount){
     return (_frontPanelState(node, portCount).sharedMediaSlots || []).map(item => item.slot);
 }
 
-// Le file di SLOT di un cassetto ottico (una per U, 24 slot a fila, dall'alto), o `null` se non si disegnano slot e
-// vale il frontale generico. Un solo posto che lo decide: lo chiamano sia le righe del frontale sia il render.
+// Le file di SLOT di un cassetto ottico (una per U, 24 slot a fila, dall'alto; ogni slot = { key, plan, ports }), o
+// `null` se non si disegnano slot e vale il frontale generico. Un solo posto che lo decide: lo chiamano sia le righe
+// del frontale sia il render. Il cassetto e' uniforme o composto (un modulo per slot): lo dice la lib.
 export function _fiberSlotRows(node, portCount){
     if(!node || node.type !== 'fiberdrawer') return null;
     const fp = _frontPanelState(node, portCount);
     const sU = node.sizeU !== undefined ? node.sizeU : (TYPES.fiberdrawer && TYPES.fiberdrawer.sizeU);
-    return fiberSlotRows(fiberNodePlan(node), fp.portCount, sU, fp.baseLayout);
+    return fiberLayoutRows(fiberNodeLayout(node, fp.portCount), sU, fp.baseLayout);
 }
 
 export function _frontPanelRows(node, portCount){
     const fp = _frontPanelState(node, portCount);
     const pc = fp.portCount;
-    if(pc <= 0) return [];
+    // Il cassetto ottico: i numeri di porta di ogni fila di slot (le lastre cieche non ne hanno). Prima del
+    // controllo sulle porte: un cassetto composto di sole lastre ha 0 porte ma ha slot.
     const slotRows = _fiberSlotRows(node, portCount);
-    if(slotRows) return slotRows;
+    if(slotRows) return slotRows.map(row => row.flatMap(s => s.ports));
+    if(pc <= 0) return [];
     const sfpPorts = new Set(_frontPanelSfpPorts(node, portCount));
     const list = Array.from({ length:pc }, (_, idx) => idx + 1).filter(i => !sfpPorts.has(i));
     if(fp.baseLayout === 'linear') return [list];

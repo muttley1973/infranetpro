@@ -707,6 +707,43 @@
         .fo-module.fo-tall .fo-cells { height:calc(var(--rack-port-cell) * 396.63 / 192.31); }
         .fo-module .port-led.fo-cell { position:relative; width:100%; height:auto; flex:1 1 0; min-height:0; }
         .fo-module .fo-cell-empty { flex:1 1 0; min-height:0; border-radius:1px; background:rgba(0,0,0,.35); }
+        /* La lastra cieca (il modulo «vuoto» del compositore): uno slot senza porta, piu' scuro di una cella senza porta. */
+        .rack-port-unit.fo-plate .fo-cell-empty { background:rgba(0,0,0,.55); box-shadow:inset 0 0 0 1px rgba(255,255,255,.08); }
+        /* ── Il compositore del cassetto ottico (src/app-fiberdrawer-composer.js): gli slot ingranditi, con la stessa geometria ── */
+        .drift-modal.fdc-modal { width:min(760px, 94vw); }   /* (.drift-modal e' piu' avanti nel foglio: serve la specificita') */
+        .fdc-hint { margin:0 0 10px; font-size:var(--fs-xs); color:var(--text-muted); }
+        .fdc-pal { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+        .fdc-mod { display:flex; flex-direction:column; align-items:center; gap:4px; width:72px; padding:5px 6px; border:1.5px solid transparent; border-radius:8px; background:transparent; color:inherit; cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none; }
+        .fdc-mod:hover { background:rgba(127,127,127,.12); }
+        .fdc-mod.on { border-color:var(--accent); background:rgba(56,139,253,.12); }
+        .fdc-mod .fdc-box { width:30px; }
+        .fdc-lbl { font-size:var(--fs-2xs); color:var(--text-muted); text-align:center; line-height:1.2; }
+        .fdc-strip { display:flex; flex-direction:column; gap:10px; touch-action:none; user-select:none; -webkit-user-select:none; }
+        .fdc-row { display:flex; gap:3px; }
+        .fdc-col { flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:2px; border-radius:5px; }
+        .fdc-col.fdc-over { outline:2px solid var(--accent); outline-offset:1px; }
+        .fdc-slot { display:block; width:100%; padding:0; border:0; background:transparent; cursor:pointer; }
+        .fdc-slot:focus-visible { outline:2px solid var(--accent); outline-offset:1px; border-radius:4px; }
+        .fdc-n { font-size:var(--fs-2xs); color:var(--text-muted); }
+        .fdc-box { display:block; position:relative; box-sizing:border-box; width:100%; border:.5px solid rgba(127,127,127,.55); border-radius:4px; background:var(--surface-2); }
+        .fdc-cells { position:absolute; inset:0; display:flex; flex-direction:column; gap:2px; }
+        .fdc-cell { flex:1 1 0; min-height:0; position:relative; }
+        .fdc-cell .fo-svg { position:absolute; left:0; top:0; width:100%; height:100%; fill:var(--text-main); pointer-events:none; }
+        .fdc-cell .fo-svg .fo-fer { fill:var(--text-muted); }
+        .fdc-k-lc-quad { background:rgba(56,139,253,.14); border-color:rgba(56,139,253,.7); }
+        .fdc-k-sc, .fdc-k-sc-duplex, .fdc-k-st, .fdc-k-fc { background:rgba(63,185,80,.14); border-color:rgba(63,185,80,.7); }
+        .fdc-k-mpo-12, .fdc-k-mpo-24 { background:rgba(163,113,247,.16); border-color:rgba(163,113,247,.7); }
+        .fdc-k-blank { background:transparent; border-style:dashed; }
+        .fdc-tools { display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; margin:14px 0 8px; }
+        .fdc-tool { display:flex; align-items:center; gap:6px; font-size:var(--fs-xs); color:var(--text-muted); }
+        .fdc-tool input[type=number] { width:64px; }
+        .fdc-words { font-size:var(--fs-sm); color:var(--text-main); }
+        .fdc-stats { font-size:var(--fs-xs); color:var(--text-muted); }
+        .fdc-warn { margin-top:10px; padding:8px 10px; font-size:var(--fs-xs); line-height:1.5; color:var(--text-muted); border:1px solid var(--hairline); border-radius:6px; }
+        .fdc-warn.fdc-warn-on { background:rgba(245,166,35,.10); border-color:rgba(245,166,35,.4); color:var(--idle-color); }
+        .fdc-foot { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+        .fdc-apply:disabled { opacity:.5; cursor:default; }
+        .fdc-ghost { position:fixed; display:none; width:30px; pointer-events:none; opacity:.85; z-index:5; }
         .port-led.sfp-slot { width:8px; height:5px; border-radius:1px; background:transparent; border:2px solid rgba(154,165,177,.75); box-shadow:inset 0 0 0 1px rgba(154,165,177,.1); }
         .port-led:hover { transform:scale(1.5); box-shadow:0 0 6px var(--accent); }
         .port-led.sfp-slot:hover { box-shadow:0 0 6px rgba(154,165,177,.5); }

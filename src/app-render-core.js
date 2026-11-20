@@ -28,7 +28,7 @@ import { _paintRoutingTargets } from './app-cabling-editor.js';   // ritiro pont
 import { _hasSnmpIntegration, _renderV3PendingChip, _v3NeedsCreds, _snmpIsStale } from './app-snmp.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { _applySpareHighlight } from './app-spare.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { nodePresenceClass } from '../lib/presence.js';
-import { fiberNodePlan, fiberCellSvg } from '../lib/fiber-slot.js';   // lib pura (come lib/port-state.js): la geometria dello slot del cassetto ottico
+import { fiberCellSvg } from '../lib/fiber-slot.js';   // lib pura (come lib/port-state.js): la geometria dello slot del cassetto ottico
 
 // Altezza in px di una unità rack (1U). UNICO punto di verità: la CSS var
 // `--ru-h` (style.css :root), letta qui dal render JS che dimensiona chassis,
@@ -570,7 +570,7 @@ function _renderAllNow(){
             // che aveva, invece di vederselo sostituire da otto prese inventate.
             if(rendersOutletGrid(n)){
                 pts=_pduPowerGridHtml(n,sU)+_pduManagementHtml(n)+_pduAuxiliaryHtml(n);
-            } else if(pc>0){
+            } else if(pc>0 || _fiberSlotRows(n, pc)){   // (un cassetto composto di sole lastre ha 0 porte ma ha slot da disegnare)
                 const _fpState=_frontPanelState(n, pc);
                 const sharedMediaSlots=new Set(_frontPanelSharedSlots(n, pc));
                 // Gap unico per numeriche e logiche: stessa distribuzione delle porte
@@ -586,13 +586,14 @@ function _renderAllNow(){
                 // 24 slot a fila; se non entrano, o se l'utente ha chiesto due piani di LED, e' il frontale di sempre.
                 // Il modulo LC puo' avere piu' PORTE (quad = 2 duplex o 4 singoli): ogni porta e' una CELLA
                 // cliccabile dello slot, col suo pid e il suo stato. Non dichiarato = slot senza fori.
-                const _slotRows = _fiberSlotRows(n, pc);
-                const _plan = _slotRows ? fiberNodePlan(n) : null;
-                const _cells = _plan ? _plan.cells : 1;
-                const _slotCls = _plan ? (_cells===1 ? ' fo-slot' : ' fo-cell')+' fo-'+escapeHTML(_plan.kind)+(_cells===1 && _plan.tall ? ' fo-tall' : '') : '';
-                const _cellSvg = _plan ? fiberCellSvg(_plan) : '';
+                // Ogni slot ha il SUO piano (il compositore: un modulo diverso per slot) e la lastra cieca non ha porte.
+                const _slotLay = _fiberSlotRows(n, pc);
+                const _slotClsOf = (plan)=> plan ? (plan.cells===1 ? ' fo-slot' : ' fo-cell')+' fo-'+escapeHTML(plan.kind)+(plan.cells===1 && plan.tall ? ' fo-tall' : '') : '';
+                const _slotSvgOf = (plan)=> plan ? fiberCellSvg(plan) : '';
                 // Il LED di UNA porta (vuoto se e' nascosta): e' l'elemento che porta il pid e prende il colore di stato.
-                const mkLed=(i)=>{
+                const mkLed=(i, plan)=>{
+                    const _slotCls=_slotClsOf(plan);
+                    const _cellSvg=_slotSvgOf(plan);
                     const pid=`${n.id}-${i}`;
                     const pi=store.state.ports[pid]||{};
                     if(pi.hidden) return ''; // interfaccia nascosta (virtuale)
@@ -611,8 +612,8 @@ function _renderAllNow(){
                     const portTipText = portTip(pid);
                     return `<div class="${ledCls} ${st}${lagSelCls}${lagMemCls}${lagFocCls}${sharedMediaCls}" data-pid="${pid}"${lagDataAttr} title="${escapeHTML(portTipText)}">${_cellSvg}</div>`;
                 };
-                const mkPort=(i)=>{
-                    const led=mkLed(i);
+                const mkPort=(i, plan)=>{
+                    const led=mkLed(i, plan);
                     if(!led) return '';
                     const isUplink=_frontPanelIsUplink(n, i, pc);
                     const isSharedMedia=sharedMediaSlots.has(i);
@@ -625,21 +626,22 @@ function _renderAllNow(){
                 // Un modulo con piu' porte: le celle impilate dall'alto (la prima e' la porta di numero piu' basso) e,
                 // sotto lo slot, il numero della prima; il tooltip del numero dice il tratto. Una cella senza porta
                 // (ultimo modulo mezzo vuoto, o porta nascosta) e' una vetrina vuota, non cliccabile.
-                const mkModule=(ports)=>{
+                const mkModule=(ports, plan)=>{
                     let cells='';
-                    for(let c=0;c<_cells;c++) cells += (ports[c]!==undefined ? mkLed(ports[c]) : '') || '<div class="fo-cell-empty"></div>';
+                    for(let c=0;c<plan.cells;c++) cells += (ports[c]!==undefined ? mkLed(ports[c], plan) : '') || '<div class="fo-cell-empty"></div>';
                     const first=_frontPanelPortLabel(n, ports[0], pc);
                     const last=_frontPanelPortLabel(n, ports[ports.length-1], pc);
-                    const tall=_plan && _plan.tall ? ' fo-tall' : '';
-                    return `<div class="rack-port-unit fo-module fo-k${Number(_cells)}${tall}"><div class="fo-cells">${cells}</div><span class="port-num" title="${escapeHTML(first+'-'+last)}">${escapeHTML(first)}</span></div>`;
+                    const tall=plan.tall ? ' fo-tall' : '';
+                    return `<div class="rack-port-unit fo-module fo-k${Number(plan.cells)}${tall}"><div class="fo-cells">${cells}</div><span class="port-num" title="${escapeHTML(first+'-'+last)}">${escapeHTML(first)}</span></div>`;
                 };
-                // Le unita' di una fila: una per porta, o una per MODULO quando lo slot ha piu' celle.
-                const mkUnits=(row)=>{
-                    if(_cells<=1) return row.map(i=>mkPort(i)).join('');
-                    let h='';
-                    for(let k=0;k<row.length;k+=_cells) h+=mkModule(row.slice(k,k+_cells));
-                    return h;
+                // La lastra cieca (modulo «vuoto»): uno slot senza porte, della stessa altezza degli altri.
+                const mkBlank=(plan)=>`<div class="rack-port-unit fo-module fo-k0 fo-plate${plan.tall ? ' fo-tall' : ''}"><div class="fo-cells"><div class="fo-cell-empty"></div></div></div>`;
+                const mkSlot=(s)=>{
+                    if(s.plan.empty || !s.ports.length) return mkBlank(s.plan);
+                    return s.plan.cells<=1 ? mkPort(s.ports[0], s.plan) : mkModule(s.ports, s.plan);
                 };
+                // Le unita' di una fila: una per SLOT nel cassetto ottico (porta o modulo con piu' celle o lastra), una per porta altrove.
+                const mkUnits=(row, ri)=>_slotLay ? _slotLay[ri].map(mkSlot).join('') : row.map(i=>mkPort(i)).join('');
                 // MGMT slot dedicato (1..4 celle, bordo ciano stile cavo console
                 // Cisco). Pid `${n.id}-mgmt${i}`. Etichetta base editabile (default
                 // 'MGMT'); con count>1 viene suffissato l'indice (MGMT1, MGMT2).
@@ -680,10 +682,10 @@ function _renderAllNow(){
                     const maxRow=Math.max(...rows.map(r=>r.length)) || pc;
                     const g=breathGap(maxRow);
                     let html='';
-                    rows.forEach((row)=>{
+                    rows.forEach((row, ri)=>{
                         if(!row?.length) return;
                         html+=`<div class="rack-ports-row" style="--port-gap:${g}px">`;
-                        html+=mkUnits(row);
+                        html+=mkUnits(row, ri);
                         html+='</div>';
                     });
                     // SFP rendering: 1 o 2 .rack-sfp-side affiancati. Il
@@ -718,7 +720,7 @@ function _renderAllNow(){
                     pts=`<div class="rack-ports rack-ports-sfp-layout ${layoutCls}${compactCls}${densityCls}${oppositeCls}">${leftMgmt}${leftSfp}${mainBlock}${rightSfp}${rightMgmt}</div>`;
                 } else if(rows.length===1){
                     pts=`<div class="rack-ports${densityCls}" style="--port-gap:${breathGap(pc)}px">`;
-                    pts+=mkUnits(rows[0]);
+                    pts+=mkUnits(rows[0], 0);
                     pts+='</div>';
                 } else {
                     const compactCls=sU===1?' compact-1u':'';
@@ -726,9 +728,9 @@ function _renderAllNow(){
                     const g=breathGap(maxRow);
                     const mainRows=rows;
                     let html='';
-                    mainRows.forEach((row)=>{
+                    mainRows.forEach((row, ri)=>{
                         html+=`<div class="rack-ports-row" style="--port-gap:${g}px">`;
-                        html+=mkUnits(row);
+                        html+=mkUnits(row, ri);
                         html+='</div>';
                     });
                     pts=`<div class="rack-ports rack-ports-2row${compactCls}${densityCls}">${html}</div>`;

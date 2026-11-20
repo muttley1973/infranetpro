@@ -19,7 +19,8 @@ import { TYPES, typeName, _nodeSpecView, _fixedRackLabel, _frontPanelState, isPa
 import { _propsSectionIsOpen, _buildNetAccessHtml, renderProps, _buildPropsHeader, _propsToggleButtonsHtml, _propsIconForType, _buildPatchPanelPreview } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS (accento colorato nell'intestazione device)
 import { pduManagementPortCount } from '../lib/pdu-layout.js';
-import { fiberDrawerStats, fiberSlotPlan, FIBER_ROW_SLOTS } from '../lib/fiber-slot.js';   // conti e limite di una fila del cassetto ottico
+import { fiberDrawerStats, fiberSlotPlan, fiberNodeSlots, fiberCompositionStats, FIBER_MODULES, FIBER_ROW_SLOTS } from '../lib/fiber-slot.js';   // conti e limite di una fila del cassetto ottico, e la sua composizione
+import { fiberRunsText } from './app-fiberdrawer-composer.js';   // «1–12 LC duplex · 13–16 MTP/MPO-12»: i moduli a parole
 import { V3_AUTH, V3_PRIV, V3_LEVELS, V3_DEFAULTS } from '../lib/snmp-v3.js';   // le scelte SNMPv3 sono quelle del driver: un elenco solo
 
 // Le <option> di una select SNMPv3. Il valore salvato si confronta senza badare a maiuscole e spazi
@@ -45,9 +46,11 @@ import { toggleRoomLock, _liveStructColor, _liveStructOpacity, moveNodeToRack } 
 // Nessuna voce preselezionata: «non dichiarato» finche' qualcuno non sceglie (manual-first).
 // `forDrawer`: nel cassetto LC simplex non e' una voce — un LC singolo e' «LC duplex + una porta e' un singolo connettore»,
 // l'unico modo in cui i produttori lo montano (nel taglio SC entra l'LC duplex) — ma un dato che ce l'ha resta visibile.
-function _ppFiberFieldsHtml(conn, mode, forDrawer){
+function _ppFiberFieldsHtml(conn, mode, forDrawer, modulesText){
+    // `modulesText`: un cassetto COMPOSTO non ha UN connettore, ha un modulo per slot: al posto della tendina c'e' il
+    // riepilogo a parole (testo: si escapa qui).
     return `<div class="prop-row2">
-  <div class="prop-group"><label>${t('f.fiberConn')}</label>
+  ${modulesText ? `<div class="prop-group"><label>${t('pnl.fd.modules')}</label><div class="fd-modules" style="font-size:var(--fs-xs);line-height:1.5">${escapeHTML(modulesText)}</div></div>` : `<div class="prop-group"><label>${t('f.fiberConn')}</label>
     <select data-change="update-n" data-nfield="ppFiberConnector">
       <option value="" ${selected(conn,'')}>${t('o.notDeclared')}</option>
 ${(!forDrawer || conn==='lc-simplex') ? `      <option value="lc-simplex" ${selected(conn,'lc-simplex')}>LC simplex</option>
@@ -60,7 +63,7 @@ ${(!forDrawer || conn==='lc-simplex') ? `      <option value="lc-simplex" ${sele
       <option value="mpo-12"     ${selected(conn,'mpo-12')}>MTP/MPO-12</option>
       <option value="mpo-24"     ${selected(conn,'mpo-24')}>MTP/MPO-24</option>
     </select>
-  </div>
+  </div>`}
   <div class="prop-group"><label>${t('f.fiberMode')}</label>
     <select data-change="update-n" data-nfield="ppFiberMode">
       <option value="" ${selected(mode,'')}>${t('o.notDeclared')}</option>
@@ -411,6 +414,8 @@ export function _renderNodeProps(panel){
                     const maxSfp = Math.min(48, Math.max(0, fp.portCount));
                     const isPatch = isPatchLike(n);   // pannello passivo: niente SFP/MGMT/modello, si', numerazione in serie
                     const _portTot = n.ports!==undefined ? n.ports : (d.ports || 0);
+                    // Cassetto ottico composto (un modulo per slot): le porte vengono dai moduli, non si scrivono qui.
+                    const _fdComposed = n.type==='fiberdrawer' && !!fiberNodeSlots(n);
                     const _sfpShown = fp.separateSfp && sfpCount > 0 ? sfpCount : 0;
                     const _lpPreview = n.type==='pdu' ? '' : (_portTot
                         ? `<span class="props-collapsible-preview">${t('common.portsCount',{n:escapeHTML(_portTot)})}${_sfpShown?` · ${_sfpShown} SFP`:''}</span>`
@@ -418,7 +423,7 @@ export function _renderNodeProps(panel){
                     _layoutPortsHtml = `<details class="props-collapsible" ${_propsSectionIsOpen('layout-ports')?'open':''} data-toggle="props-section" data-section="layout-ports"><summary class="props-collapsible-head"><span><i class="fas fa-grip-vertical"></i> ${t('sec.portLayout')}</span>${_lpPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">${(typeof _deviceTypeApplyHtml==='function' && !isPatch) ? _deviceTypeApplyHtml(n) : ''}
 ${n.type==='pdu' ? '' : `<div class="prop-row2">
   <div class="prop-group" style="grid-column:1/-1"><label>${t('field.portCount')}</label>
-    <input type="number" min="0" max="96" value="${escapeHTML(n.ports!==undefined?n.ports:d.ports)}" data-change="update-n" data-nfield="ports" data-ncoerce="int" data-ndef="${d.ports}" data-nmin="0" data-nmax="96">${n.portsReal?`<div style="font-size:0.78rem;color:#e3b341;margin-top:3px" data-tip="${escapeHTML(t('field.portCount.driftTip'))}"><i class="fas fa-triangle-exclamation"></i> ${escapeHTML(t('field.portCount.drift',{n:n.portsReal}))}</div>`:''}${n.portsMeasured?`<div style="font-size:0.78rem;margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="color:#e3b341" data-tip="${escapeHTML(t('field.portCount.measuredTip'))}"><i class="fas fa-satellite-dish"></i> ${escapeHTML(t('field.portCount.measured',{n:n.portsMeasured}))}</span><button type="button" data-act="adopt-ports" data-nid="${escapeHTML(n.id)}" style="padding:2px 8px;border-radius:4px;border:1px solid #d29922;background:#d2992222;color:#e3b341;cursor:pointer">${escapeHTML(t('field.portCount.adopt'))}</button></div>`:''}
+    <input type="number" min="0" max="96" value="${escapeHTML(n.ports!==undefined?n.ports:d.ports)}" data-change="update-n" data-nfield="ports" data-ncoerce="int" data-ndef="${d.ports}" data-nmin="0" data-nmax="96"${_fdComposed?' disabled':''}>${_fdComposed?`<div class="fd-ports-derived" style="font-size:var(--fs-2xs);color:var(--text-muted);margin-top:3px"><i class="fas fa-circle-info" style="margin-right:5px"></i>${t('pnl.fd.portsDerived')}</div>`:''}${n.portsReal?`<div style="font-size:0.78rem;color:#e3b341;margin-top:3px" data-tip="${escapeHTML(t('field.portCount.driftTip'))}"><i class="fas fa-triangle-exclamation"></i> ${escapeHTML(t('field.portCount.drift',{n:n.portsReal}))}</div>`:''}${n.portsMeasured?`<div style="font-size:0.78rem;margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="color:#e3b341" data-tip="${escapeHTML(t('field.portCount.measuredTip'))}"><i class="fas fa-satellite-dish"></i> ${escapeHTML(t('field.portCount.measured',{n:n.portsMeasured}))}</span><button type="button" data-act="adopt-ports" data-nid="${escapeHTML(n.id)}" style="padding:2px 8px;border-radius:4px;border:1px solid #d29922;background:#d2992222;color:#e3b341;cursor:pointer">${escapeHTML(t('field.portCount.adopt'))}</button></div>`:''}
   </div>
 </div>`}
 <div class="prop-group" style="margin-top:6px"><label>${t('f.baseLayout')}</label>
@@ -805,7 +810,10 @@ ${showFiber ? _ppFiberFieldsHtml(conn, mode) : ''}
                     // di conto, e senza scelta vale il duplex.
                     const _fdConn = n.ppFiberConnector || '';
                     const _fdUnit = n.ppFiberPortUnit === 'single' ? 'single' : 'duplex';
-                    const _fdUnitHtml = fiberSlotPlan(_fdConn, 'single').cells > 1 ? `<div class="prop-group"><label>${t('f.fiberPortUnit')}</label>
+                    // La composizione (un modulo per slot, v. il compositore): se c'e', al posto della tendina del
+                    // connettore e di quella dell'unita' (la sceglie il compositore) ci sono i moduli a parole.
+                    const _fdKeys = fiberNodeSlots(n);
+                    const _fdUnitHtml = !_fdKeys && fiberSlotPlan(_fdConn, 'single').cells > 1 ? `<div class="prop-group"><label>${t('f.fiberPortUnit')}</label>
   <select data-change="update-n" data-nfield="ppFiberPortUnit">
     <option value="duplex" ${selected(_fdUnit,'duplex')}>${t('o.fiberUnitDuplex')}</option>
     <option value="single" ${selected(_fdUnit,'single')}>${t('o.fiberUnitSingle')}</option>
@@ -813,13 +821,22 @@ ${showFiber ? _ppFiberFieldsHtml(conn, mode) : ''}
 </div>` : '';
                     // Conti derivati dal connettore dichiarato: porte, slot e fibre; e, se le file non entrano nelle U
                     // del cassetto, lo dice (a 1U ne entra una da 24 slot, a 2U due...).
-                    const _fdStats = fiberDrawerStats(_fdConn, _fdUnit, n.ports!==undefined ? n.ports : d.ports);
+                    const _fdPorts = Number(n.ports!==undefined ? n.ports : d.ports);
+                    const _fdStats = _fdKeys ? fiberCompositionStats(_fdKeys, _fdUnit) : fiberDrawerStats(_fdConn, _fdUnit, _fdPorts);
                     const _fdU = Math.max(1, Number(n.sizeU!==undefined ? n.sizeU : d.sizeU) || 1);
                     const _fdMax = FIBER_ROW_SLOTS * _fdU;
-                    const _fdSummaryHtml = _fdStats ? `<div class="fd-summary" style="font-size:var(--fs-2xs);color:var(--text-muted);margin:2px 2px 0"><i class="fas fa-calculator" style="margin-right:5px"></i>${t('pnl.fd.summary',{ports:Number(n.ports!==undefined ? n.ports : d.ports),slots:Number(_fdStats.slots),fibres:Number(_fdStats.fibres)})}${_fdStats.slots>_fdMax ? `<div class="fd-over" style="color:#e3b341;margin-top:3px"><i class="fas fa-triangle-exclamation" style="margin-right:5px"></i>${t('pnl.fd.tooManySlots',{max:Number(_fdMax),u:Number(_fdU)})}</div>` : ''}</div>` : '';
+                    const _fdShownPorts = _fdKeys ? _fdStats.ports : _fdPorts;
+                    const _fdSummaryText = !_fdStats ? '' : (_fdKeys && _fdStats.empty
+                        ? t('pnl.fd.summaryEmpty',{ports:Number(_fdShownPorts),slots:Number(_fdStats.slots),empty:Number(_fdStats.empty),fibres:Number(_fdStats.fibres)})
+                        : t('pnl.fd.summary',{ports:Number(_fdShownPorts),slots:Number(_fdStats.slots),fibres:Number(_fdStats.fibres)}));
+                    const _fdSummaryHtml = _fdStats ? `<div class="fd-summary" style="font-size:var(--fs-2xs);color:var(--text-muted);margin:2px 2px 0"><i class="fas fa-calculator" style="margin-right:5px"></i>${_fdSummaryText}${_fdStats.slots>_fdMax ? `<div class="fd-over" style="color:#e3b341;margin-top:3px"><i class="fas fa-triangle-exclamation" style="margin-right:5px"></i>${t('pnl.fd.tooManySlots',{max:Number(_fdMax),u:Number(_fdU)})}</div>` : ''}</div>` : '';
+                    // I moduli a parole (cassetto composto) al posto della tendina del connettore.
+                    const _fdModulesText = _fdKeys ? fiberRunsText(_fdKeys) : '';
+                    // «Componi slot»: serve un connettore dichiarato da cui partire (tutti gli slot uguali), o una composizione da modificare.
+                    const _fdComposeHtml = (_fdKeys || FIBER_MODULES.includes(_fdConn)) ? `<div class="prop-group"><button type="button" class="toolbar-btn" data-act="fd-compose" data-nid="${escapeHTML(n.id)}" data-tip="${escapeHTML(t('pnl.fd.composeTip'))}"><i class="fas fa-table-cells"></i> ${t('pnl.fd.compose')}</button></div>` : '';
                     _patchPanelHtml = `<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-fiberdrawer')?'open':''} data-toggle="props-section" data-section="device-fiberdrawer"><summary class="props-collapsible-head"><span><i class="fas fa-inbox"></i> ${t('type.fiberdrawer')}</span>${_fdPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-${_ppFiberFieldsHtml(n.ppFiberConnector || '', n.ppFiberMode || '', true)}
-${_fdUnitHtml}${_fdSummaryHtml}
+${_ppFiberFieldsHtml(n.ppFiberConnector || '', n.ppFiberMode || '', true, _fdModulesText)}
+${_fdUnitHtml}${_fdSummaryHtml}${_fdComposeHtml}
 </div></details>`;
                 }
 
