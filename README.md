@@ -131,6 +131,21 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 </p>
 
 <p align="center">
+  <img src="GitHub%20Images/Multisito%20mappa.jpg" alt="InfraNet Pro — the Sites map in its Geographic view: four sites on an OpenStreetMap background, with the links between them" width="900"><br>
+  <em>Sites on a real map — each site where it really is, a circle coloured by its state, the links between them drawn from site to site. Your own server fetches and caches the OpenStreetMap tiles.</em>
+</p>
+
+<p align="center">
+  <img src="GitHub%20Images/Multisito%20mappa%20dettaglio.jpg" alt="InfraNet Pro — the Geographic view zoomed in on Milan and Turin, with the roads and towns between them" width="900"><br>
+  <em>Zoom in and the streets are there — click a circle to open the site's project, a line to edit the link.</em>
+</p>
+
+<p align="center">
+  <img src="GitHub%20Images/Multisito%20posizione.png" alt="A site's position: latitude and longitude typed by hand, found from the address, or read from the DCIM" width="760"><br>
+  <em>A site's position is yours to choose: typed, found from its address with <b>Find</b> (the address goes to Nominatim only when you press it), or read from the DCIM.</em>
+</p>
+
+<p align="center">
   <img src="GitHub%20Images/Topologia.png" alt="InfraNet Pro — topology view" width="900"><br>
   <em>Topology — auto-discovered L1/L2 neighbours (LLDP / CDP / FDB) drawn over the floor plan</em>
 </p>
