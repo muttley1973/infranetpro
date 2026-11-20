@@ -57,6 +57,18 @@ device is recognised **without a code change**.
 - **Standard-first with graceful fallback** — access VLAN reads Q-BRIDGE
   `dot1qPvid` first, CISCO-VLAN-MEMBERSHIP `vmVlan` only as fallback; an empty
   subtree on a non-Cisco device simply has no effect (`drivers/snmp.js`).
+- **A vendor's MIB is asked only of that vendor** — "an empty subtree has no
+  effect" is true only of an agent that answers `endOfMibView`; some agents answer
+  an unimplemented family with *silence*, and each silent family costs several
+  timeouts (a Zyxel GS1900 spent ~22 s of a 30 s poll on Cisco-only families and
+  read its spanning-tree table by a hair). A family under
+  `1.3.6.1.4.1.<PEN>…` is walked only when the device's `sysObjectID` is that PEN
+  (`_baseApplies`, `drivers/snmp.js`): the rule comes from the OID, not from a
+  list of brands, so it covers a family added later. With no evidence against —
+  no `sysObjectID`, or one that is not enterprise-shaped — nothing is skipped.
+  The premise ("an enterprise MIB is implemented only by its enterprise") is a
+  bet, not a law: the neighbour crawl (CDP, implemented by other vendors) is
+  deliberately not filtered (`test/snmp-vendor-gate.test.js`).
 
 ## Cited in code as
 
