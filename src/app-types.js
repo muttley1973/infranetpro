@@ -7,6 +7,7 @@
 // NODE_ID_PREFIX esposto (lo legge _nextNodeId in app.js); il resto è module-local.
 // ============================================================
 import { win, expose, t } from './_bridge.js';
+import { fiberNodePlan, fiberSlotRows } from '../lib/fiber-slot.js';   // lib pura: piano e file degli slot del cassetto ottico
 import { _patchPanelOffset } from './app.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 
 // Catalogo immutabile dei tipi di dispositivo. Costante: definita una volta,
@@ -34,6 +35,9 @@ export const TYPES = {
     panelboard:  { isFloor:true, isPassive:true,  name:'Quadro elettrico',    icon:'fa-bolt',       ports:0 },
     // ── Rack passivi senza IP ─────────────────────────────────────────────────
     patchpanel:  { isRack:true,  isPassive:true,  passThrough:'port', name:'Patch Panel',        icon:'fa-grip',          sizeU:2, ports:24, brand:'CommScope' },
+    // Cassetto ottico: pannello di terminazione in FIBRA, estraibile, da 19" a 1U. Ogni porta e' un
+    // adattatore (un LC duplex porta due fibre), quindi 24 porte = 48 fibre. Passivo e senza marca di default.
+    fiberdrawer: { isRack:true,  isPassive:true,  passThrough:'port', name:'Cassetto ottico',    icon:'fa-inbox',         sizeU:1, ports:24, brand:'' },
     blankpanel:  { isRack:true,  isPassive:true,  name:'Pannello vuoto',     icon:'fa-minus',         sizeU:1, ports:0,  brand:''          },
     cablemanager:{ isRack:true,  isPassive:true,  name:'Passacavo',          icon:'fa-grip-lines',    sizeU:1, ports:0,  brand:''          },
     // ── Rack attivi ───────────────────────────────────────────────────────────
@@ -112,6 +116,7 @@ const NODE_ID_PREFIX = {
     homelab: 'lab',
     nasdesktop: 'nasd',
     patchpanel: 'pp',
+    fiberdrawer: 'fd',
     blankpanel: 'bp',
     cablemanager: 'cm',
     switch: 'sw',
@@ -144,7 +149,7 @@ export function _fixedRackLabel(type){
 }
 
 const NODE_SPEC_FIELDS = new Set([
-    'ppMedia','ppCopperCat','ppCopperShield','ppFiberConnector','ppFiberMode',
+    'ppMedia','ppCopperCat','ppCopperShield','ppFiberConnector','ppFiberMode','ppFiberPortUnit',
     'ssid','band','wifiStd','channel24','channel5','apController','powerType','mgmtVlan','mountType','installHeight','coverageRadius',
     'lens','coverageZone','recorder','installStatus','irEnabled','audioEnabled',
     'printProto','vlanPrint','colorPrint','duplexPrint',
@@ -243,10 +248,21 @@ export function _frontPanelSharedSlots(node, portCount){
     return (_frontPanelState(node, portCount).sharedMediaSlots || []).map(item => item.slot);
 }
 
+// Le file di SLOT di un cassetto ottico (una per U, 24 slot a fila, dall'alto), o `null` se non si disegnano slot e
+// vale il frontale generico. Un solo posto che lo decide: lo chiamano sia le righe del frontale sia il render.
+export function _fiberSlotRows(node, portCount){
+    if(!node || node.type !== 'fiberdrawer') return null;
+    const fp = _frontPanelState(node, portCount);
+    const sU = node.sizeU !== undefined ? node.sizeU : (TYPES.fiberdrawer && TYPES.fiberdrawer.sizeU);
+    return fiberSlotRows(fiberNodePlan(node), fp.portCount, sU, fp.baseLayout);
+}
+
 export function _frontPanelRows(node, portCount){
     const fp = _frontPanelState(node, portCount);
     const pc = fp.portCount;
     if(pc <= 0) return [];
+    const slotRows = _fiberSlotRows(node, portCount);
+    if(slotRows) return slotRows;
     const sfpPorts = new Set(_frontPanelSfpPorts(node, portCount));
     const list = Array.from({ length:pc }, (_, idx) => idx + 1).filter(i => !sfpPorts.has(i));
     if(fp.baseLayout === 'linear') return [list];

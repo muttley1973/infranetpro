@@ -19,6 +19,7 @@ import { TYPES, typeName, _nodeSpecView, _fixedRackLabel, _frontPanelState } fro
 import { _propsSectionIsOpen, _buildNetAccessHtml, renderProps, _buildPropsHeader, _propsToggleButtonsHtml, _propsIconForType, _buildPatchPanelPreview } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS (accento colorato nell'intestazione device)
 import { pduManagementPortCount } from '../lib/pdu-layout.js';
+import { fiberDrawerStats, fiberSlotPlan, FIBER_ROW_SLOTS } from '../lib/fiber-slot.js';   // conti e limite di una fila del cassetto ottico
 import { V3_AUTH, V3_PRIV, V3_LEVELS, V3_DEFAULTS } from '../lib/snmp-v3.js';   // le scelte SNMPv3 sono quelle del driver: un elenco solo
 
 // Le <option> di una select SNMPv3. Il valore salvato si confronta senza badare a maiuscole e spazi
@@ -38,6 +39,42 @@ import { _deviceTypeApplyHtml } from './app-device-types.js';   // "Applica mode
 import { registerClickActions, registerChangeActions, registerInputActions } from './app-delegation.js';   // ASSE B (Blocco 4): event delegation degli handler inline del pannello NODE
 import { updateIntegration, pollSNMP } from './app-snmp.js';   // ritiro ponte: integrazione SNMP (ex win.*)
 import { toggleRoomLock, _liveStructColor, _liveStructOpacity, moveNodeToRack } from './app-search-zoom-rack.js';   // ritiro ponte: lock stanza · colore/opacita' live · sposta rack (ex win.*)
+
+// Le due tendine della fibra — connettore e classe — di un patch panel in fibra/misto E di un cassetto ottico: UNA
+// definizione, perche' le opzioni devono restare le stesse (e lo stesso `ppFiberConnector` guida il disegno degli slot).
+// Nessuna voce preselezionata: «non dichiarato» finche' qualcuno non sceglie (manual-first).
+// `forDrawer`: nel cassetto LC simplex non e' una voce — un LC singolo e' «LC duplex + una porta e' un singolo connettore»,
+// l'unico modo in cui i produttori lo montano (nel taglio SC entra l'LC duplex) — ma un dato che ce l'ha resta visibile.
+function _ppFiberFieldsHtml(conn, mode, forDrawer){
+    return `<div class="prop-row2">
+  <div class="prop-group"><label>${t('f.fiberConn')}</label>
+    <select data-change="update-n" data-nfield="ppFiberConnector">
+      <option value="" ${selected(conn,'')}>${t('o.notDeclared')}</option>
+${(!forDrawer || conn==='lc-simplex') ? `      <option value="lc-simplex" ${selected(conn,'lc-simplex')}>LC simplex</option>
+` : ''}      <option value="lc-duplex"  ${selected(conn,'lc-duplex')}>LC duplex</option>
+      <option value="lc-quad"    ${selected(conn,'lc-quad')}>LC quad</option>
+      <option value="sc"         ${selected(conn,'sc')}>SC</option>
+      <option value="sc-duplex"  ${selected(conn,'sc-duplex')}>SC duplex</option>
+      <option value="st"         ${selected(conn,'st')}>ST</option>
+      <option value="fc"         ${selected(conn,'fc')}>FC</option>
+      <option value="mpo-12"     ${selected(conn,'mpo-12')}>MTP/MPO-12</option>
+      <option value="mpo-24"     ${selected(conn,'mpo-24')}>MTP/MPO-24</option>
+    </select>
+  </div>
+  <div class="prop-group"><label>${t('f.fiberMode')}</label>
+    <select data-change="update-n" data-nfield="ppFiberMode">
+      <option value="" ${selected(mode,'')}>${t('o.notDeclared')}</option>
+      <option value="sm-os1" ${selected(mode,'sm-os1')}>SM — OS1</option>
+      <option value="sm-os2" ${selected(mode,'sm-os2')}>SM — OS2</option>
+      <option value="mm-om1" ${selected(mode,'mm-om1')}>MM — OM1</option>
+      <option value="mm-om2" ${selected(mode,'mm-om2')}>MM — OM2</option>
+      <option value="mm-om3" ${selected(mode,'mm-om3')}>MM — OM3</option>
+      <option value="mm-om4" ${selected(mode,'mm-om4')}>MM — OM4</option>
+      <option value="mm-om5" ${selected(mode,'mm-om5')}>MM — OM5</option>
+    </select>
+  </div>
+</div>`;
+}
 
 // ── ASSE B (Blocco 4): event delegation degli handler del pannello NODE ──────
 // Ogni on*= inline del renderer diventa un attributo data-* + un'azione qui. I
@@ -754,32 +791,35 @@ ${showCopper ? `<div class="prop-row2">
     </select>
   </div>
 </div>` : ''}
-${showFiber ? `<div class="prop-row2">
-  <div class="prop-group"><label>${t('f.fiberConn')}</label>
-    <select data-change="update-n" data-nfield="ppFiberConnector">
-      <option value="" ${selected(conn,'')}>${t('o.notDeclared')}</option>
-      <option value="lc-simplex" ${selected(conn,'lc-simplex')}>LC simplex</option>
-      <option value="lc-duplex"  ${selected(conn,'lc-duplex')}>LC duplex</option>
-      <option value="sc"         ${selected(conn,'sc')}>SC</option>
-      <option value="st"         ${selected(conn,'st')}>ST</option>
-      <option value="fc"         ${selected(conn,'fc')}>FC</option>
-      <option value="mpo-12"     ${selected(conn,'mpo-12')}>MTP/MPO-12</option>
-      <option value="mpo-24"     ${selected(conn,'mpo-24')}>MTP/MPO-24</option>
-    </select>
-  </div>
-  <div class="prop-group"><label>${t('f.fiberMode')}</label>
-    <select data-change="update-n" data-nfield="ppFiberMode">
-      <option value="" ${selected(mode,'')}>${t('o.notDeclared')}</option>
-      <option value="sm-os1" ${selected(mode,'sm-os1')}>SM — OS1</option>
-      <option value="sm-os2" ${selected(mode,'sm-os2')}>SM — OS2</option>
-      <option value="mm-om1" ${selected(mode,'mm-om1')}>MM — OM1</option>
-      <option value="mm-om2" ${selected(mode,'mm-om2')}>MM — OM2</option>
-      <option value="mm-om3" ${selected(mode,'mm-om3')}>MM — OM3</option>
-      <option value="mm-om4" ${selected(mode,'mm-om4')}>MM — OM4</option>
-      <option value="mm-om5" ${selected(mode,'mm-om5')}>MM — OM5</option>
-    </select>
-  </div>
-</div>` : ''}
+${showFiber ? _ppFiberFieldsHtml(conn, mode) : ''}
+</div></details>`;
+                }
+
+                // ---- Cassetto ottico: la tipologia e' solo FIBRA (connettore + classe) ----
+                // Niente «tipo di cavo» (rame/fibra/misto): un cassetto ottico e' sempre fibra. Il
+                // connettore dichiarato e' quello che disegna i fori degli slot nel rack (lib/fiber-slot.js).
+                if(n.type==='fiberdrawer'){
+                    const _fdPreview = _buildPatchPanelPreview({ ports:n.ports, ppMedia:'fiber', ppFiberMode:n.ppFiberMode, ppFiberConnector:n.ppFiberConnector });
+                    // «Una porta e'…»: un duplex (il modello di InfraNet) o un singolo LC. Ha senso solo per i moduli LC
+                    // con piu' di un LC: negli altri la porta e' il connettore. Non c'e' «non dichiarato»: e' un'unita'
+                    // di conto, e senza scelta vale il duplex.
+                    const _fdConn = n.ppFiberConnector || '';
+                    const _fdUnit = n.ppFiberPortUnit === 'single' ? 'single' : 'duplex';
+                    const _fdUnitHtml = fiberSlotPlan(_fdConn, 'single').cells > 1 ? `<div class="prop-group"><label>${t('f.fiberPortUnit')}</label>
+  <select data-change="update-n" data-nfield="ppFiberPortUnit">
+    <option value="duplex" ${selected(_fdUnit,'duplex')}>${t('o.fiberUnitDuplex')}</option>
+    <option value="single" ${selected(_fdUnit,'single')}>${t('o.fiberUnitSingle')}</option>
+  </select>
+</div>` : '';
+                    // Conti derivati dal connettore dichiarato: porte, slot e fibre; e, se le file non entrano nelle U
+                    // del cassetto, lo dice (a 1U ne entra una da 24 slot, a 2U due...).
+                    const _fdStats = fiberDrawerStats(_fdConn, _fdUnit, n.ports!==undefined ? n.ports : d.ports);
+                    const _fdU = Math.max(1, Number(n.sizeU!==undefined ? n.sizeU : d.sizeU) || 1);
+                    const _fdMax = FIBER_ROW_SLOTS * _fdU;
+                    const _fdSummaryHtml = _fdStats ? `<div class="fd-summary" style="font-size:var(--fs-2xs);color:var(--text-muted);margin:2px 2px 0"><i class="fas fa-calculator" style="margin-right:5px"></i>${t('pnl.fd.summary',{ports:Number(n.ports!==undefined ? n.ports : d.ports),slots:Number(_fdStats.slots),fibres:Number(_fdStats.fibres)})}${_fdStats.slots>_fdMax ? `<div class="fd-over" style="color:#e3b341;margin-top:3px"><i class="fas fa-triangle-exclamation" style="margin-right:5px"></i>${t('pnl.fd.tooManySlots',{max:Number(_fdMax),u:Number(_fdU)})}</div>` : ''}</div>` : '';
+                    _patchPanelHtml = `<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-fiberdrawer')?'open':''} data-toggle="props-section" data-section="device-fiberdrawer"><summary class="props-collapsible-head"><span><i class="fas fa-inbox"></i> ${t('type.fiberdrawer')}</span>${_fdPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
+${_ppFiberFieldsHtml(n.ppFiberConnector || '', n.ppFiberMode || '', true)}
+${_fdUnitHtml}${_fdSummaryHtml}
 </div></details>`;
                 }
 

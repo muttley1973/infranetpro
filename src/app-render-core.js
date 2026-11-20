@@ -14,7 +14,7 @@ import { nodeById, getNodeByPortId, getPortNodeId, renderCables, _linksForPort, 
 import { propagateVlans, _linkIsTrunk, _effPortVlan } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderTopoOverlay, _renderTopoLegend } from './app-topology-overlay.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
-import { TYPES, typeShort, _frontPanelPortLabel, _fixedRackLabel, _frontPanelState, _frontPanelRows, _frontPanelIsUplink, _frontPanelSfpPorts, _frontPanelSfpGroups, _frontPanelSharedSlots } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
+import { TYPES, typeShort, _frontPanelPortLabel, _fixedRackLabel, _frontPanelState, _frontPanelRows, _fiberSlotRows, _frontPanelIsUplink, _frontPanelSfpPorts, _frontPanelSfpGroups, _frontPanelSharedSlots } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { nodeLabelParts } from '../lib/node-label.js';   // lib pura importata ESM (come lib/ipv6.js): NON un globale su window
 import { radioPid } from '../lib/radio.js';   // pid porta radio (ESM, no win.*): filtro VLAN wireless in _nodeDim
 import { normalizePduOutletCount, outletStatusText, pduOutletStatusState, pduOutletConnection, pduOutletGrid, pduOutletCellSize, pduManagementPortCount, pduSerialPortCount, pduAuxiliaryPortCount, rendersOutletGrid } from '../lib/pdu-layout.js';
@@ -28,6 +28,7 @@ import { _paintRoutingTargets } from './app-cabling-editor.js';   // ritiro pont
 import { _hasSnmpIntegration, _renderV3PendingChip, _v3NeedsCreds, _snmpIsStale } from './app-snmp.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { _applySpareHighlight } from './app-spare.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { nodePresenceClass } from '../lib/presence.js';
+import { fiberNodePlan, fiberCellSvg } from '../lib/fiber-slot.js';   // lib pura (come lib/port-state.js): la geometria dello slot del cassetto ottico
 
 // Altezza in px di una unità rack (1U). UNICO punto di verità: la CSS var
 // `--ru-h` (style.css :root), letta qui dal render JS che dimensiona chassis,
@@ -578,8 +579,20 @@ function _renderAllNow(){
                 const breathGap=(count)=> count>16 ? 1 : 2;
                 // Densita': switch con >16 porte per riga (es. 48 porte = 24/riga)
                 // usano classe dense-xl per font/spaziatura adattati.
-                const perRow = Math.max(...(_frontPanelRows(n, pc).map(r=>r.length))) || pc;
-                const mkPort=(i)=>{
+                const _fpRows = _frontPanelRows(n, pc);
+                const perRow = Math.max(..._fpRows.map(r=>r.length)) || pc;
+                // Cassetto ottico: la porta e' uno SLOT verticale con i fori del connettore dichiarato
+                // (lib/fiber-slot.js, dal disegno dell'utente). Le FILE di slot le decide _fiberSlotRows: una per U,
+                // 24 slot a fila; se non entrano, o se l'utente ha chiesto due piani di LED, e' il frontale di sempre.
+                // Il modulo LC puo' avere piu' PORTE (quad = 2 duplex o 4 singoli): ogni porta e' una CELLA
+                // cliccabile dello slot, col suo pid e il suo stato. Non dichiarato = slot senza fori.
+                const _slotRows = _fiberSlotRows(n, pc);
+                const _plan = _slotRows ? fiberNodePlan(n) : null;
+                const _cells = _plan ? _plan.cells : 1;
+                const _slotCls = _plan ? (_cells===1 ? ' fo-slot' : ' fo-cell')+' fo-'+escapeHTML(_plan.kind)+(_cells===1 && _plan.tall ? ' fo-tall' : '') : '';
+                const _cellSvg = _plan ? fiberCellSvg(_plan) : '';
+                // Il LED di UNA porta (vuoto se e' nascosta): e' l'elemento che porta il pid e prende il colore di stato.
+                const mkLed=(i)=>{
                     const pid=`${n.id}-${i}`;
                     const pi=store.state.ports[pid]||{};
                     if(pi.hidden) return ''; // interfaccia nascosta (virtuale)
@@ -591,15 +604,41 @@ function _renderAllNow(){
                     const lagDataAttr=lagGid?` data-lag="${escapeHTML(lagGid)}"`:'';
                     const isUplink=_frontPanelIsUplink(n, i, pc);
                     const isSharedMedia=sharedMediaSlots.has(i);
-                    const uplinkCls=isUplink?' uplink sfp-slot':'';
                     const sharedMediaCls=isSharedMedia?' shared-media-slot':'';
-                    const ledCls=isUplink?' port-led sfp-slot':'port-led';
-                    const label=_frontPanelPortLabel(n, i, pc);
+                    const ledCls=(isUplink?' port-led sfp-slot':'port-led')+_slotCls;
                     // title HTML nativo browser: appare sempre, anche dentro container
                     // con overflow:hidden (a differenza del tooltip CSS [data-tip]).
                     const portTipText = portTip(pid);
+                    return `<div class="${ledCls} ${st}${lagSelCls}${lagMemCls}${lagFocCls}${sharedMediaCls}" data-pid="${pid}"${lagDataAttr} title="${escapeHTML(portTipText)}">${_cellSvg}</div>`;
+                };
+                const mkPort=(i)=>{
+                    const led=mkLed(i);
+                    if(!led) return '';
+                    const isUplink=_frontPanelIsUplink(n, i, pc);
+                    const isSharedMedia=sharedMediaSlots.has(i);
+                    const uplinkCls=isUplink?' uplink sfp-slot':'';
+                    const sharedMediaCls=isSharedMedia?' shared-media-slot':'';
+                    const label=_frontPanelPortLabel(n, i, pc);
                     const numHtml=`<span class="port-num" title="${escapeHTML(label)}">${escapeHTML(label)}</span>`;
-                    return `<div class="rack-port-unit${uplinkCls}${sharedMediaCls}"><div class="${ledCls} ${st}${lagSelCls}${lagMemCls}${lagFocCls}${sharedMediaCls}" data-pid="${pid}"${lagDataAttr} title="${escapeHTML(portTipText)}"></div>${numHtml}</div>`;
+                    return `<div class="rack-port-unit${uplinkCls}${sharedMediaCls}">${led}${numHtml}</div>`;
+                };
+                // Un modulo con piu' porte: le celle impilate dall'alto (la prima e' la porta di numero piu' basso) e,
+                // sotto lo slot, il numero della prima; il tooltip del numero dice il tratto. Una cella senza porta
+                // (ultimo modulo mezzo vuoto, o porta nascosta) e' una vetrina vuota, non cliccabile.
+                const mkModule=(ports)=>{
+                    let cells='';
+                    for(let c=0;c<_cells;c++) cells += (ports[c]!==undefined ? mkLed(ports[c]) : '') || '<div class="fo-cell-empty"></div>';
+                    const first=_frontPanelPortLabel(n, ports[0], pc);
+                    const last=_frontPanelPortLabel(n, ports[ports.length-1], pc);
+                    const tall=_plan && _plan.tall ? ' fo-tall' : '';
+                    return `<div class="rack-port-unit fo-module fo-k${Number(_cells)}${tall}"><div class="fo-cells">${cells}</div><span class="port-num" title="${escapeHTML(first+'-'+last)}">${escapeHTML(first)}</span></div>`;
+                };
+                // Le unita' di una fila: una per porta, o una per MODULO quando lo slot ha piu' celle.
+                const mkUnits=(row)=>{
+                    if(_cells<=1) return row.map(i=>mkPort(i)).join('');
+                    let h='';
+                    for(let k=0;k<row.length;k+=_cells) h+=mkModule(row.slice(k,k+_cells));
+                    return h;
                 };
                 // MGMT slot dedicato (1..4 celle, bordo ciano stile cavo console
                 // Cisco). Pid `${n.id}-mgmt${i}`. Etichetta base editabile (default
@@ -644,7 +683,7 @@ function _renderAllNow(){
                     rows.forEach((row)=>{
                         if(!row?.length) return;
                         html+=`<div class="rack-ports-row" style="--port-gap:${g}px">`;
-                        row.forEach(i=>{ html+=mkPort(i); });
+                        html+=mkUnits(row);
                         html+='</div>';
                     });
                     // SFP rendering: 1 o 2 .rack-sfp-side affiancati. Il
@@ -679,7 +718,7 @@ function _renderAllNow(){
                     pts=`<div class="rack-ports rack-ports-sfp-layout ${layoutCls}${compactCls}${densityCls}${oppositeCls}">${leftMgmt}${leftSfp}${mainBlock}${rightSfp}${rightMgmt}</div>`;
                 } else if(rows.length===1){
                     pts=`<div class="rack-ports${densityCls}" style="--port-gap:${breathGap(pc)}px">`;
-                    rows[0].forEach(i=>{ pts+=mkPort(i); });
+                    pts+=mkUnits(rows[0]);
                     pts+='</div>';
                 } else {
                     const compactCls=sU===1?' compact-1u':'';
@@ -689,7 +728,7 @@ function _renderAllNow(){
                     let html='';
                     mainRows.forEach((row)=>{
                         html+=`<div class="rack-ports-row" style="--port-gap:${g}px">`;
-                        row.forEach(i=>{ html+=mkPort(i); });
+                        html+=mkUnits(row);
                         html+='</div>';
                     });
                     pts=`<div class="rack-ports rack-ports-2row${compactCls}${densityCls}">${html}</div>`;

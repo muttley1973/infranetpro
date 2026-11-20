@@ -661,6 +661,7 @@ const _SVG_DEV = {
     firewall: { ab:'FW',  fa:0xF3ED }, // fa-shield-halved
     server:   { ab:'SRV', fa:0xF233 }, // fa-server
     nas:      { ab:'NAS', fa:0xF0A0 }, // fa-hdd
+    fiberdrawer:{ ab:'ODF', fa:0xF01C }, // fa-inbox
     blankpanel:{ ab:'BLK', fa:0xF068 }, // fa-minus
     cablemanager:{ ab:'CM', fa:0xF7A4 }, // fa-grip-lines
     ups:      { ab:'UPS', fa:0xF5DF }, // fa-car-battery

@@ -690,6 +690,22 @@
             max-width:8px;
         }
         .port-led { width:7px; height:7px; border-radius:1px; background:var(--inactive-color); pointer-events:auto; cursor:crosshair; transition:transform .1s, box-shadow .1s; flex-shrink:0; }
+        /* Cassetto ottico (lib/fiber-slot.js): la porta e' uno SLOT verticale con le proporzioni del disegno
+           dell'utente (192,31 x 290,6) e i FORI del connettore dentro — due piccoli (LC duplex), uno grande
+           (SC/ST/FC), uno solo piccolo (LC simplex), un'apertura larga (MPO). Il colore di stato resta sul
+           .port-led, come per ogni porta; i fori sono scuri e non prendono il mouse (il pid e' sullo slot). */
+        .rack-port-unit .port-led.fo-slot { position:relative; width:var(--rack-port-cell); height:calc(var(--rack-port-cell) * 290.6 / 192.31); }
+        .rack-port-unit .port-led.fo-slot.fo-tall { height:calc(var(--rack-port-cell) * 396.63 / 192.31); }   /* SC duplex, porta duplex: uno slot solo, ma alto */
+        .port-led.fo-slot .fo-svg, .port-led.fo-cell .fo-svg { position:absolute; left:0; top:0; width:100%; height:100%; fill:#0b0f14; pointer-events:none; }
+        /* Un modulo con PIU' porte (LC quad = 2 duplex o 4 singoli; LC duplex con la porta = singolo LC): lo slot ha
+           la stessa larghezza e si divide in CELLE impilate, una per porta, con 1 px fra l'una e l'altra. Ogni cella e'
+           un .port-led col suo pid e il suo stato. L'altezza e' quella dello slot (il quad, a 4 LC, e' piu' alto:
+           396,63 / 192,31 invece di 290,6 / 192,31 — le misure sono in lib/fiber-slot.js, qui sono gemelle). */
+        .rack-port-unit.fo-module { gap:1px; }
+        .fo-module .fo-cells { display:flex; flex-direction:column; gap:1px; width:100%; height:calc(var(--rack-port-cell) * 290.6 / 192.31); }
+        .fo-module.fo-tall .fo-cells { height:calc(var(--rack-port-cell) * 396.63 / 192.31); }
+        .fo-module .port-led.fo-cell { position:relative; width:100%; height:auto; flex:1 1 0; min-height:0; }
+        .fo-module .fo-cell-empty { flex:1 1 0; min-height:0; border-radius:1px; background:rgba(0,0,0,.35); }
         .port-led.sfp-slot { width:8px; height:5px; border-radius:1px; background:transparent; border:2px solid rgba(154,165,177,.75); box-shadow:inset 0 0 0 1px rgba(154,165,177,.1); }
         .port-led:hover { transform:scale(1.5); box-shadow:0 0 6px var(--accent); }
         .port-led.sfp-slot:hover { box-shadow:0 0 6px rgba(154,165,177,.5); }

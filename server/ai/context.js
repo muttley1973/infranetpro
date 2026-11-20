@@ -84,7 +84,7 @@ function _compact(obj) {
 // marchiamo `passive:true` così l'AI non li scambia per «device senza IP» o
 // lacune (paletto #2). Allineato a app-drift.js isPassiveNoIp; ups/pdu/ats/
 // mediaconv sono passivi ma hasIP:true → NON qui (possono avere un IP di mgmt).
-const _PASSIVE_NO_IP_TYPES = new Set(['wallport', 'patchpanel', 'blankpanel', 'cablemanager', 'panelboard']);
+const _PASSIVE_NO_IP_TYPES = new Set(['wallport', 'patchpanel', 'fiberdrawer', 'blankpanel', 'cablemanager', 'panelboard']);
 
 // Device compatto: parte dal DTO allowlist di api-shape (già sicuro).
 function _device(d) {

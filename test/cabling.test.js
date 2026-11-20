@@ -231,6 +231,55 @@ test('canRouteThrough: VoIP daisy-chain (P1.5-bis) — telefono tappa fra PC e p
   assert.equal(canRouteThrough('wallport', 'voip', 'switch'), false);
 });
 
+// ---------- Cassetto ottico (fiberdrawer): una dorsale in FIBRA, mai fra estremi di rame ----------
+// Il cassetto ottico e' un cross-connect (livello 2) come il patch panel, ma e' fibra: un PC, una presa a
+// muro o un telefono non si attaccano a una fibra, quindi il cassetto non sta MAI fra estremi work-area. Sta
+// dove sta una dorsale: fra un altro cassetto e l'apparato attivo (switch ↔ cassetto ↔ cassetto ↔ switch).
+
+test('cablingHierLevel: il cassetto ottico e\' un cross-connect (2) come il patch panel', () => {
+  assert.equal(cablingHierLevel('fiberdrawer'), 2);
+});
+
+test('canRouteThrough: dorsale in fibra — un cassetto sta fra un altro cassetto e l\'equipment', () => {
+  assert.equal(canRouteThrough('fiberdrawer', 'fiberdrawer', 'switch'), true);
+  assert.equal(canRouteThrough('fiberdrawer', 'fiberdrawer', 'router'), true);
+  assert.equal(canRouteThrough('switch', 'fiberdrawer', 'fiberdrawer'), true, 'l\'ordine degli estremi non conta');
+});
+
+test('canRouteThrough: il cassetto ottico NON sta mai fra estremi di rame o work-area', () => {
+  // gerarchicamente (livello 2 fra 0/1 e 3) passerebbe: ma a una fibra non si attacca un PC o una presa
+  assert.equal(canRouteThrough('pc', 'fiberdrawer', 'switch'), false);
+  assert.equal(canRouteThrough('wallport', 'fiberdrawer', 'switch'), false);
+  assert.equal(canRouteThrough('voip', 'fiberdrawer', 'switch'), false);
+  assert.equal(canRouteThrough('fiberdrawer', 'fiberdrawer', 'pc'), false);
+  assert.equal(canRouteThrough('fiberdrawer', 'fiberdrawer', 'wallport'), false);
+});
+
+test('canRouteThrough: un cassetto fra due apparati attivi, o fra cassetti, non e\' una dorsale', () => {
+  assert.equal(canRouteThrough('switch', 'fiberdrawer', 'switch'), false, 'come il patch panel: serve un altro pannello a un capo');
+  assert.equal(canRouteThrough('fiberdrawer', 'fiberdrawer', 'fiberdrawer'), false);
+  assert.equal(canRouteThrough('fiberdrawer', 'fiberdrawer', 'patchpanel'), false, 'un pannello di rame non e\' una dorsale in fibra');
+});
+
+test('canRouteThrough: il patch panel di rame non entra in una dorsale in fibra', () => {
+  assert.equal(canRouteThrough('fiberdrawer', 'patchpanel', 'switch'), false);
+  assert.equal(canRouteThrough('patchpanel', 'fiberdrawer', 'switch'), false, 'e il cassetto non entra in una dorsale di rame');
+});
+
+test('validMidTypes: per un cavo cassetto↔switch la tappa e\' un altro cassetto, e agli altri cavi non cambia niente', () => {
+  assert.deepEqual(validMidTypes('fiberdrawer', 'switch'), ['fiberdrawer']);
+  // i casi di rame di prima restano IDENTICI: il cassetto non compare dove non puo' stare
+  assert.deepEqual(validMidTypes('wallport', 'switch'), ['patchpanel']);
+  assert.deepEqual(validMidTypes('pc', 'switch').sort(), ['patchpanel', 'voip', 'wallport']);
+  assert.deepEqual(validMidTypes('patchpanel', 'switch'), ['patchpanel']);
+  assert.deepEqual(validMidTypes('switch', 'switch'), []);
+});
+
+test('validateCablingChain: dorsale in fibra switch → cassetto → cassetto → switch = nessun warning', () => {
+  const r = validateCablingChain(['switch', 'fiberdrawer', 'fiberdrawer', 'switch']);
+  assert.equal(r.ok, true, JSON.stringify(r.warnings));
+});
+
 test('validateCablingChain: catena canonica = nessun warning', () => {
   // PC → telefono → presa → patch panel → switch (0, 0.5, 1, 2, 3) monotona
   let r = validateCablingChain(['pc', 'voip', 'wallport', 'patchpanel', 'switch']);

@@ -366,7 +366,7 @@ const _PP_FIBER_MODE_LABEL = {
     'mm-om1':'OM1','mm-om2':'OM2','mm-om3':'OM3','mm-om4':'OM4','mm-om5':'OM5',
 };
 const _PP_FIBER_CONN_LABEL = {
-    'lc-simplex':'LC simplex','lc-duplex':'LC duplex',
+    'lc-simplex':'LC simplex','lc-duplex':'LC duplex','lc-quad':'LC quad','sc-duplex':'SC duplex',
     'sc':'SC','st':'ST','fc':'FC',
     'mpo-12':'MTP-12','mpo-24':'MTP-24',
 };
