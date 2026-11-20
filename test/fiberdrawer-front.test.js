@@ -292,13 +292,21 @@ test('pannello del patch panel: nessuna scelta di unita\' (i patch panel contano
   assert.doesNotMatch(pannello({ type: 'patchpanel', ppMedia: 'fiber', spec: { ppFiberConnector: 'lc-duplex' } }), UNITA);
 });
 
-test('pannello del cassetto: riga derivata «porte · slot · fibre», solo col connettore dichiarato', () => {
+// Il riepilogo del pannello: tre numeri, ognuno col suo nome (`.fd-stat`) — qui riletti come «96 porte · 24 slot · 96 fibre».
+const CONTI = (html) => [...html.matchAll(/<div class="fd-stat"><b>(\d+)<\/b> <span>([^<]*)<\/span><\/div>/g)].map((m) => m[1] + ' ' + m[2]).join(' · ');
+
+test('pannello del cassetto: riepilogo derivato «porte · slot · fibre», solo col connettore dichiarato', () => {
   const quad = pannello({ type: 'fiberdrawer', ports: 96, spec: { ppFiberConnector: 'lc-quad', ppFiberPortUnit: 'single' } });
-  assert.match(quad, /96 porte · 24 slot · 96 fibre/);
+  assert.equal(CONTI(quad), '96 porte · 24 slot · 96 fibre');
   const quad2 = pannello({ type: 'fiberdrawer', ports: 48, spec: { ppFiberConnector: 'lc-quad', ppFiberPortUnit: 'duplex' } });
-  assert.match(quad2, /48 porte · 24 slot · 96 fibre/);
-  assert.match(pannello({ type: 'fiberdrawer', spec: { ppFiberConnector: 'lc-duplex' } }), /24 porte · 24 slot · 48 fibre/);
-  assert.doesNotMatch(pannello({ type: 'fiberdrawer' }), /porte · \d+ slot/, 'senza connettore non si dice quante fibre');
+  assert.equal(CONTI(quad2), '48 porte · 24 slot · 96 fibre');
+  assert.equal(CONTI(pannello({ type: 'fiberdrawer', spec: { ppFiberConnector: 'lc-duplex' } })), '24 porte · 24 slot · 48 fibre');
+  assert.equal(CONTI(pannello({ type: 'fiberdrawer' })), '', 'senza connettore non si dice quante fibre');
+  assert.doesNotMatch(pannello({ type: 'fiberdrawer' }), /porte · \d+ slot|class="fd-stats"/);
+});
+
+test('pannello del cassetto: il riepilogo dice la frase intera anche nel suggerimento (una definizione, i tre numeri la ricompongono)', () => {
+  assert.match(pannello({ type: 'fiberdrawer', spec: { ppFiberConnector: 'lc-duplex' } }), /class="fd-stats"[^>]*title="24 porte · 24 slot · 48 fibre"/);
 });
 
 test('pannello del cassetto: oltre 24 slot PER U lo dice, perche\' le file non entrano', () => {
@@ -394,7 +402,7 @@ test('pannello del cassetto: SC duplex fra i connettori, e «una porta e\'» anc
   assert.match(pannello({ type: 'patchpanel', ppMedia: 'fiber' }), /<option value="sc-duplex"/, 'la lista e\' una sola: il patch panel la condivide');
   const sel = UNITA.exec(pannello({ type: 'fiberdrawer', spec: { ppFiberConnector: 'sc-duplex' } }));
   assert.ok(sel, 'un modulo con 2 connettori: la porta e\' da scegliere');
-  assert.match(pannello({ type: 'fiberdrawer', ports: 24, spec: { ppFiberConnector: 'sc-duplex' } }), /24 porte · 24 slot · 48 fibre/);
+  assert.equal(CONTI(pannello({ type: 'fiberdrawer', ports: 24, spec: { ppFiberConnector: 'sc-duplex' } })), '24 porte · 24 slot · 48 fibre');
   assert.doesNotMatch(pannello({ type: 'fiberdrawer', spec: { ppFiberConnector: 'sc' } }), UNITA, 'l\'SC simplex: la porta e\' il connettore');
 });
 
@@ -408,5 +416,5 @@ test('pannello del cassetto: LC simplex non e\' una voce della lista, ma se il d
 test('pannello del cassetto: l\'avviso oltre i 24 slot per U dice che e\' un pannello ad alta densita\' disegnato senza i fori', () => {
   const html = pannello({ type: 'fiberdrawer', ports: 72, spec: { ppFiberConnector: 'lc-duplex' } });
   assert.match(html, /Oltre 24 slot \(1U × 24\): pannello ad alta densità \(a cassette\), disegnato in modo semplificato, senza i fori/);
-  assert.match(pannello({ type: 'fiberdrawer', ports: 24, spec: { ppFiberConnector: 'lc-duplex' } }), /24 porte · 24 slot · 48 fibre/);
+  assert.equal(CONTI(pannello({ type: 'fiberdrawer', ports: 24, spec: { ppFiberConnector: 'lc-duplex' } })), '24 porte · 24 slot · 48 fibre');
 });

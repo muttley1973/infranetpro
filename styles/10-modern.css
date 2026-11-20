@@ -336,8 +336,9 @@ header {
 .equip-item[data-type="ats"] i, .equip-item[data-type="panelboard"] i,
 .equip-item[data-type="badgereader"] i, .equip-item[data-type="doorctrl"] i { color:#f0b429; background:rgba(240,180,41,.14); }
 /* grigio — passivi/strutturali */
-.equip-item[data-type="patchpanel"] i, .equip-item[data-type="blankpanel"] i,
-.equip-item[data-type="cablemanager"] i, .equip-item[data-type="room"] i { color:#8b949e; background:rgba(139,148,158,.14); }
+.equip-item[data-type="patchpanel"] i, .equip-item[data-type="fiberdrawer"] i,
+.equip-item[data-type="blankpanel"] i, .equip-item[data-type="cablemanager"] i,
+.equip-item[data-type="room"] i { color:#8b949e; background:rgba(139,148,158,.14); }
 
 /* ---- PLANIMETRIA: stessa palette sull'icona del nodo (per classe fa-*) ---- */
 .floor-node i.icon.fa-ethernet:not(.fault):not(.no-link),

@@ -20,7 +20,7 @@ import { _propsSectionIsOpen, _buildNetAccessHtml, renderProps, _buildPropsHeade
 import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS (accento colorato nell'intestazione device)
 import { pduManagementPortCount } from '../lib/pdu-layout.js';
 import { fiberDrawerStats, fiberSlotPlan, fiberNodeSlots, fiberCompositionStats, FIBER_MODULES, FIBER_ROW_SLOTS } from '../lib/fiber-slot.js';   // conti e limite di una fila del cassetto ottico, e la sua composizione
-import { fiberRunsText } from './app-fiberdrawer-composer.js';   // «1–12 LC duplex · 13–16 MTP/MPO-12»: i moduli a parole
+import { fiberRuns } from './app-fiberdrawer-composer.js';   // [{range:'13–16', key, label}]: i moduli, un tratto per volta (le tessere del pannello)
 import { V3_AUTH, V3_PRIV, V3_LEVELS, V3_DEFAULTS } from '../lib/snmp-v3.js';   // le scelte SNMPv3 sono quelle del driver: un elenco solo
 
 // Le <option> di una select SNMPv3. Il valore salvato si confronta senza badare a maiuscole e spazi
@@ -46,11 +46,8 @@ import { toggleRoomLock, _liveStructColor, _liveStructOpacity, moveNodeToRack } 
 // Nessuna voce preselezionata: «non dichiarato» finche' qualcuno non sceglie (manual-first).
 // `forDrawer`: nel cassetto LC simplex non e' una voce — un LC singolo e' «LC duplex + una porta e' un singolo connettore»,
 // l'unico modo in cui i produttori lo montano (nel taglio SC entra l'LC duplex) — ma un dato che ce l'ha resta visibile.
-function _ppFiberFieldsHtml(conn, mode, forDrawer, modulesText){
-    // `modulesText`: un cassetto COMPOSTO non ha UN connettore, ha un modulo per slot: al posto della tendina c'e' il
-    // riepilogo a parole (testo: si escapa qui).
-    return `<div class="prop-row2">
-  ${modulesText ? `<div class="prop-group"><label>${t('pnl.fd.modules')}</label><div class="fd-modules" style="font-size:var(--fs-xs);line-height:1.5">${escapeHTML(modulesText)}</div></div>` : `<div class="prop-group"><label>${t('f.fiberConn')}</label>
+function _ppFiberConnectorGroup(conn, forDrawer){
+    return `<div class="prop-group"><label>${t('f.fiberConn')}</label>
     <select data-change="update-n" data-nfield="ppFiberConnector">
       <option value="" ${selected(conn,'')}>${t('o.notDeclared')}</option>
 ${(!forDrawer || conn==='lc-simplex') ? `      <option value="lc-simplex" ${selected(conn,'lc-simplex')}>LC simplex</option>
@@ -63,8 +60,10 @@ ${(!forDrawer || conn==='lc-simplex') ? `      <option value="lc-simplex" ${sele
       <option value="mpo-12"     ${selected(conn,'mpo-12')}>MTP/MPO-12</option>
       <option value="mpo-24"     ${selected(conn,'mpo-24')}>MTP/MPO-24</option>
     </select>
-  </div>`}
-  <div class="prop-group"><label>${t('f.fiberMode')}</label>
+  </div>`;
+}
+function _ppFiberModeGroup(mode){
+    return `<div class="prop-group"><label>${t('f.fiberMode')}</label>
     <select data-change="update-n" data-nfield="ppFiberMode">
       <option value="" ${selected(mode,'')}>${t('o.notDeclared')}</option>
       <option value="sm-os1" ${selected(mode,'sm-os1')}>SM — OS1</option>
@@ -75,8 +74,37 @@ ${(!forDrawer || conn==='lc-simplex') ? `      <option value="lc-simplex" ${sele
       <option value="mm-om4" ${selected(mode,'mm-om4')}>MM — OM4</option>
       <option value="mm-om5" ${selected(mode,'mm-om5')}>MM — OM5</option>
     </select>
-  </div>
+  </div>`;
+}
+// Il patch panel: le due tendine affiancate. Il cassetto le mette sulla sua gabbia (`_fdRowHtml`, piu' sotto): stesse due
+// funzioni, stesse opzioni, un'altra composizione.
+function _ppFiberFieldsHtml(conn, mode, forDrawer){
+    return `<div class="prop-row2">
+  ${_ppFiberConnectorGroup(conn, forDrawer)}
+  ${_ppFiberModeGroup(mode)}
 </div>`;
+}
+
+// ── Il cassetto ottico: una GABBIA a 12 colonne (design «B, due colonne») ──────────────────────────────────────────
+// Ogni riga `.fd-row` divide lo spazio a meta' (6 + 6); sotto, le tessere dei moduli (due colonne), poi il pulsante a
+// tutta larghezza. Lo spazio fra i blocchi e' sempre 24 px, fra etichetta e campo 8 px (stili: styles/06-panels.css).
+// Una riga con un solo blocco lo lascia a tutta larghezza. (Le righe si scrivono dove si usano, non con un costruttore
+// generico: i pezzi sono blocchi HTML gia' costruiti e il cricchetto dell'escaping li prova uno per uno solo cosi'.)
+// La riga che ha il riepilogo si chiama `fd-row-stats`: tre conti in mezza riga chiedono piu' spazio di due tendine, e si
+// impilano prima.
+// Un conto del riepilogo: il numero e il suo nome («25 porte»). `unitKey` e' una chiave i18n, mai un dato.
+const _fdStatHtml = (value, unitKey) => `<div class="fd-stat"><b>${Number(value)}</b> <span>${escapeHTML(t(unitKey))}</span></div>`;
+// Il riepilogo: porte · slot · fibre, in un blocco con la sua etichetta. `title` porta la frase intera (la stessa chiave
+// i18n di sempre), anche per chi legge con una tecnologia assistiva.
+function _fdStatsGroupHtml(stats, ports, summaryText){
+    if(!stats) return '';
+    return `<div class="prop-group fd-sum"><label>${t('pnl.fd.stats')}</label><div class="fd-stats" role="group" aria-label="${escapeHTML(summaryText)}" title="${escapeHTML(summaryText)}">${_fdStatHtml(ports,'pnl.fd.unitPorts')}${_fdStatHtml(stats.slots,'pnl.fd.unitSlots')}${_fdStatHtml(stats.fibres,'pnl.fd.unitFibres')}</div></div>`;
+}
+// Una tessera per tratto di slot: l'intervallo, il colore della famiglia (lo stesso del compositore: `fdc-k-*`) e il nome.
+// Testo e chiavi escapati qui: arrivano dai dati (la chiave e' gia' ripulita dalla lib, ma non ci si fida del chiamante).
+const _fdChipHtml = (r) => `<div class="fd-chip" title="${escapeHTML(r.range + ' ' + r.label)}"><span class="fd-chip-n">${escapeHTML(r.range)}</span><span class="fd-chip-sw fdc-box fdc-k-${escapeHTML(r.key)}"></span><span class="fd-chip-name">${escapeHTML(r.label)}</span></div>`;
+function _fdModulesHtml(runs, empty){
+    return `<div class="prop-group fd-modules-box"><div class="fd-modules-head"><label>${t('pnl.fd.modules')}</label>${empty ? `<span class="fd-modules-empty">${escapeHTML(t('pnl.fd.emptyN',{empty:Number(empty)}))}</span>` : ''}</div><div class="fd-modules">${runs.map(_fdChipHtml).join('')}</div></div>`;
 }
 
 // ── ASSE B (Blocco 4): event delegation degli handler del pannello NODE ──────
@@ -811,7 +839,7 @@ ${showFiber ? _ppFiberFieldsHtml(conn, mode) : ''}
                     const _fdConn = n.ppFiberConnector || '';
                     const _fdUnit = n.ppFiberPortUnit === 'single' ? 'single' : 'duplex';
                     // La composizione (un modulo per slot, v. il compositore): se c'e', al posto della tendina del
-                    // connettore e di quella dell'unita' (la sceglie il compositore) ci sono i moduli a parole.
+                    // connettore e di quella dell'unita' (la sceglie il compositore) ci sono le tessere dei moduli.
                     const _fdKeys = fiberNodeSlots(n);
                     const _fdUnitHtml = !_fdKeys && fiberSlotPlan(_fdConn, 'single').cells > 1 ? `<div class="prop-group"><label>${t('f.fiberPortUnit')}</label>
   <select data-change="update-n" data-nfield="ppFiberPortUnit">
@@ -829,15 +857,22 @@ ${showFiber ? _ppFiberFieldsHtml(conn, mode) : ''}
                     const _fdSummaryText = !_fdStats ? '' : (_fdKeys && _fdStats.empty
                         ? t('pnl.fd.summaryEmpty',{ports:Number(_fdShownPorts),slots:Number(_fdStats.slots),empty:Number(_fdStats.empty),fibres:Number(_fdStats.fibres)})
                         : t('pnl.fd.summary',{ports:Number(_fdShownPorts),slots:Number(_fdStats.slots),fibres:Number(_fdStats.fibres)}));
-                    const _fdSummaryHtml = _fdStats ? `<div class="fd-summary" style="font-size:var(--fs-2xs);color:var(--text-muted);margin:2px 2px 0"><i class="fas fa-calculator" style="margin-right:5px"></i>${_fdSummaryText}${_fdStats.slots>_fdMax ? `<div class="fd-over" style="color:#e3b341;margin-top:3px"><i class="fas fa-triangle-exclamation" style="margin-right:5px"></i>${t('pnl.fd.tooManySlots',{max:Number(_fdMax),u:Number(_fdU)})}</div>` : ''}</div>` : '';
-                    // I moduli a parole (cassetto composto) al posto della tendina del connettore.
-                    const _fdModulesText = _fdKeys ? fiberRunsText(_fdKeys) : '';
+                    const _fdStatsHtml = _fdStatsGroupHtml(_fdStats, _fdShownPorts, _fdSummaryText);
+                    // L'avviso «oltre N slot»: a tutta larghezza SOTTO le righe, cosi' non sposta le colonne.
+                    const _fdOverHtml = _fdStats && _fdStats.slots>_fdMax ? `<div class="fd-over"><i class="fas fa-triangle-exclamation"></i>${t('pnl.fd.tooManySlots',{max:Number(_fdMax),u:Number(_fdU)})}</div>` : '';
+                    // I moduli (cassetto composto) al posto della tendina del connettore: le tessere, sotto le righe.
+                    const _fdModulesBlock = _fdKeys ? _fdModulesHtml(fiberRuns(_fdKeys), _fdStats ? _fdStats.empty : 0) : '';
                     // «Componi slot»: serve un connettore dichiarato da cui partire (tutti gli slot uguali), o una composizione da modificare.
-                    const _fdComposeHtml = (_fdKeys || FIBER_MODULES.includes(_fdConn)) ? `<div class="prop-group"><button type="button" class="toolbar-btn" data-act="fd-compose" data-nid="${escapeHTML(n.id)}" data-tip="${escapeHTML(t('pnl.fd.composeTip'))}"><i class="fas fa-table-cells"></i> ${t('pnl.fd.compose')}</button></div>` : '';
-                    _patchPanelHtml = `<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-fiberdrawer')?'open':''} data-toggle="props-section" data-section="device-fiberdrawer"><summary class="props-collapsible-head"><span><i class="fas fa-inbox"></i> ${t('type.fiberdrawer')}</span>${_fdPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
-${_ppFiberFieldsHtml(n.ppFiberConnector || '', n.ppFiberMode || '', true, _fdModulesText)}
-${_fdUnitHtml}${_fdSummaryHtml}${_fdComposeHtml}
-</div></details>`;
+                    const _fdComposeHtml = (_fdKeys || FIBER_MODULES.includes(_fdConn)) ? `<div class="fd-compose"><button type="button" class="toolbar-btn" data-act="fd-compose" data-nid="${escapeHTML(n.id)}" data-tip="${escapeHTML(t('pnl.fd.composeTip'))}"><i class="fas fa-table-cells"></i> ${t('pnl.fd.compose')}</button></div>` : '';
+                    // Le righe: composto = classe | riepilogo; uniforme = connettore | classe, poi «una porta e'» | riepilogo.
+                    // (`?` e `:` a fine riga: cosi' il cricchetto dell'escaping legge tutta l'espressione e prova ogni pezzo)
+                    const _fdRow1Html = _fdKeys ?
+                        `<div class="fd-row fd-row-stats">${_ppFiberModeGroup(n.ppFiberMode || '')}${_fdStatsHtml}</div>` :
+                        `<div class="fd-row">${_ppFiberConnectorGroup(n.ppFiberConnector || '', true)}${_ppFiberModeGroup(n.ppFiberMode || '')}</div>`;
+                    const _fdRow2Html = !_fdKeys && (_fdUnitHtml || _fdStatsHtml) ? `<div class="fd-row fd-row-stats">${_fdUnitHtml}${_fdStatsHtml}</div>` : '';
+                    _patchPanelHtml = `<details class="props-collapsible props-primary" ${_propsSectionIsOpen('device-fiberdrawer')?'open':''} data-toggle="props-section" data-section="device-fiberdrawer"><summary class="props-collapsible-head"><span><i class="fas fa-inbox"></i> ${t('type.fiberdrawer')}</span>${_fdPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body"><div class="fd-panel">
+${_fdRow1Html}${_fdRow2Html}${_fdOverHtml}${_fdModulesBlock}${_fdComposeHtml}
+</div></div></details>`;
                 }
 
                 // ---- Rete & Accesso ----

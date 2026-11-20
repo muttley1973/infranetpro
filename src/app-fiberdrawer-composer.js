@@ -37,9 +37,14 @@ export function fiberModuleLabel(key, plural) {
   return _MOD_LABEL[key] || String(key || '—');
 }
 
+/** I moduli, un tratto per volta: [{ range: '13–16', key: 'mpo-12', label: 'MTP/MPO-12' }] (le tessere del pannello, il testo qui sotto). */
+export function fiberRuns(keys) {
+  return fiberCompositionRuns(keys).map((r) => ({ range: r.from === r.to ? String(r.from) : r.from + '–' + r.to, key: r.key, label: fiberModuleLabel(r.key, r.to > r.from) }));
+}
+
 /** I moduli a parole: «1–12 LC duplex · 13–16 MTP/MPO-12 · 23–24 vuoti». */
 export function fiberRunsText(keys) {
-  return fiberCompositionRuns(keys).map((r) => `${r.from === r.to ? r.from : r.from + '–' + r.to} ${fiberModuleLabel(r.key, r.to > r.from)}`).join(' · ');
+  return fiberRuns(keys).map((r) => `${r.range} ${r.label}`).join(' · ');
 }
 
 // ── La bozza ────────────────────────────────────────────────────────────────────────────────────────────────────

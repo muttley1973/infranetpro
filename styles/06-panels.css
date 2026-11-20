@@ -147,6 +147,34 @@
         .prop-row2      { display:flex; gap:6px; }
         .prop-row2 .prop-group { flex:1; min-width:0; }
 
+        /* ── Cassetto ottico: una GABBIA a 12 colonne (design «B, due colonne») ──────────────────────────────────────
+           Blocchi a 24 px l'uno dall'altro, etichetta a 8 px dal campo, campi da 40 px, tessere da 32 px, colonne da
+           8 px. Ogni riga `.fd-row` divide lo spazio a meta' (6 + 6): sotto una soglia (`--fd-min` per colonna) le due
+           metà vanno una sull'altra, sempre sulla stessa gabbia. «-1px»: la meta' meno il gutter, con un pixel di scarto,
+           cosi' un arrotondamento non fa mai cadere la seconda colonna (e mai ne nascono tre). */
+        .fd-panel { display:flex; flex-direction:column; gap:var(--space-7); }
+        .fd-panel .prop-group { margin-bottom:0; min-width:0; }
+        .fd-panel .prop-group label { display:block; margin:0 0 var(--space-4); font-size:var(--fs-sm); line-height:16px; color:var(--text-muted); }
+        .fd-panel .prop-group select { height:40px; box-sizing:border-box; padding:0 12px; }
+        #props-panel .fd-panel select { font-size:var(--fs-md); }   /* (la regola del pannello ha un id: serve lo stesso peso) */
+        .fd-row { --fd-min:132px; display:grid; grid-template-columns:repeat(auto-fit, minmax(max(var(--fd-min), calc((100% - var(--space-4)) / 2 - 1px)), 1fr)); gap:var(--space-7) var(--space-4); }
+        .fd-row-stats { --fd-min:200px; }   /* tre conti in una mezza riga: servono ~200 px, sotto si impilano */
+        .fd-stats { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); column-gap:var(--space-4); height:40px; align-items:center; }
+        .fd-stat { position:relative; white-space:nowrap; font-size:var(--fs-xs); color:var(--text-muted); }
+        .fd-stat b { font-size:var(--fs-lg); font-weight:600; color:var(--text-main); font-variant-numeric:tabular-nums; }
+        .fd-stat + .fd-stat::before { content:''; position:absolute; left:-4px; top:4px; bottom:4px; width:1px; background:var(--hairline); }
+        .fd-over { display:flex; align-items:flex-start; gap:var(--space-4); margin-top:calc(var(--space-4) - var(--space-7)); font-size:var(--fs-xs); line-height:16px; color:#e3b341; }   /* 8 px sotto la riga, non i 24 della gabbia */
+        .fd-over i { flex-shrink:0; margin-top:2px; }
+        .fd-modules-head { display:flex; align-items:baseline; justify-content:space-between; gap:var(--space-4); margin-bottom:var(--space-4); }
+        .fd-panel .fd-modules-head label { margin:0; }
+        .fd-modules-empty { font-size:var(--fs-xs); color:var(--text-muted); font-variant-numeric:tabular-nums; }
+        .fd-modules { display:grid; grid-template-columns:repeat(auto-fit, minmax(max(200px, calc((100% - var(--space-4)) / 2 - 1px)), 1fr)); gap:var(--space-4); }
+        .fd-chip { display:grid; grid-template-columns:minmax(40px, max-content) 16px minmax(0, 1fr); column-gap:var(--space-4); align-items:center; height:32px; box-sizing:border-box; padding:0 var(--space-4); background:var(--surface-2); border-radius:var(--radius-md); box-shadow:inset 0 0 0 1px var(--hairline); font-size:var(--fs-md); }
+        .fd-chip-n { font-variant-numeric:tabular-nums; white-space:nowrap; }
+        .fd-chip .fd-chip-sw { width:16px; height:16px; border-width:1px; border-radius:4px; }   /* i colori sono quelli del compositore: .fdc-k-* */
+        .fd-chip-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .fd-compose .toolbar-btn { width:100%; height:40px; box-sizing:border-box; display:flex; align-items:center; justify-content:center; gap:var(--space-4); }
+
         /* Layout-base thumbnail group: 3 radio button visuali (Lineare /
            Sequenziale / Alternata) in UNA singola riga di 3 colonne. Auto
            non e' una scelta visibile — e' lo stato di default quando

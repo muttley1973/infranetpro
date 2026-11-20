@@ -309,6 +309,68 @@ test('E2E compositore: cambiare quanti slot e il tetto delle U', { skip: SKIP },
   }
 });
 
+// La sezione del pannello e' composta su una GABBIA a 12 colonne (design «B, due colonne»): la riga e le tessere dei moduli
+// dividono lo spazio a meta' e le due colonne partono dallo stesso x; campi da 40 px, tessere da 32, 8 px fra etichetta e
+// campo e fra tessere, 24 px fra i blocchi. A barra stretta le due meta' si impilano, sempre sulla stessa gabbia.
+test('E2E pannello del cassetto composto: la gabbia (colonne allineate, misure a 8 px) e l\'impilamento a barra stretta', { skip: SKIP }, async () => {
+  const srv = await startServer();
+  const browser = await chromium.launch({ channel: 'chrome', headless: true, args: process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage'] : [] });
+  try {
+    const { ctx, page, errs } = await apri(browser, srv, { viewport: { width: 1920, height: 1000 } });
+    await page.evaluate(() => {
+      const n = nodeById('fd1');
+      n.ports = 6; n.portsManual = true; n.spec.ppFiberMode = 'mm-om4';
+      n.spec.fdSlots = ['lc-duplex', 'lc-quad', 'sc', 'mpo-12', 'blank', 'sc-duplex'];
+      _renderAllNow(); window._propsExplicit = true; selType = 'node'; selId = 'fd1'; renderProps();
+    });
+    await page.waitForSelector('.fd-panel .fd-chip', { timeout: 5000 });
+    const gabbia = () => page.evaluate(() => {
+      const b = (el) => el.getBoundingClientRect();
+      const p = document.querySelector('.fd-panel');
+      const chips = [...p.querySelectorAll('.fd-chip')];
+      const sel = p.querySelector('select[data-nfield="ppFiberMode"]');
+      const stats = p.querySelector('.fd-stats');
+      const head = p.querySelector('.fd-modules-head');
+      const btn = p.querySelector('.fd-compose .toolbar-btn');
+      const row = p.querySelector('.fd-row');
+      const lab = sel.closest('.prop-group').querySelector('label');
+      const ys = [...new Set(chips.map((c) => Math.round(b(c).y)))].sort((x, y) => x - y);
+      return {
+        w: b(p).width, selX: b(sel).x, selH: b(sel).height, statsX: b(stats).x, statsY: b(stats).y, selY: b(sel).y,
+        chipXs: [...new Set(chips.map((c) => Math.round(b(c).x * 10) / 10))], chipH: b(chips[0]).height, chipGapY: ys.length > 1 ? ys[1] - ys[0] - b(chips[0]).height : null,
+        labGap: b(sel).y - (b(lab).y + b(lab).height), rowToHead: b(head).y - (b(row).y + b(row).height), headToChips: b(chips[0]).y - (b(head).y + b(head).height),
+        chipsToBtn: b(btn).y - (b(chips[chips.length - 1]).y + b(chips[chips.length - 1]).height), btnH: b(btn).height, btnW: b(btn).width,
+      };
+    });
+    const g = await gabbia();
+    assert.strictEqual(g.chipXs.length, 2, 'tessere su due colonne');
+    assert.ok(Math.abs(g.selX - g.chipXs[0]) < 0.6, 'la classe di fibra parte dalla prima colonna delle tessere');
+    assert.ok(Math.abs(g.statsX - g.chipXs[1]) < 0.6, 'il riepilogo parte dalla seconda colonna delle tessere');
+    assert.strictEqual(g.selH, 40, 'campo da 40 px');
+    assert.strictEqual(g.chipH, 32, 'tessera da 32 px');
+    assert.strictEqual(g.labGap, 8, '8 px fra etichetta e campo');
+    assert.strictEqual(g.chipGapY, 8, '8 px fra le tessere');
+    assert.strictEqual(g.headToChips, 8, '8 px fra l\'etichetta «Moduli» e le tessere');
+    assert.strictEqual(g.rowToHead, 24, '24 px fra i blocchi');
+    assert.strictEqual(g.chipsToBtn, 24, '24 px fra i blocchi');
+    assert.strictEqual(g.btnH, 40, 'pulsante da 40 px');
+    assert.ok(Math.abs(g.btnW - g.w) < 0.6, 'il pulsante e\' a tutta larghezza');
+    // barra stretta: le due meta' una sopra l'altra, tutte sul bordo sinistro
+    await page.evaluate(() => { const rv = document.getElementById('rack-view'); rv.style.width = rv.style.minWidth = rv.style.maxWidth = '340px'; });
+    await page.waitForTimeout(250);
+    const s = await gabbia();
+    assert.strictEqual(s.chipXs.length, 1, 'tessere su una colonna sola');
+    assert.ok(Math.abs(s.statsX - s.selX) < 0.6, 'il riepilogo e\' sotto la classe di fibra, non fuori dalla gabbia');
+    assert.ok(s.statsY > s.selY + s.selH, 'impilato');
+    assert.ok(s.w < 408, 'sotto la soglia di impilamento');
+    assert.deepStrictEqual(errs, []);
+    await ctx.close();
+  } finally {
+    await browser.close();
+    await srv.close();
+  }
+});
+
 test('E2E compositore col DITO (tablet): tocco il modulo, passo sugli slot, trascino dalla palette', { skip: SKIP }, async () => {
   const srv = await startServer();
   const browser = await chromium.launch({ channel: 'chrome', headless: true, args: process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage'] : [] });
