@@ -632,6 +632,14 @@ visible from the code:
 - **The composer works on a draft** and writes once, after `pushHistory()`: one undo step. When every slot
   ends up the same the drawer is written back as a uniform one (`fiberComposeResult`).
 
+The Properties section sits on a 12-column grid (`.fd-panel` in `styles/06-panels.css`) with a fixed rhythm:
+24 px between blocks, 8 px between a label and its field, 40 px fields, 32 px module chips. Each `.fd-row`
+splits in halves and stacks below a minimum width per column (`--fd-min`; 200 px for the row that carries the
+three-figure summary), through `repeat(auto-fit, minmax(max(min, 50% - gutter - 1px), 1fr))` — the 1 px keeps
+a rounding from dropping the second column, and never lets a third one appear. The chips reuse the composer's
+family colours (`fdc-k-*`), so a colour is defined once. The rows are written where they are used, not by a
+generic builder: the html-escaping scan can prove each piece only that way.
+
 The drawer belongs to the passive-panel family with the patch panel (`patchLike` in `TYPES`, `isPatchLike()`):
 hostname only, numbering in series between panels of the same kind, jacks in port descriptions.
 Every opening is a number from `lib/fiber-slot.js` passed through `Number()`, so no text from a project can
@@ -1630,7 +1638,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,902 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,918 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
