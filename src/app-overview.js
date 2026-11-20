@@ -614,13 +614,24 @@ function _tileStatus(r) {
             ? { w: t('ov.st.none'), tone: 'none' }
             : { w: t('ov.lagSplit', { m: e.measured, d: e.derived, u: e.declared || 0 }), tone: 'info' };
         case 'verify': {
-            if (r.prov === 'none') return { w: t('ov.st.never'), tone: 'none' };
+            // ⚠️ Una Verifica MAI girata porta `unread` («non risulta»), non `none`: il motore le
+            // tiene separate (`lib/overview.js`, «manca una VERIFICA», non «manca una tua
+            // dichiarazione»). Chiedere solo `none` lasciava il caso cadere nel ramo «allineato»,
+            // in verde, con «verificato mai» accanto (20/11/2026; e nel dossier PDF, che passa di qui).
+            if (r.prov === 'none' || r.prov === 'unread') return { w: t('ov.st.never'), tone: 'none' };
             const when = _age(e.ageMs, e.at);
             // Ordine onesto: prima il residuo da decidere; poi il caso "cieco"
             // (verifica girata ma nulla di verificabile); infine allineato.
             if (r.value > 0) return { w: t('ov.verify.diffs', { n: r.value, age: when }), tone: 'warn' };
             if (e.banner === 'blind') return { w: t('ov.verify.blind', { age: when }), tone: 'warn' };
-            return { w: t('ov.verify.aligned', { age: when }), tone: 'ok' };
+            // «Allineato» riguarda ciò che si è potuto guardare: il dialogo della Verifica lo dice già
+            // accanto al titolo (`drift.someUnverified`, `drift.somePortsUnverified`), e la riga lo
+            // diceva solo qui, a metà. Nessuna soglia: sono i due numeri che la Verifica ha contato.
+            const c = e.counts || {};
+            const parts = [t('ov.verify.aligned', { age: when })];
+            if (Number(c.unverified) > 0) parts.push(t('ov.verify.unverified', { n: Number(c.unverified) }));
+            if (Number(c.portUnverified) > 0) parts.push(t('ov.verify.portsUnread', { n: Number(c.portUnverified) }));
+            return { w: parts.join(' · '), tone: 'ok' };
         }
         case 'freePorts':    return e.suspect
             ? { w: t('ov.rawMinusSuspect', { raw: e.raw, suspect: e.suspect }), tone: 'info' }
