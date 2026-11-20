@@ -34,10 +34,10 @@ export const TYPES = {
     // ── Floor passivi strutturali (catena elettrica) ─────────────────────────
     panelboard:  { isFloor:true, isPassive:true,  name:'Quadro elettrico',    icon:'fa-bolt',       ports:0 },
     // ── Rack passivi senza IP ─────────────────────────────────────────────────
-    patchpanel:  { isRack:true,  isPassive:true,  passThrough:'port', name:'Patch Panel',        icon:'fa-grip',          sizeU:2, ports:24, brand:'CommScope' },
+    patchpanel:  { isRack:true,  isPassive:true,  passThrough:'port', name:'Patch Panel',        icon:'fa-grip',          sizeU:2, ports:24, brand:'CommScope', patchLike:true },
     // Cassetto ottico: pannello di terminazione in FIBRA, estraibile, da 19" a 1U. Ogni porta e' un
     // adattatore (un LC duplex porta due fibre), quindi 24 porte = 48 fibre. Passivo e senza marca di default.
-    fiberdrawer: { isRack:true,  isPassive:true,  passThrough:'port', name:'Cassetto ottico',    icon:'fa-inbox',         sizeU:1, ports:24, brand:'' },
+    fiberdrawer: { isRack:true,  isPassive:true,  passThrough:'port', name:'Cassetto ottico',    icon:'fa-inbox',         sizeU:1, ports:24, brand:'', patchLike:true },
     blankpanel:  { isRack:true,  isPassive:true,  name:'Pannello vuoto',     icon:'fa-minus',         sizeU:1, ports:0,  brand:''          },
     cablemanager:{ isRack:true,  isPassive:true,  name:'Passacavo',          icon:'fa-grip-lines',    sizeU:1, ports:0,  brand:''          },
     // ── Rack attivi ───────────────────────────────────────────────────────────
@@ -300,7 +300,7 @@ export function _frontPanelPortLabel(node, portNum, portCount){
     // Patch panel: applica l'offset di numerazione progressiva (catena
     // ppContinueFrom / startNum manuale). _patchPanelOffset vive in app.js e
     // conosce lo state globale; la logica di calcolo e' pura (panelNumberOffset).
-    if(node && node.type==='patchpanel' && typeof _patchPanelOffset==='function'){
+    if(isPatchLike(node) && typeof _patchPanelOffset==='function'){
         const off = _patchPanelOffset(node);
         const num = parseInt(portNum, 10);
         if(off && Number.isFinite(num) && String(num)===String(portNum)) return String(num + off);
@@ -357,6 +357,14 @@ export function bridgesOwnPorts(node){
     return TYPES[node.type]?.passThrough === 'device' || node.swMgmt === 'unmanaged';
 }
 
+// La famiglia dei PANNELLI PASSIVI pass-through (patch panel, cassetto ottico): ogni porta e' una tappa del cavo, niente IP/MAC/SNMP/SFP,
+// numerazione in serie fra pannelli, nome delle prese nelle descrizioni di porta. Una definizione sola, nel catalogo (`patchLike`): i confronti
+// col nome del tipo sparsi nel codice erano il modo in cui un tipo nuovo restava fuori da tutto. Accetta un tipo o un nodo.
+export function isPatchLike(x){
+    const k = x && typeof x === 'object' ? x.type : x;
+    return !!(typeof k === 'string' && TYPES[k] && TYPES[k].patchLike);
+}
+
 export function typeName(k){
     const key = 'type.' + k;
     const s = t(key);
@@ -378,5 +386,5 @@ expose({
     NODE_ID_PREFIX,
     _fixedRackLabel, _isNodeSpecField, _ensureNodeSpec, _compactNodeSpec, _nodeSpecView,
     _frontPanelState, _frontPanelSfpPorts, _frontPanelSfpGroups,
-    _frontPanelRows, _frontPanelIsUplink, _frontPanelSharedSlots, _frontPanelPortLabel,
+    _frontPanelRows, _frontPanelIsUplink, _frontPanelSharedSlots, _frontPanelPortLabel, isPatchLike,
 });

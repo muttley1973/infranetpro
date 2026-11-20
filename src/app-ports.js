@@ -19,6 +19,7 @@ import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML, uid, normalizePortStatus, hasPortStatus, hasPortVlan, portAnchorEl } from './app-util.js';   // portAnchorEl: il LED della porta, non il primo controllo del pannello con lo stesso data-pid
 import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, renderCables, _patchPanelOffset } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
+import { isPatchLike } from './app-types.js';   // la famiglia dei pannelli passivi: numerazione in serie
 import { radioLabelForPid } from '../lib/radio.js';   // il nome di una radio sta sul modello, non nel pid
 import { forgetFromRead } from '../lib/field-provenance.js';   // la regola: scrivere/ripristinare a mano toglie la provenienza «copiato dalla lettura»
 import { stpBlockedState } from '../lib/port-state.js';   // «questa porta è bloccata da STP?»: una definizione sola
@@ -458,7 +459,7 @@ export function portNumLabel(pid){
     }
     // Patch panel con numerazione progressiva (catena ppContinueFrom / startNum):
     // il tooltip mostra lo stesso numero del frontale e dell'etichetta cavo.
-    if(_node && _node.type==='patchpanel' && typeof _patchPanelOffset==='function'){
+    if(isPatchLike(_node) && typeof _patchPanelOffset==='function'){
         const numeric = parseInt(portNum, 10);
         if(Number.isFinite(numeric) && String(numeric) === portNum){
             return String(numeric + _patchPanelOffset(_node));

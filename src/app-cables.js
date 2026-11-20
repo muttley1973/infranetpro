@@ -5,7 +5,7 @@
 // i 9 export ESM restano raggiungibili da ./app.js (re-export), consumatori invariati.
 // ============================================================
 import { expose, t } from "./_bridge.js";
-import { TYPES } from "./app-types.js";
+import { TYPES, isPatchLike } from "./app-types.js";
 import { renderAll } from "./app-render-core.js";
 import { renderProps } from "./app-properties.js";
 import { markDirty, pushHistory, getNodeByPortId, getNodeDisplayName, renderCables, _showToast } from "./app.js";   // cicli benigni: uso solo a runtime
@@ -23,13 +23,13 @@ import { parseRadioPid, radioLabelForPid } from "../lib/radio.js";   // il nome 
 // startNum manuale). Ricostruisce i record dai patch panel del progetto e delega
 // all'helper puro panelNumberOffset (lib/frontpanel.js). 0 = indipendente (1..N).
 export function _patchPanelOffset(node){
-    if(!node || node.type!=='patchpanel' || typeof panelNumberOffset!=='function') return 0;
+    if(!isPatchLike(node) || typeof panelNumberOffset!=='function') return 0;
     const recs={};
     for(const n of state.nodes){
-        if(n.type!=='patchpanel') continue;
+        if(n.type!==node.type) continue;   // la catena resta fra pannelli dello STESSO tipo (rame con rame, fibra con fibra)
         const fp=n.frontPanel||{};
         recs[n.id]={
-            ports: (n.ports!==undefined ? n.ports : (TYPES.patchpanel?.ports||0)),
+            ports: (n.ports!==undefined ? n.ports : (TYPES[n.type]?.ports||0)),
             continueFrom: fp.ppContinueFrom||'',
             startNum: fp.ppStartNum,
         };
@@ -40,15 +40,15 @@ export function _patchPanelOffset(node){
 // panel che NON sono a valle di node nella catena (selezionarli creerebbe un
 // ciclo). Usa panelChainReaches (lib/frontpanel.js).
 export function _patchPanelChainOptions(node){
-    if(!node) return [];
+    if(!isPatchLike(node)) return [];
     const recs={};
     for(const n of state.nodes){
-        if(n.type!=='patchpanel') continue;
+        if(n.type!==node.type) continue;
         recs[n.id]={ continueFrom:(n.frontPanel||{}).ppContinueFrom||'' };
     }
     const out=[];
     for(const n of state.nodes){
-        if(n.type!=='patchpanel' || n.id===node.id) continue;
+        if(n.type!==node.type || n.id===node.id) continue;
         if(typeof panelChainReaches==='function' && panelChainReaches(n.id, node.id, recs)) continue;
         out.push(n);
     }
@@ -57,7 +57,7 @@ export function _patchPanelChainOptions(node){
 // Numero di porta da mostrare in etichetta: applica l'offset progressivo solo ai
 // patch panel (porte dati numeriche); ogni altro device resta invariato.
 function _portNumForLabel(node, portNumStr){
-    if(node && node.type==='patchpanel'){
+    if(isPatchLike(node)){
         const num=parseInt(portNumStr,10);
         if(Number.isFinite(num) && String(num)===String(portNumStr)) return String(num + _patchPanelOffset(node));
     }

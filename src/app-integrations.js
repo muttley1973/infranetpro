@@ -698,7 +698,7 @@ function _renderEntityStep() {
 
 const _RECON_TYPES = [
   'switch', 'router', 'firewall', 'server', 'hypervisor', 'nas', 'kvm', 'ups', 'pdu', 'ats',
-  'patchpanel', 'ap', 'webcam', 'tv', 'iot', 'pc', 'mobile', 'voip', 'printer', 'projector',
+  'patchpanel', 'fiberdrawer', 'ap', 'webcam', 'tv', 'iot', 'pc', 'mobile', 'voip', 'printer', 'projector',
   'doorctrl', 'consolesvr', 'pbx', 'nvr', 'wlanctrl', 'customfloor', 'customrack',
 ];
 

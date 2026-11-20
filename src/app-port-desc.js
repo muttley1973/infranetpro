@@ -31,7 +31,7 @@ import { escapeHTML } from './app-util.js';
 import { registerClickActions, registerChangeActions } from './app-delegation.js';
 import { markDirty, getNodeDisplayName, getWallPortLabel } from './app.js';
 import { portNumLabel } from './app-ports.js';
-import { TYPES } from './app-types.js';
+import { TYPES, isPatchLike } from './app-types.js';
 import { portDescriptionCensus } from '../lib/port-descriptions.js';
 import { _spareBuildDevices } from './app-spare.js';
 
@@ -78,10 +78,10 @@ function _knownJacks() {
         if (n.type === 'wallport') {
             const label = getWallPortLabel(n);
             if (label) out.push({ label, where: getNodeDisplayName(n) || n.id });
-        } else if (n.type === 'patchpanel') {
+        } else if (isPatchLike(n)) {
             const name = n.name || getNodeDisplayName(n);
             if (!name) continue;
-            const count = (n.ports !== undefined) ? n.ports : ((TYPES.patchpanel || {}).ports || 0);
+            const count = (n.ports !== undefined) ? n.ports : ((TYPES[n.type] || {}).ports || 0);
             for (let i = 1; i <= count; i++) {
                 const pid = n.id + '-' + i;
                 if ((store.state.ports[pid] || {}).hidden) continue;   // una porta nascosta non è una presa

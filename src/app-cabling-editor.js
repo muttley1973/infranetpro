@@ -110,7 +110,7 @@ export function enterRoutingMode(linkId){
         // così l'utente non cerca a vuoto una presa dove serve un patch panel (o viceversa).
         const an = getNodeByPortId(link.src), bn = getNodeByPortId(link.dst);
         const valid = (typeof win.validMidTypes === 'function') ? win.validMidTypes(an?.type, bn?.type) : [];
-        const LBL = { patchpanel: 'patch panel', wallport: t('msg.rack.lblWallport'), voip: t('msg.rack.lblVoip') };
+        const LBL = { patchpanel: 'patch panel', fiberdrawer: String(t('type.fiberdrawer')).toLowerCase(), wallport: t('msg.rack.lblWallport'), voip: t('msg.rack.lblVoip') };
         let msg;
         if(!valid.length){
             msg = t('msg.rack.noHopSameLevel',{a:_routeNodeLabel(an),b:_routeNodeLabel(bn)});

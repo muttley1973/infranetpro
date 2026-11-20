@@ -15,7 +15,7 @@ import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (e
 import { escapeHTML, normalizeNumber } from './app-util.js';
 import { nodeById, getNodeDisplayName, selected, _patchPanelOffset, _enableManualValueInProps, _activatePropsTab, getNodeRackSize, _patchPanelChainOptions, isRackTopNumbered, rackUToVisible, updateN, updateFrontPanel, getPortNodeId, deleteNode, visibleUToRackU, markDirty, logAudit } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { renderAll } from './app-render-core.js';   // P4: re-render dopo adozione/scarto del retype proposto
-import { TYPES, typeName, _nodeSpecView, _fixedRackLabel, _frontPanelState } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
+import { TYPES, typeName, _nodeSpecView, _fixedRackLabel, _frontPanelState, isPatchLike } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { _propsSectionIsOpen, _buildNetAccessHtml, renderProps, _buildPropsHeader, _propsToggleButtonsHtml, _propsIconForType, _buildPatchPanelPreview } from './app-properties.js';   // ritiro ponte: builder pannello (ex win.*)
 import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS (accento colorato nell'intestazione device)
 import { pduManagementPortCount } from '../lib/pdu-layout.js';
@@ -409,7 +409,7 @@ export function _renderNodeProps(panel){
                     const layout = fp.baseLayout || 'auto';
                     const sfpCount = Number.isFinite(fp.sfpCount) ? fp.sfpCount : (fp.separateSfp ? 4 : 0);
                     const maxSfp = Math.min(48, Math.max(0, fp.portCount));
-                    const isPatch = n.type==='patchpanel';
+                    const isPatch = isPatchLike(n);   // pannello passivo: niente SFP/MGMT/modello, si', numerazione in serie
                     const _portTot = n.ports!==undefined ? n.ports : (d.ports || 0);
                     const _sfpShown = fp.separateSfp && sfpCount > 0 ? sfpCount : 0;
                     const _lpPreview = n.type==='pdu' ? '' : (_portTot
@@ -825,8 +825,8 @@ ${_fdUnitHtml}${_fdSummaryHtml}
 
                 // ---- Rete & Accesso ----
                 if(!isRackFiller){
-                    if(n.type==='patchpanel'){
-                        // Patch panel passivo: solo hostname, niente IP/Mgmt/MAC
+                    if(isPatchLike(n)){
+                        // Pannello passivo (patch panel, cassetto ottico): solo hostname, niente IP/Mgmt/MAC
                         _networkAccessHtml = `<details class="props-collapsible" ${_propsSectionIsOpen('network-access')?'open':''} data-toggle="props-section" data-section="network-access"><summary class="props-collapsible-head"><span><i class="fas fa-link"></i> ${t('sec.netAccess')}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">
                             <div class="prop-group"><label>Hostname</label><input value="${escapeHTML(n.hostname||'')}" placeholder="${escapeHTML(d.brand)}" data-change="update-hostname"></div>
                         </div></details>`;

@@ -696,6 +696,7 @@
            .port-led, come per ogni porta; i fori sono scuri e non prendono il mouse (il pid e' sullo slot). */
         .rack-port-unit .port-led.fo-slot { position:relative; width:var(--rack-port-cell); height:calc(var(--rack-port-cell) * 290.6 / 192.31); }
         .rack-port-unit .port-led.fo-slot.fo-tall { height:calc(var(--rack-port-cell) * 396.63 / 192.31); }   /* SC duplex, porta duplex: uno slot solo, ma alto */
+        .port-led .fo-svg .fo-fer { fill:#4b5563; }   /* la ferrula MT dentro la bocca dell'MPO: piu' chiara della bocca */
         .port-led.fo-slot .fo-svg, .port-led.fo-cell .fo-svg { position:absolute; left:0; top:0; width:100%; height:100%; fill:#0b0f14; pointer-events:none; }
         /* Un modulo con PIU' porte (LC quad = 2 duplex o 4 singoli; LC duplex con la porta = singolo LC): lo slot ha
            la stessa larghezza e si divide in CELLE impilate, una per porta, con 1 px fra l'una e l'altra. Ogni cella e'

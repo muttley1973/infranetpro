@@ -50,7 +50,7 @@ test('SC, ST e FC: un foro grande per slot', () => {
     const html = frontale({ spec: { ppFiberConnector: c } });
     assert.equal(conta(html, SLOT_CONNETTORE('big')), 24, `${c}: slot dello stesso tipo`);
     assert.equal(conta(html, /<circle /g), 24, `${c}: un foro per slot`);
-    assert.equal(conta(html, /r="64\.96"/g), 24, `${c}: il foro grande del disegno`);
+    assert.equal(conta(html, /r="52\.9"/g), 24, `${c}: il foro grande`);
   }
 });
 
@@ -58,11 +58,12 @@ test('LC simplex: un foro piccolo; MPO: un\'apertura rettangolare', () => {
   const lc1 = frontale({ spec: { ppFiberConnector: 'lc-simplex' } });
   assert.equal(conta(lc1, SLOT_CONNETTORE('lc1')), 24);
   assert.equal(conta(lc1, /<circle /g), 24);
-  assert.equal(conta(lc1, /r="39\.32"/g), 24);
+  assert.equal(conta(lc1, /r="32"/g), 24);
   for (const c of ['mpo-12', 'mpo-24']) {
     const mpo = frontale({ spec: { ppFiberConnector: c } });
     assert.equal(conta(mpo, SLOT_CONNETTORE('mpo')), 24, c);
-    assert.equal(conta(mpo, /<rect /g), 24, `${c}: un'apertura per slot`);
+    assert.equal(conta(mpo, /<rect /g), 48, `${c}: la bocca e la ferrula MT per slot`);
+    assert.equal(conta(mpo, /class="fo-fer"/g), 24, `${c}: una ferrula per slot`);
     assert.equal(conta(mpo, /<circle /g), 0, c);
   }
 });
@@ -366,7 +367,7 @@ test('SC duplex, porta duplex: 24 slot alti con DUE fori grandi (la famiglia «S
   const html = frontale({ spec: { ppFiberConnector: 'sc-duplex' } }, 24);
   assert.equal(conta(html, SLOT_CONNETTORE('big2')), 24);
   assert.equal(conta(html, /<circle /g), 48);
-  assert.equal(conta(html, /r="64\.96"/g), 48, 'il foro grande del disegno');
+  assert.equal(conta(html, /r="52\.9"/g), 48, 'il foro grande');
   assert.equal(conta(html, /fo-slot fo-big2 fo-tall/g), 24, 'lo slot SC duplex e\' alto');
   assert.equal(conta(html, /rack-ports-2row/g), 0);
   assert.equal(conta(html, MODULI), 0, 'con la porta duplex nessun modulo');

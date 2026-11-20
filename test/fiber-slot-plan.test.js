@@ -52,7 +52,7 @@ test('piano: solo il modulo a 4 LC ha lo slot ALTO; le celle riempiono lo slot (
 });
 
 test('celle: i fori stanno DENTRO la cella, centrati in verticale, e non si toccano', () => {
-  for (const [c, u] of [['lc-duplex', 'single'], ['lc-quad', 'duplex'], ['lc-quad', 'single'], ['lc-duplex', 'duplex'], ['lc-simplex'], ['sc'], ['mpo-12']]) {
+  for (const [c, u] of [['lc-duplex', 'single'], ['lc-quad', 'duplex'], ['lc-quad', 'single'], ['lc-duplex', 'duplex'], ['lc-simplex'], ['sc']]) {   // l'MPO no: la sua bocca occupa quasi tutto lo slot (vedi fiber-slot.test.js)
     const p = piano(c, u);
     const fori = slot.fiberCellHoles(p);
     assert.ok(fori.length >= 1, `${c}/${u}: ha dei fori`);
@@ -68,21 +68,21 @@ test('celle: i fori stanno DENTRO la cella, centrati in verticale, e non si tocc
   }
 });
 
-test('una cella sola E\' lo slot del disegno: stessi fori, stesse misure dell\'utente (70,09 e 208,55; r 39,32 e 64,96)', () => {
+test('una cella sola E\' lo slot standard: stessi fori, stesse misure (duplex a 76,07 e 214,53, r 32; SC al centro, r 52,9)', () => {
   const cy = (c) => slot.fiberCellHoles(piano(c, 'duplex')).map((h) => h.cy);
-  assert.deepEqual(cy('lc-duplex'), [70.09, 208.55], 'LC duplex del disegno');
+  assert.deepEqual(cy('lc-duplex'), [76.07, 214.53], 'LC duplex dello slot standard');
   assert.deepEqual(slot.fiberCellHoles(piano('lc-duplex', 'duplex')), slot.fiberSlotHoles('lc2'));
   assert.deepEqual(slot.fiberCellHoles(piano('sc', 'duplex')), slot.fiberSlotHoles('big'));
   assert.deepEqual(slot.fiberCellHoles(piano('mpo-12', 'duplex')), slot.fiberSlotHoles('mpo'));
   assert.deepEqual(slot.fiberCellHoles(piano('lc-simplex', 'duplex')), slot.fiberSlotHoles('lc1'));
-  assert.match(slot.fiberSlotSvg('lc2'), /cy="70\.09" r="39\.32"[\s\S]*cy="208\.55" r="39\.32"/);
-  assert.match(slot.fiberSlotSvg('big'), /cy="135\.89" r="64\.96"/);
+  assert.match(slot.fiberSlotSvg('lc2'), /cy="76\.07" r="32"[\s\S]*cy="214\.53" r="32"/);
+  assert.match(slot.fiberSlotSvg('big'), /cy="145\.3" r="52\.9"/);
 });
 
 test('celle: i fori dell\'LC non superano mai quello del disegno e il simplex in cella e\' centrato', () => {
   for (const [c, u] of [['lc-duplex', 'single'], ['lc-quad', 'single'], ['lc-quad', 'duplex']]) {
     const p = piano(c, u);
-    for (const f of slot.fiberCellHoles(p)) assert.ok(f.r <= 39.32 + 1e-9, `${c}/${u}`);
+    for (const f of slot.fiberCellHoles(p)) assert.ok(f.r <= 32 + 1e-9, `${c}/${u}`);
   }
   const p = piano('lc-quad', 'single');
   assert.ok(Math.abs(slot.fiberCellHoles(p)[0].cy - p.cellH / 2) < 0.01, 'un solo foro: al centro della cella');
@@ -191,14 +191,13 @@ test('SC duplex: i fori grandi stanno nella cella, a coppia non si toccano, non 
     assert.equal(fori.length, u === 'duplex' ? 2 : 1);
     for (const f of fori) {
       assert.equal(f.t, 'c');
-      assert.ok(f.r <= 64.96 + 1e-9, `${u}: non piu' grande del foro dell'SC del disegno`);
-      if (u === 'single') assert.ok(f.r < 64.96, 'in mezzo slot il foro si rimpicciolisce per starci con margine');
+      assert.ok(f.r <= 52.9 + 1e-9, `${u}: non piu' grande del foro dell'SC dello slot standard`);
       assert.ok(f.cy - f.r >= p.cellH * 0.1 && p.cellH - (f.cy + f.r) >= p.cellH * 0.1, `${u}: non sfiora il bordo`);
       assert.ok(f.cx - f.r > 0 && f.cx + f.r < slot.FIBER_SLOT.w, `${u}: dentro in larghezza`);
     }
     if (fori.length === 2) assert.ok(fori[1].cy - fori[0].cy > fori[0].r + fori[1].r, 'i due fori non si toccano');
   }
-  assert.equal(slot.fiberCellHoles(piano('sc-duplex', 'duplex'))[0].r, 64.96, 'a coppia, nello slot alto, il foro e\' quello del disegno');
+  assert.equal(slot.fiberCellHoles(piano('sc-duplex', 'duplex'))[0].r, 52.9, 'a coppia, nello slot alto, il foro e\' quello dello slot standard');
   assert.match(slot.fiberCellSvg(piano('sc-duplex', 'duplex')), /^<svg class="fo-svg" viewBox="0 0 192\.31 396\.63"/);
   assert.equal((slot.fiberCellSvg(piano('sc-duplex', 'duplex')).match(/<circle /g) || []).length, 2);
 });
