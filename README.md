@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="5,032 tests, 0 failing" src="https://img.shields.io/badge/tests-5%2C032%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="5,057 tests, 0 failing" src="https://img.shields.io/badge/tests-5%2C057%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="161 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-161%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#discovery--classification-engines"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -31,7 +31,7 @@
 <tr>
 <td align="center" width="50%">
 <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="26" alt=""><br><b>Manuale tecnico — Italiano</b></a><br>
-<sub>71 pagine illustrate · interfaccia, onboarding e manuale completi in italiano, con selettore IT/EN nell'app.</sub>
+<sub>72 pagine illustrate · interfaccia, onboarding e manuale completi in italiano, con selettore IT/EN nell'app.</sub>
 </td>
 <td align="center" width="50%">
 <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="26" alt=""><br><b>Technical manual — English</b></a><br>
@@ -122,7 +122,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
   <b>Full feature manual (PDF)</b> —
   <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="20" alt=""> Italiano</a> ·
   <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="20" alt=""> English</a><br>
-  <sub>Dark cover, white printable interior, 22 illustrated chapters — 71 pages in Italian, 74 in English.</sub>
+  <sub>Dark cover, white printable interior, 22 illustrated chapters — 72 pages in Italian, 74 in English.</sub>
 </p>
 
 <p align="center">
@@ -219,8 +219,9 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 - IPv6 treated like IPv4, with the same padlock and Neighbour Discovery presence.
 
 **🔄 DCIM / IPAM sync (NetBox)**
-- Read-only import into a new project: sites, racks (front and rear), devices, interfaces, patch-panel cabling, PDU outlets, VMs, IPAM prefixes and VLANs, circuits and VPN services.
-- Every import is a list of decisions — what does not come across is declared, not dropped; a re-import compares without writing. One site is one project.
+- Read-only import into a new project: sites, racks (front and rear), devices, interfaces, patch-panel cabling, PDU outlets, VMs, IPAM prefixes and VLANs, circuits and VPN services, and the wireless side — radios, SSIDs with their VLAN, security and cipher, and the wireless links between radios.
+- A cable keeps what NetBox says about it: its category (Cat 3 to Cat 8, OS1/OS2, OM1 to OM5), the medium its type declares, its length in any of NetBox's six units, its label and its status.
+- Every import is a list of decisions — what does not come across is declared, not dropped (a WLAN not in service, a planned wireless link, the IP NetBox holds for a passive panel, a cable type InfraNet has no medium for); a re-import compares without writing. One site is one project.
 - Write-back to NetBox is a paid module (dry-run diff, never deletes).
 
 **🔗 LAG detection**
@@ -233,7 +234,8 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 - Per-VLAN IPAM occupancy, prefix-first IPAM, duplicate and overlapping address audit (IPv4 and IPv6, compared by identity), L3-lite gateway map.
 
 **📶 Wireless**
-- Up to 8 radios per device, each with its own SSID, band, channel, security and VLAN; a radio only connects to a radio; the SSID VLANs make the wired uplink a trunk.
+- Up to 8 radios per device, each with its own SSID, band, channel, security, cipher and VLAN; a radio only connects to a radio; the SSID VLANs make the wired uplink a trunk.
+- The cipher is NetBox's own vocabulary (Auto, AES, TKIP) and TKIP is flagged: a warning with WPA2, an error with WPA3, which requires AES.
 
 **🧵 Cabling**
 - Segment editor on the TIA-568 hierarchy, copper and fibre reach validation, end-to-end physical path trace, progressive patch-panel numbering.
@@ -255,7 +257,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 
 **🔒 Security & 🌍 Bilingual**
 - Session auth with admin and viewer roles, a rate-limited login, a loopback bind and secrets structurally excluded from every data surface. See [Security](#authentication--roles).
-- Complete Italian and English interface, onboarding and a ~71-page manual, guarded by an `it ↔ en` key-parity test.
+- Complete Italian and English interface, onboarding and a ~72-page manual, guarded by an `it ↔ en` key-parity test.
 
 ---
 
@@ -522,8 +524,8 @@ RUN_E2E=1 npm run e2e # headless end-to-end in a real Chrome — off by default
 - Coverage focuses on the pure logic that has historically broken: SNMP parsing, discovery and classification, the three engines, cable validation, IPAM and LAG audits — plus an app-wide smoke test that loads every script into a DOM stub and asserts rendering never throws.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **638** of them.
-- `npm test` runs the full regression suite (currently **5,032 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **161 flows**).
+- `npm run check` parses every JS source of the product — **640** of them.
+- `npm test` runs the full regression suite (currently **5,057 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **161 flows**).
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that lists something, and the test count measured against what the suite really prints.
 
 **CI** ([GitHub Actions](.github/workflows/ci.yml)) runs `npm run check`, `npm run lint`, `npm run typecheck`, `npm test` and the browser end-to-end suite (`npm run e2e`) on every push and pull request to `main`, on Node 18, 20, 22 and 24.

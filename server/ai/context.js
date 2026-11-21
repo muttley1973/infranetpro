@@ -337,10 +337,11 @@ function _deviceHealth(node) {
 
 // ── Wireless: inventario SSID per AP (allowlist ESPLICITA). ──────────────────
 // Il modello radio è a 2 livelli: radios[i] = PHY (banda/standard) · radios[i].ssids[]
-// = BSS logici {ssid, vlan, security}. `security` è il TIPO (es. wpa3-personal),
-// NON una chiave: nel modello non esiste passphrase/psk. Per difesa in profondità
-// leggiamo SOLO ssid/vlan/security/banda (qualunque campo extra è scartato per
-// costruzione → nessun segreto può uscire). Dedup per ssid+vlan, bande raccolte.
+// = BSS logici {ssid, vlan, security, cipher}. `security` è il TIPO (es. wpa3-personal)
+// e `cipher` il cifrario dei dati (auto, aes, tkip), NON una chiave: nel modello non
+// esiste passphrase/psk. Per difesa in profondità leggiamo SOLO
+// ssid/vlan/security/cipher/banda (qualunque campo extra è scartato per costruzione →
+// nessun segreto può uscire). Dedup per ssid+vlan, bande raccolte.
 // ⚠️ Rende { list, of } come _outlets: il marcatore del taglio non sta sull'array.
 // E il tetto vale ESATTAMENTE quanto dichiara: il "break" di prima usciva dal ciclo
 // INTERNO, quindi ogni radio successiva ne infilava ancora uno — con 8 radio e
@@ -362,14 +363,14 @@ function _wirelessSsids(node) {
       let e = map.get(key);
       if (!e) {
         if (map.size >= MAX_SSID_MOSTRATI) continue;   // si conta comunque
-        e = { ssid, vlan, security: s.security ? String(s.security).slice(0, 32) : undefined, bands: [] };
+        e = { ssid, vlan, security: s.security ? String(s.security).slice(0, 32) : undefined, cipher: s.cipher ? String(s.cipher).slice(0, 16) : undefined, bands: [] };
         map.set(key, e);
       }
       if (band && !e.bands.includes(band)) e.bands.push(band);
     }
   }
   if (!map.size) return undefined;
-  const list = [...map.values()].map(e => _compact({ ssid: e.ssid, vlan: e.vlan, security: e.security, bands: e.bands.length ? e.bands : undefined }));
+  const list = [...map.values()].map(e => _compact({ ssid: e.ssid, vlan: e.vlan, security: e.security, cipher: e.cipher, bands: e.bands.length ? e.bands : undefined }));
   return { list, of: visti.size };
 }
 

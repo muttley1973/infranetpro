@@ -222,6 +222,20 @@ test('wireless: SSID nel contesto (ssid/vlan/security/bande), dedup per ssid+vla
   assert.deepEqual(corp.bands.sort(), ['2.4', '5'], 'le bande della stessa SSID sono raccolte');
 });
 
+test('wireless: il CIFRARIO dell\'SSID (auto, aes, tkip) arriva all\'assistente — è il dato che dice se una rete è debole — e resta un valore corto', () => {
+  const proj = projWithWifi();
+  const bss = proj.state.nodes[0].radios[0].ssids;
+  bss[0].cipher = 'tkip';
+  bss[1].cipher = 'x'.repeat(200);   // un valore lungo non esce intero
+  const ap = buildAiContext(proj, null).devices.find(d => d.id === 'ap1');
+  const corp = ap.ssids.find(s => s.ssid === 'ACME-Corp');
+  assert.equal(corp.cipher, 'tkip');
+  const guest = ap.ssids.find(s => s.ssid === 'ACME-Guest');
+  assert.equal(guest.cipher.length, 16, 'tagliato a 16 caratteri');
+  const senza = buildAiContext(projWithWifi(), null).devices.find(d => d.id === 'ap1').ssids.find(s => s.ssid === 'ACME-Corp');
+  assert.ok(!('cipher' in senza), 'senza cifrario dichiarato, nessun campo');
+});
+
 test('GUARDIA wireless: nessuna passphrase/psk nel contesto SSID', () => {
   const json = JSON.stringify(buildAiContext(projWithWifi(), null));
   for (const s of ['WIFI-PSK-LEAK', 'PSK-LEAK-2', 'SECRET-COMM']) {

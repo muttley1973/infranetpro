@@ -25,12 +25,20 @@ import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-prope
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { wifiIssueTexts } from './app-issue-text.js';   // le PAROLE dei validatori puri (i18n), che lib/wifi-spec.js non ha più
+import { WIFI_CIPHERS } from '../lib/wifi-spec.js';   // il vocabolario del cifrario (auto, aes, tkip): lo stesso di NetBox, in un posto solo
 
 const _WIFI_BAND_LABELS = { '2.4': '2.4 GHz', '5': '5 GHz', '6': '6 GHz (Wi-Fi 6E)' };
 const _WIFI_SEC_LABELS = {
     'open': 'Aperta (nessuna)', 'wpa2-psk': 'WPA2-Personal (PSK)', 'wpa2-ent': 'WPA2-Enterprise',
     'wpa3-personal': 'WPA3-Personal', 'wpa3-ent': 'WPA3-Enterprise', 'owe': 'Enhanced Open (OWE)',
 };
+// Il cifrario dei dati (stesso vocabolario di NetBox: auto, aes, tkip). Le sigle sono nomi di standard, non prosa.
+const _WIFI_CIPHER_LABELS = { 'auto': 'Auto', 'aes': 'AES (CCMP)', 'tkip': 'TKIP' };
+// Le <option> di un elenco chiuso di valori, piu' la voce vuota «—» (non dichiarato): valore ed etichetta passano da esc().
+function _optsHtml(values, sel, labels){
+    const esc = s => escapeHTML(String(s == null ? '' : s));
+    return `<option value="">—</option>${(Array.isArray(values) ? values : []).map(x => `<option value="${esc(x)}"${String(sel) === String(x) ? ' selected' : ''}>${esc(labels[x] || x)}</option>`).join('')}`;
+}
 
 // Solo l'INFRASTRUTTURA wireless con RADIO PROPRIE trasmette SSID (flag
 // TYPES.wifiServe: ap, router, firewall, sdwan). Gli altri device con radio sono
@@ -208,7 +216,7 @@ function _radioSsidsHtml(radio, nodeId, idx){
         const u = `data-nid="${nodeId}" data-idx="${idx}" data-sid="${esc(s.id)}"`;
         const sec = ['<option value="">—</option>']
             .concat((typeof win.WIFI_SECURITY !== 'undefined' ? win.WIFI_SECURITY : []).map(x => opt(x, s.security, _WIFI_SEC_LABELS[x] || x))).join('');
-        const bssIssues = (typeof win.validateWifi === 'function') ? win.validateWifi({ band: radio.band, security: s.security }) : [];
+        const bssIssues = (typeof win.validateWifi === 'function') ? win.validateWifi({ band: radio.band, security: s.security, cipher: s.cipher }) : [];
         const bn = bssIssues.length ? `<div class="cable-validate-banner" style="margin-top:5px">${wifiIssueTexts(bssIssues).map(i => `
             <div class="cable-validate-row lvl-${i.level}"><i class="fas ${i.level === 'error' ? 'fa-circle-exclamation' : 'fa-triangle-exclamation'}"></i>
             <div class="cable-validate-txt"><b>${esc(i.title)}</b><span>${esc(i.why)}</span></div></div>`).join('')}</div>` : '';
@@ -217,8 +225,9 @@ function _radioSsidsHtml(radio, nodeId, idx){
               <div class="prop-group"><label>SSID</label><input value="${esc(s.ssid || '')}" placeholder="${esc(_t('pnl.feat.ssidPh'))}" data-change="bss-cfg" ${u} data-field="ssid"></div>
               <div class="prop-group"><label>VLAN</label><input type="number" min="1" max="4094" value="${esc(s.vlan || '')}" placeholder="1" data-change="bss-cfg" ${u} data-field="vlan" data-tip="${esc(_t('radio.vlanTip'))}"></div>
             </div>
-            <div class="prop-grid2">
+            <div class="prop-grid2" style="grid-template-columns:1fr 1fr auto">
               <div class="prop-group"><label>${esc(_t('radio.security') || 'Sicurezza')}</label><select data-change="bss-cfg" ${u} data-field="security">${sec}</select></div>
+              <div class="prop-group"><label>${esc(_t('radio.cipher') || 'Cifrario')}</label><select data-change="bss-cfg" ${u} data-field="cipher">${_optsHtml(WIFI_CIPHERS, s.cipher, _WIFI_CIPHER_LABELS)}</select></div>
               <div class="prop-group" style="display:flex;align-items:flex-end;justify-content:flex-end">
                 <button class="toolbar-btn danger" data-act="radio-remove-bss" ${u} data-tip="${esc(_t('radio.removeSsid') || 'Rimuovi SSID')}"><i class="fas fa-trash"></i></button></div>
             </div>

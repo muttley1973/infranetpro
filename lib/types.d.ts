@@ -21,6 +21,8 @@ interface Ssid {
   ssid?: string;
   vlan?: number | string;
   security?: string;
+  /** cifrario dei dati: 'auto' | 'aes' | 'tkip' (WIFI_CIPHERS); assente = non detto. */
+  cipher?: string;
 }
 
 /** Una radio FISICA: campi PHY + lista di BSS. (i campi legacy

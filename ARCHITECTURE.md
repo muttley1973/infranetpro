@@ -671,6 +671,22 @@ the old import are not rewritten: the readers recognise them (`fiber-sm` still c
 shows a value it does not offer instead of hiding it. A patch panel or a drawer that NetBox gives an IP does not get it (`ip.passiveIgnored`,
 a "loss" row in the import report): `_PATCH_LIKE_TYPES` in the mapper is the twin of `patchLike` in the type catalogue,
 and a test keeps them aligned.
+The wireless side of the NetBox import follows the same two-level model as the app (`radios[i]` = the physical
+radio, `radios[i].ssids[]` = the BSS) and the same rule — what the model cannot hold is a declared gap, never a
+silent loss. Three decisions that are not visible from the code. **A WLAN comes in only when it is `active`** (or
+has no status, an older NetBox): a `reserved`, `disabled` or `deprecated` one is left out and named in the report
+(`wifi.inactiveSkipped`), because the document would otherwise say it transmits and the wireless audit would judge
+it — a reserved open network would read as an "open network in use". **The cipher is a field of the BSS** (`cipher`:
+`auto`, `aes`, `tkip`, `WIFI_CIPHERS` in `lib/wifi-spec.js`, the vocabulary of NetBox's `auth_cipher`); it is not
+written on an open network, and TKIP is a rule, not a label: `tkip-weak` (warn) with WPA2, `tkip-wpa3` (error) with
+WPA3. **A NetBox wireless link becomes the radio↔radio link between the two radios** (`radioByIface` maps an
+interface id to the radio's socket, `radioPid` of `lib/radio.js`, so the pid is never written by hand); `bss` is set
+only when the link's SSID is one the serving radio — the one with the `ap` RF role, exactly one — transmits, and a
+`planned` link, or one with an end that did not come in (a radio past the cap of 8, an interface not imported), is
+left out and counted (`wifi.linkSkipped`): an association spreads a VLAN, so a planned one would be an invented
+reality. The server reads `wireless-links/` next to `wireless-lans/`, each in its own `try`: a NetBox without the
+wireless module imports its radios all the same. The fields NetBox has and the model does not (channel width, TX
+power, the RF role per radio, WLAN groups and scope, WEP) are listed in the project's notes as the next fields to add.
 The PDF and the draw.io export are twins of this drawing, and for a while ignored it: a drawer got the square
 LEDs of any panel. They no longer do their own sums. `fiberFrontGeometry` (`lib/fiber-slot.js`) turns the same
 rows into numbers — where every slot, cell, opening and port number goes inside a box — with the constants of the
@@ -1680,7 +1696,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **5,032 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **5,057 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

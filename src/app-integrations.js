@@ -981,6 +981,7 @@ function _outcomeDetails(p) {
     _outcomeDetail('fa-location-dot', t('integrations.cIps') + ' ' + (c.ips || 0)),
   ];
   if (c.radios) items.push(_outcomeDetail('fa-wifi', t('integrations.cRadios', { n: c.radios, ssids: c.ssids || 0 })));
+  if (c.wirelessLinks) items.push(_outcomeDetail('fa-link', t('integrations.cWirelessLinks', { n: c.wirelessLinks })));
   items.push(_outcomeDetail('fa-server', t('integrations.cRackFloor', { rack: c.devicesRack || 0, floor: c.devicesFloor || 0 })));
   if (excluded) items.push(_outcomeDetail('fa-filter-circle-xmark', t('integrations.cExcluded', { n: excluded })));
   return `<details class="dcim-outcome-details"><summary><i class="fas fa-chevron-down"></i> ${escapeHTML(t('integrations.previewDetails'))}</summary>

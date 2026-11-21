@@ -96,7 +96,7 @@ test('import NetBox: il menu del tipo offre il cassetto ottico, accanto al patch
 test('import NetBox: ogni voce del menu e\' un tipo vero e ha un nome in italiano e in inglese (se manca, il menu mostra la chiave)', () => {
   const veri = new Set(dalCodice('Object.keys(TYPES)'));
   for (const tipo of elencoTipiImportNetBox()) {
-    assert.ok(veri.has(tipo), `«${tipo}» non e\' un tipo del catalogo: il menu offrirebbe qualcosa che l'import non sa creare`);
+    assert.ok(veri.has(tipo), `«${tipo}» non e' un tipo del catalogo: il menu offrirebbe qualcosa che l'import non sa creare`);
     for (const [lingua, dizionario] of [['it', IT], ['en', EN]]) {
       assert.ok(dizionario['type.' + tipo], `manca «type.${tipo}» in ${lingua}: nel menu comparirebbe «${tipo}»`);
     }

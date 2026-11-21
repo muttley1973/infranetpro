@@ -336,6 +336,15 @@ async function _pullForImport(client, sel) {
       // radio entrano lo stesso con banda e canale. Niente da inventare.
       nb.wirelessLans = [];
     }
+    // I wireless link: ponti punto-punto e associazioni AP-stazione che NetBox documenta fra due interfacce radio. Si
+    // appendono alle radio, quindi si leggono qui, sotto `devices`. Senza il modulo: nessun link, e le radio entrano lo stesso.
+    try {
+      const wk = await client.getPaginated('/api/wireless/wireless-links/', {}, { cap: 10000 });
+      nb.wirelessLinks = wk.results;
+      if (wk.truncated) nb.truncated = true;
+    } catch (_) {
+      nb.wirelessLinks = [];
+    }
   }
   // Le macchine virtuali. Vivono in un'applicazione a parte di NetBox
   // (`virtualization/`) e si agganciano all'host in due modi diversi: `device`
