@@ -25,15 +25,18 @@ import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-prope
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { wifiIssueTexts } from './app-issue-text.js';   // le PAROLE dei validatori puri (i18n), che lib/wifi-spec.js non ha più
-import { WIFI_CIPHERS } from '../lib/wifi-spec.js';   // il vocabolario del cifrario (auto, aes, tkip): lo stesso di NetBox, in un posto solo
+import { WIFI_CIPHERS, WIFI_RF_ROLES, WIFI_SECURITY, validateWifi as _validateWifi } from '../lib/wifi-spec.js';   // i vocabolari di NetBox (cifrario, ruolo RF) e la sicurezza, in un posto solo
+import { ssidSourceRows } from '../lib/dcim-source-view.js';   // cio' che il DCIM dichiara di una WLAN (tenant, gruppo, ambito, descrizione): sola lettura
 
 const _WIFI_BAND_LABELS = { '2.4': '2.4 GHz', '5': '5 GHz', '6': '6 GHz (Wi-Fi 6E)' };
 const _WIFI_SEC_LABELS = {
-    'open': 'Aperta (nessuna)', 'wpa2-psk': 'WPA2-Personal (PSK)', 'wpa2-ent': 'WPA2-Enterprise',
+    'open': 'Aperta (nessuna)', 'wep': 'WEP (obsoleto)', 'wpa2-psk': 'WPA2-Personal (PSK)', 'wpa2-ent': 'WPA2-Enterprise',
     'wpa3-personal': 'WPA3-Personal', 'wpa3-ent': 'WPA3-Enterprise', 'owe': 'Enhanced Open (OWE)',
 };
 // Il cifrario dei dati (stesso vocabolario di NetBox: auto, aes, tkip). Le sigle sono nomi di standard, non prosa.
 const _WIFI_CIPHER_LABELS = { 'auto': 'Auto', 'aes': 'AES (CCMP)', 'tkip': 'TKIP' };
+// Le etichette del ruolo RF nella lingua corrente (ap, station: sono parole, non sigle, quindi passano da i18n).
+function _rfRoleLabels(){ return { 'ap': t('radio.rfRole.ap'), 'station': t('radio.rfRole.station') }; }
 // Le <option> di un elenco chiuso di valori, piu' la voce vuota «—» (non dichiarato): valore ed etichetta passano da esc().
 function _optsHtml(values, sel, labels){
     const esc = s => escapeHTML(String(s == null ? '' : s));
@@ -60,8 +63,15 @@ function updateRadioCfg(nodeId, idx, field, value){
     const radios = (typeof _nodeRadios === 'function') ? _nodeRadios(n) : (n.radios || []);
     const cfg = radios[idx]; if(!cfg) return;
     const v = String(value == null ? '' : value).trim();
+    if(field === 'width' || field === 'txPower'){
+        // Larghezza di canale (MHz) e potenza di trasmissione (dBm): numeri veri. Un valore che non lo e' (testo, zero o
+        // meno per la larghezza, meno di zero per la potenza) vale «non detto»: si toglie, non si inventa.
+        const num = v === '' ? NaN : +v;
+        if(Number.isFinite(num) && (field === 'width' ? num > 0 : num >= 0)) cfg[field] = num;
+        else delete cfg[field];
+    }
     // Canale: 'auto' resta testuale; un numero diventa intero; vuoto cancella.
-    if(v) cfg[field] = (field === 'channel' && v !== 'auto') ? (parseInt(v, 10) || 'auto') : v;
+    else if(v) cfg[field] = (field === 'channel' && v !== 'auto') ? (parseInt(v, 10) || 'auto') : v;
     else delete cfg[field];
     // Cambiando banda, un canale non più valido va scartato (evita stati incoerenti).
     if(field === 'band' && cfg.channel && typeof win.channelsForBand === 'function'){
@@ -197,11 +207,23 @@ function _wifiCfgHtml(cfg, nodeId, idx){
         </div>
         <div class="prop-grid2">
           <div class="prop-group"><label>${esc(_t('pnl.feat.channel'))}</label><select data-change="radio-cfg" ${u} data-field="channel">${chanOpts}</select></div>
-          <div class="prop-group"></div>
+          <div class="prop-group"><label>${esc(_t('radio.width'))}</label><input type="number" min="1" step="1" value="${esc(cfg.width || '')}" placeholder="—" data-change="radio-cfg" ${u} data-field="width"></div>
+        </div>
+        <div class="prop-grid2">
+          <div class="prop-group"><label>${esc(_t('radio.txPower'))}</label><input type="number" min="0" step="1" value="${esc(cfg.txPower == null ? '' : cfg.txPower)}" placeholder="—" data-change="radio-cfg" ${u} data-field="txPower"></div>
+          <div class="prop-group"><label>${esc(_t('radio.rfRole'))}</label><select data-change="radio-cfg" ${u} data-field="rfRole">${_optsHtml(WIFI_RF_ROLES, cfg.rfRole, _rfRoleLabels())}</select></div>
         </div>
         ${banner}
         ${_radioSsidsHtml(cfg, nodeId, idx)}
       </div>`;
+}
+
+// Cio' che il DCIM dichiara della WLAN (tenant, gruppo, ambito, descrizione) si mostra in SOLA LETTURA sotto l'SSID (riga della
+// radio, qui sotto): lo scrive l'import e non e' un campo da compilare, come il «Dichiarato dal DCIM» di un apparato.
+// Il banner dei reperti di validazione wifi (errori e avvisi con il loro perche'), per un blocco che ne ha. Vuoto se non ce ne sono.
+function _issuesBannerHtml(issues){
+    const esc = s => escapeHTML(String(s == null ? '' : s));
+    return issues.length ? `<div class="cable-validate-banner">${wifiIssueTexts(issues).map(i => `<div class="cable-validate-row lvl-${esc(i.level)}"><i class="fas ${i.level === 'error' ? 'fa-circle-exclamation' : 'fa-triangle-exclamation'}"></i><div class="cable-validate-txt"><b>${esc(i.title)}</b><span>${esc(i.why)}</span></div></div>`).join('')}</div>` : '';
 }
 
 // Sotto-elenco dei BSS (SSID) di una radio: ogni riga = SSID + VLAN + Sicurezza +
@@ -231,6 +253,7 @@ function _radioSsidsHtml(radio, nodeId, idx){
               <div class="prop-group" style="display:flex;align-items:flex-end;justify-content:flex-end">
                 <button class="toolbar-btn danger" data-act="radio-remove-bss" ${u} data-tip="${esc(_t('radio.removeSsid') || 'Rimuovi SSID')}"><i class="fas fa-trash"></i></button></div>
             </div>
+            ${ssidSourceRows(s).length ? `<div class="radio-hint" style="margin-top:6px"><i class="fas fa-circle-info"></i> <b>${esc(_t('src.header'))}</b> ${ssidSourceRows(s).map(r => `<span class="dcim-src-item">${esc(_t(r.label))} · ${esc(r.value)}</span>`).join(' ')}</div>` : ''}
             ${bn}
           </div>`;
     }).join('');
@@ -329,6 +352,7 @@ function _wifiInheritedRO(info){
     const bits = [];
     if(c.band) bits.push(_WIFI_BAND_LABELS[c.band] || c.band);
     if(c.channel) bits.push('ch ' + (c.channel === 'auto' ? 'Auto' : c.channel));
+    if(c.width) bits.push(c.width + ' MHz');
     if(c.security) bits.push(_WIFI_SEC_LABELS[c.security] || c.security);
     return `<div class="wifi-cfg">
         <div class="prop-grid2">
@@ -530,18 +554,41 @@ export function _wifiAssocHtml(l){
         if(c.ssid) bits.push(`SSID <b>${esc(c.ssid)}</b>`);
         if(c.band) bits.push(esc(_WIFI_BAND_LABELS[c.band] || c.band));
         if(c.channel) bits.push(`ch ${c.channel === 'auto' ? 'Auto' : esc(c.channel)}`);
+        if(c.width) bits.push(esc(c.width) + ' MHz');
         if(c.security) bits.push(esc(_WIFI_SEC_LABELS[c.security] || c.security));
         if(stdLabel) bits.push(esc(stdLabel.replace(/ \(.*/, '')));
         const name = getNodeDisplayName(info.node) || info.node.name || info.node.id;
         inh = `<div class="wifi-inherited"><i class="fas fa-wifi"></i> ${bits.length ? bits.join(' · ') : t('pnl.feat.apNoWifiData')}<span class="wifi-inh-from"> · ${t('pnl.feat.fromName',{name:esc(name)})}</span></div>`;
     }
     const rssi = (l.rssi != null && l.rssi !== '') ? l.rssi : '';
-    const dist = (l.length != null && l.length !== '') ? l.length : '';
+    // La distanza ha due nomi, come la lunghezza di un cavo: `length` e' quello che il pannello scrive, `lengthM` quello
+    // dell'import (NetBox `distance`, gia' convertita in metri). Si legge il primo che c'e', come fa il pannello del cavo.
+    const dist = (l.length != null && l.length !== '') ? l.length : (l.lengthM != null ? l.lengthM : '');
     return `${inh}
         <div class="prop-grid2">
           <div class="prop-group"><label>${esc(t('pnl.feat.rssiSignal'))}</label><input type="number" max="0" min="-100" value="${esc(rssi)}" placeholder="${esc(t('pnl.feat.rssiPh'))}" data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="rssi"></div>
           <div class="prop-group"><label>${esc(t('pnl.feat.distance'))}</label><input type="number" min="0" value="${esc(dist)}" placeholder="${esc(t('pnl.feat.distancePh'))}" data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="length"></div>
-        </div>`;
+        </div>
+        ${_wifiLinkFieldsHtml(l, info)}`;
+}
+
+// I campi PROPRI del collegamento radio che NetBox dichiara (wireless link): stato, autenticazione (stesso vocabolario
+// dell'SSID) e descrizione. La rete scelta (`bss`) e' un'altra cosa: l'SSID che il collegamento usa.
+function _wifiLinkFieldsHtml(l, info){
+    const esc = s => escapeHTML(String(s == null ? '' : s));
+    const u = `data-change="link-prop" data-lid="${escapeHTML(l.id)}"`;
+    const stLabels = { 'active': t('port.statusActive'), 'inactive': t('port.statusInactive'), 'to_replace': t('cable.toReplace') };
+    const banner = _issuesBannerHtml(_validateWifi({ band: info && info.cfg && info.cfg.band, security: l.wifiSecurity, cipher: l.wifiCipher }));
+    return `<div class="prop-grid2">
+          <div class="prop-group"><label>${esc(t('radio.linkStatus'))}</label><select ${u} data-lprop="cableStatus">${_optsHtml(['active', 'inactive', 'to_replace'], l.cableStatus, stLabels)}</select></div>
+          <div class="prop-group"><label>${esc(t('radio.linkSecurity'))}</label><select ${u} data-lprop="wifiSecurity">${_optsHtml(WIFI_SECURITY, l.wifiSecurity, _WIFI_SEC_LABELS)}</select></div>
+        </div>
+        <div class="prop-grid2">
+          <div class="prop-group"><label>${esc(t('radio.cipher'))}</label><select ${u} data-lprop="wifiCipher">${_optsHtml(WIFI_CIPHERS, l.wifiCipher, _WIFI_CIPHER_LABELS)}</select></div>
+          <div class="prop-group"></div>
+        </div>
+        ${banner}
+        <div class="prop-group"><label>${esc(t('radio.linkNotes'))}</label><textarea rows="2" style="width:100%;resize:vertical" ${u} data-lprop="notes">${esc(l.notes || '')}</textarea></div>`;
 }
 
 // ── Report "Coerenza VLAN wireless" ──────────────────────────────────

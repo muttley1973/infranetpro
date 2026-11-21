@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="5,072 tests, 0 failing" src="https://img.shields.io/badge/tests-5%2C072%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="5,106 tests, 0 failing" src="https://img.shields.io/badge/tests-5%2C106%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="161 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-161%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#discovery--classification-engines"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -219,7 +219,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 - IPv6 treated like IPv4, with the same padlock and Neighbour Discovery presence.
 
 **🔄 DCIM / IPAM sync (NetBox)**
-- Read-only import into a new project: sites, racks (front and rear), devices, interfaces, patch-panel cabling, PDU outlets, VMs, IPAM prefixes and VLANs, circuits and VPN services, and the wireless side — radios, SSIDs with their VLAN, security and cipher, and the wireless links between radios.
+- Read-only import into a new project: sites, racks (front and rear), devices, interfaces, patch-panel cabling, PDU outlets, VMs, IPAM prefixes and VLANs, circuits and VPN services, and the wireless side — radios, SSIDs with their VLAN, security and cipher, each radio's width, power and role, and the wireless links between radios with their distance and status.
 - A cable keeps what NetBox says about it: its category (Cat 3 to Cat 8, OS1/OS2, OM1 to OM5), the medium its type declares, its length in any of NetBox's six units, its label and its status.
 - Every import is a list of decisions — what does not come across is declared, not dropped (a WLAN not in service, a planned wireless link, the IP NetBox holds for a passive panel, a cable type InfraNet has no medium for); a re-import compares without writing. One site is one project.
 - Write-back to NetBox is a paid module (dry-run diff, never deletes).
@@ -235,7 +235,8 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 
 **📶 Wireless**
 - Up to 8 radios per device, each with its own SSID, band, channel, security, cipher and VLAN; a radio only connects to a radio; the SSID VLANs make the wired uplink a trunk.
-- The cipher is NetBox's own vocabulary (Auto, AES, TKIP) and TKIP is flagged: a warning with WPA2, an error with WPA3, which requires AES.
+- The cipher is NetBox's own vocabulary (Auto, AES, TKIP) and TKIP is flagged: a warning with WPA2, an error with WPA3, which requires AES. WEP is a security choice only to document a network that exists, and it is an error.
+- A radio also declares its channel width, transmit power and RF role (access point or station); a radio link carries its distance, status, description and its own security. What the DCIM says of a WLAN (owner, group, scope, description) is shown read-only under the SSID.
 
 **🧵 Cabling**
 - Segment editor on the TIA-568 hierarchy, copper and fibre reach validation, end-to-end physical path trace, progressive patch-panel numbering.
@@ -524,8 +525,8 @@ RUN_E2E=1 npm run e2e # headless end-to-end in a real Chrome — off by default
 - Coverage focuses on the pure logic that has historically broken: SNMP parsing, discovery and classification, the three engines, cable validation, IPAM and LAG audits — plus an app-wide smoke test that loads every script into a DOM stub and asserts rendering never throws.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **641** of them.
-- `npm test` runs the full regression suite (currently **5,072 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **161 flows**).
+- `npm run check` parses every JS source of the product — **643** of them.
+- `npm test` runs the full regression suite (currently **5,106 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **161 flows**).
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that lists something, and the test count measured against what the suite really prints.
 
 **CI** ([GitHub Actions](.github/workflows/ci.yml)) runs `npm run check`, `npm run lint`, `npm run typecheck`, `npm test` and the browser end-to-end suite (`npm run e2e`) on every push and pull request to `main`, on Node 18, 20, 22 and 24.

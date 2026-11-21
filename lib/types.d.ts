@@ -23,6 +23,8 @@ interface Ssid {
   security?: string;
   /** cifrario dei dati: 'auto' | 'aes' | 'tkip' (WIFI_CIPHERS); assente = non detto. */
   cipher?: string;
+  /** cio' che il DCIM dichiara della WLAN (descrizione, gruppo, ambito, tenant): in SOLA LETTURA, lo scrive l'import. */
+  source?: { description?: string; group?: string; scope?: string; tenant?: string };
 }
 
 /** Una radio FISICA: campi PHY + lista di BSS. (i campi legacy
@@ -32,6 +34,12 @@ interface Radio {
   band?: string;
   channel?: number | string;
   standard?: string;
+  /** larghezza di canale, MHz (NetBox `rf_channel_width`). */
+  width?: number;
+  /** potenza di trasmissione, dBm (NetBox `tx_power`). */
+  txPower?: number;
+  /** ruolo RF: 'ap' | 'station' (WIFI_RF_ROLES); assente = non detto. */
+  rfRole?: string;
   bx?: number;
   by?: number;
   ssids?: Ssid[];

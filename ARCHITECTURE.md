@@ -680,6 +680,20 @@ report names it (`rack.unitUnplaced`). A second "loss" row (`rack.numbering`) sa
 differently, because the unit labels InfraNet draws do not match NetBox's. The standard numbering (from 1, from the
 bottom) passes through untouched and without a ceiling check, as it always did. A test redraws the rack the way NetBox
 does, row by row from the top, as an oracle independent of the formula.
+The Wi-Fi fields NetBox declares and the model lacked were measured on a real NetBox (4.6.7) and then given a place, each by
+what it is. **Physical radio** (`RADIO_PHYS_FIELDS` in `lib/radio.js`, so the associated client inherits them): `width`
+(MHz — `rf_channel_width` wins, else the last segment of the channel choice, `5g-42-5210-80`; known even when a wide block
+gives no primary channel), `txPower` (dBm, zero is a value, negative is not) and `rfRole` (`WIFI_RF_ROLES`, NetBox's
+`ap` / `station`). **Security**: `wep` joins `WIFI_SECURITY` — it was read as "nothing", which no check could judge — with
+an error rule, the same refusal as Open and WPA2 on 6 GHz, and never a cipher. **What belongs to the import, not to the
+person**: an SSID's description, group, scope and tenant live in `bss.source`, read through `ssidSourceRows` in
+`lib/dcim-source-view.js` (the SSID twin of a device's `node.source`) and shown read-only; making them editable would
+let the next import and the person overwrite each other. **Radio link**: the distance is `lengthM` in metres through the
+same `_lengthM` the cables use (the panel reads `length`, then `lengthM`, as the cable panel does), the status is
+`cableStatus`, the description is `notes`, and the link's own authentication is `wifiSecurity` / `wifiCipher` (the SSID's
+vocabulary; the `bss` is the network the link uses, a different fact); the PSK never enters the document. A WPA-personal
+link is read as WPA2 like an SSID and counted in the same `wifi.securityAssumed` row. Rules for these fields exist only
+where a figure from the standard can be cited: none for width and power (the power allowed depends on the country).
 The wireless side of the NetBox import follows the same two-level model as the app (`radios[i]` = the physical
 radio, `radios[i].ssids[]` = the BSS) and the same rule — what the model cannot hold is a declared gap, never a
 silent loss. Three decisions that are not visible from the code. **A WLAN comes in only when it is `active`** (or
@@ -694,8 +708,10 @@ only when the link's SSID is one the serving radio — the one with the `ap` RF 
 `planned` link, or one with an end that did not come in (a radio past the cap of 8, an interface not imported), is
 left out and counted (`wifi.linkSkipped`): an association spreads a VLAN, so a planned one would be an invented
 reality. The server reads `wireless-links/` next to `wireless-lans/`, each in its own `try`: a NetBox without the
-wireless module imports its radios all the same. The fields NetBox has and the model does not (channel width, TX
-power, the RF role per radio, WLAN groups and scope, WEP) are listed in the project's notes as the next fields to add.
+wireless module imports its radios all the same. What NetBox still has and the model does not, on purpose or for lack of a
+reason to model it: WLAN groups as an entity of their own (the group's name is kept as provenance), the custom channel
+frequency (`rf_channel_frequency`, which the band and channel already say), the wireless types that are not Wi-Fi radios
+(Bluetooth, Zigbee, cellular), and the WPA2/WPA3 generation, which NetBox does not tell apart.
 The PDF and the draw.io export are twins of this drawing, and for a while ignored it: a drawer got the square
 LEDs of any panel. They no longer do their own sums. `fiberFrontGeometry` (`lib/fiber-slot.js`) turns the same
 rows into numbers — where every slot, cell, opening and port number goes inside a box — with the constants of the
@@ -1705,7 +1721,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **5,072 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **5,106 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
