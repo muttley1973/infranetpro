@@ -666,7 +666,15 @@ writes a category only when it IS one of the fifteen; where NetBox says less (`s
 "Cable type". The medium is a separate fact: `_cableMedium` writes what the type declares (copper, DAC, fibre) and
 nothing for coaxial, power and USB. The speed and reach tables of the validator have no row for the six grades
 added later (Cat3, Cat5, Cat7A, OS1, OM1, OM2): a rule without a figure from the standard stays silent. Lengths
-come in through `_lengthM`, which knows NetBox's six units; an unknown unit writes nothing. Values already saved by
+come in through `_lengthM`, which knows NetBox's six units; an unknown unit writes nothing. The cable's description and comments
+both go into `link.notes`, the panel's "Description" (the field the radio link already used), joined with " — " through
+`_comment`, which turns a line break into one space because NetBox's `comments` is multi-line Markdown and `_str` drops
+control characters without leaving a gap. A port's speed (`speed`, kbps in NetBox) becomes Mbps in `speedOvr`, the person's
+slot, exactly as the declared VLAN goes to `vlanOvr`: `speed` is the SNMP reading's slot and the import never seeds it, so
+the declared and the measured values meet in the drift report instead of overwriting each other (`buildDocSnapshot` reads
+`speedOvr ?? speed` for the document, `buildSnmpSnapshot` only `speed`) and the LAG members' check compares the declared ones.
+`_portSpeedMbps` accepts only a whole number of Mbps above zero: 1544 kbps is not rounded to 2, the port stays without a
+declared speed and `port.speedUnusable` (a "loss" row) counts them. Values already saved by
 the old import are not rewritten: the readers recognise them (`fiber-sm` still carries the family), and the list
 shows a value it does not offer instead of hiding it. A patch panel or a drawer that NetBox gives an IP does not get it (`ip.passiveIgnored`,
 a "loss" row in the import report): `_PATCH_LIKE_TYPES` in the mapper is the twin of `patchLike` in the type catalogue,
@@ -1742,7 +1750,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **5,145 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **5,159 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
