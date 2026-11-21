@@ -22,7 +22,7 @@ import { nodeById, markDirty, getNodeByPortId, getPortNodeId, pushHistory, rende
 import { isPatchLike } from './app-types.js';   // la famiglia dei pannelli passivi: numerazione in serie
 import { radioLabelForPid } from '../lib/radio.js';   // il nome di una radio sta sul modello, non nel pid
 import { forgetFromRead } from '../lib/field-provenance.js';   // la regola: scrivere/ripristinare a mano toglie la provenienza «copiato dalla lettura»
-import { stpBlockedState } from '../lib/port-state.js';   // «questa porta è bloccata da STP?»: una definizione sola
+import { stpBlockedState, hasPortOverride, clearPortOverrides } from '../lib/port-state.js';   // «questa porta è bloccata da STP?»: una definizione sola
 import { propagateVlans, _effPortVlan, _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
@@ -54,6 +54,11 @@ if(store._lastPopY  === undefined) store._lastPopY  = 0;
 if(store._focusedLagGroup === undefined) store._focusedLagGroup = null;
 if(store._focusedLagPorts === undefined) store._focusedLagPorts = new Set();
 
+// La porta ha QUALCOSA di dichiarato a mano (o dall'import) che il pulsante «ripristina» toglie? Una definizione sola.
+function _hasPortOvr(pi){
+    return hasPortOverride(pi) || !!(pi.desc && pi.desc!=='');
+}
+
 function renderPortsTable(n){
     const state = store.state;
     const pc = n.ports !== undefined ? n.ports : 0;
@@ -84,7 +89,7 @@ function renderPortsTable(n){
         const descPh = pi.alias || pi.ifName || '';
         const macTip = pi.mac ? ` · MAC: ${pi.mac}` : '';
         const ifTip = pi.ifName ? `${pi.ifName}${macTip}` : (macTip || '');
-        const hasOvr = pi.statusOvr!=null || pi.speedOvr!=null || pi.vlanOvr!=null || (pi.desc && pi.desc!=='');
+        const hasOvr = _hasPortOvr(pi);
         rows += `<div class="pt-row${hidden?' pt-row-hidden':''}" data-tip="${escapeHTML(ifTip)}">
   <span class="pt-num">${i}</span>
   <input value="${escapeHTML(pi.desc||'')}" placeholder="${escapeHTML(descPh)}"
@@ -394,9 +399,7 @@ function togglePortHidden(pid){
 function clearAllPortOverrides(pid){
     const state = store.state;
     if(!state.ports[pid]) return;
-    delete state.ports[pid].statusOvr;
-    delete state.ports[pid].speedOvr;
-    delete state.ports[pid].vlanOvr;
+    clearPortOverrides(state.ports[pid]);
     delete state.ports[pid].desc;
     forgetFromRead(state.ports[pid], 'desc');   // la descrizione ripristinata non e' piu' «copiata dalla lettura»
     const el = portAnchorEl(pid);
@@ -422,7 +425,7 @@ function clearAllPortOverrides(pid){
 function _refreshPortRow(pid){
     const state = store.state;
     const pi = state.ports[pid] || {};
-    const hasOvr = pi.statusOvr!=null || pi.speedOvr!=null || pi.vlanOvr!=null || (pi.desc && pi.desc!=='');
+    const hasOvr = _hasPortOvr(pi);
     document.querySelectorAll(`[data-ovr-pid="${pid}"]`).forEach(el=>{
         const f = el.dataset.ovrField;
         if(f==='statusOvr') el.classList.toggle('ovr', pi.statusOvr!=null);

@@ -17,7 +17,7 @@
 // anche da src/app-drift-adopt.js, quindi NON è una variabile di modulo.
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
-import { DOWN_STREAK_N, forgetPortMeasure, nextDownStreak } from '../lib/port-state.js';   // lib pura importata ESM: soglia anti-flap + avanzamento e scadenza delle misure di porta
+import { DOWN_STREAK_N, forgetPortMeasure, nextDownStreak, clearPortOverrides } from '../lib/port-state.js';   // lib pura importata ESM: soglia anti-flap + avanzamento e scadenza delle misure di porta
 import { TYPES, _frontPanelPortLabel } from './app-types.js';   // catalogo tipi: distingue gli elementi passivi dall'audit di presenza
 import { escapeHTML, normalizeMacAddress, postJsonWithDeadline } from './app-util.js';
 import { nodeById, markDirty, getNodeByPortId, getNodeDisplayName, pushHistory, logAudit, _cableAutoLabel, _showToast } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
@@ -573,9 +573,7 @@ function driftApplyDoc(key){
     if(speed  != null) state.ports[pid].speed  = speed;
     if(duplex != null) state.ports[pid].duplex = duplex;
     if(vlan   != null) state.ports[pid].vlan   = vlan;
-    delete state.ports[pid].statusOvr;
-    delete state.ports[pid].speedOvr;
-    delete state.ports[pid].vlanOvr;
+    clearPortOverrides(state.ports[pid]);
     // Le VLAN trasportate si adottano sul CAVO: è lì che vive la dichiarazione
     // («VLAN trasportate» del pannello Proprietà cavo). Scriverle sulla porta
     // sarebbe scrivere una misura, e il poll dopo la riscriverebbe da sé.

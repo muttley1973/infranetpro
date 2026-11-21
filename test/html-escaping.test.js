@@ -423,7 +423,7 @@ const CAPS = {
     // porte portano t() con parametri NUMERICI (da/a della numerazione, `_fpc`); stessa causa di
     // app-properties-link.js. Nessuno di questi valori e' testo che arriva da fuori.
     'src/app-properties-node.js': 62,
-    'src/app-properties-port.js': 33,
+    'src/app-properties-port.js': 32,
     // +1 (2026-10-17, da 16): `bits.join(' · ')` in `_preview`, il riassunto a destra di ogni fisarmonica della
     // scheda VM. Unisce pezzi GIA' costruiti ai punti di chiamata: il testo che arriva dall'utente (ruolo, hostname,
     // IP, MAC, responsabile, vCPU/RAM/disco) passa da `_esc`, e il resto sono frasi di t() con parametri numerici

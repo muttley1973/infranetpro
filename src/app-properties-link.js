@@ -600,6 +600,9 @@ export function _renderLinkProps(panel){
                                          snmpSpeedMbps: _vsp.speed || _vdp.speed || 0,
                                          snmpMedium: _vsp.snmpMedium || _vdp.snmpMedium || null,
                                          isTrunk: tk.mode === 'trunk',
+                                         // Il duplex che ciascun capo DICHIARA (il suo slot, o quello della lettura se c'e').
+                                         srcDuplex: _vsp.duplexOvr || _vsp.duplex || null,
+                                         dstDuplex: _vdp.duplexOvr || _vdp.duplex || null,
                                          srcNative: _bothActive ? _effPortVlan(l.src) : null,
                                          dstNative: _bothActive ? _effPortVlan(l.dst) : null,
                                          // Le VLAN TRASPORTATE da ciascun capo, per il confronto delle

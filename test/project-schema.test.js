@@ -94,6 +94,9 @@ test('CRICCHETTO — la classifica non elenca campi mai visti in nessun progetto
   const attesi = new Set(['proof', 'modelMatch', 'portsMeasured', 'osTypeMeasured', 'portsReal',
     'portsManual', 'backup', 'snmp', 'srcDevice', 'srcRack',
     'color', 'colorOvr', 'lengthM', 'length', 'overflow',
+    // Il duplex: lo slot della persona (`duplexOvr`, il pannello porta e l'import DCIM) e il campo base che scrive solo l'adozione
+    // della Verifica. Nuovi (21/11): nessun progetto del campione li ha compilati — campi veri, non finti.
+    'duplexOvr', 'duplex',
     // Gli altri campi del pannello cavo (`cableType`, `installedAt`, `installedBy`) e l'alias
     // storico `category`: classificati `document` il 16/11 perché la GUARDIA ALIAS ha mostrato
     // che la normalizzazione li lascia sul link. Nessuno dei progetti del campione aveva un cavo

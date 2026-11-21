@@ -674,7 +674,21 @@ slot, exactly as the declared VLAN goes to `vlanOvr`: `speed` is the SNMP readin
 the declared and the measured values meet in the drift report instead of overwriting each other (`buildDocSnapshot` reads
 `speedOvr ?? speed` for the document, `buildSnmpSnapshot` only `speed`) and the LAG members' check compares the declared ones.
 `_portSpeedMbps` accepts only a whole number of Mbps above zero: 1544 kbps is not rounded to 2, the port stays without a
-declared speed and `port.speedUnusable` (a "loss" row) counts them. Values already saved by
+declared speed and `port.speedUnusable` (a "loss" row) counts them.
+The duplex (`half`, `full`, `auto`; any other word is dropped) goes the same way into `duplexOvr`: the document side of the
+Verify comparison reads `duplexOvr ?? duplex` (`buildDocSnapshot`), the measured side only `duplex` — which no poll writes yet,
+only the Verify run's "adopt reality" — and the cable panel hands each end's duplex to `validateCable`, whose `duplex-mismatch`
+rule warns on full against half only (`auto` is no contradiction: what a forced end does against a negotiating one depends on the
+device, and that is not guessed here). A cable's PoE class (`link.poe`: `802.3af`, `802.3at`, `802.3bt`) is read from the
+interfaces at the cable's two ends (`ifaceById`, keyed by NetBox interface id, so a front port with the same numeric id is never
+taken for one), only from an end whose `poe_mode` is `pse` and only if its `poe_type` is one of the four IEEE types
+(`_POE_CLASS`; the passive 24/48 V types have no class); two ends naming two classes write none. The class matters because
+`validateCable` already had `poe-cat` (802.3bt over Cat 5e) and `poe-fiber`, which could not fire on an imported cable that never
+had one. A port's declared PoE is deliberately not a per-port field: what a port *can* supply is not what it *draws*, and the PoE
+budget counts measured classes (`snmpPoe`). What NetBox declares and no cable carries (passive types, a port without an imported
+cable, discordant ends) is counted in one `port.poeLeftOut` row. The person's slots of a port (`statusOvr`, `speedOvr`,
+`duplexOvr`, `vlanOvr`) are ONE list in `lib/port-state.js` (`PORT_OVERRIDE_FIELDS`, `hasPortOverride`, `clearPortOverrides`),
+shared by "restore", "adopt reality" and the ports table's indicator. Values already saved by
 the old import are not rewritten: the readers recognise them (`fiber-sm` still carries the family), and the list
 shows a value it does not offer instead of hiding it. A patch panel or a drawer that NetBox gives an IP does not get it (`ip.passiveIgnored`,
 a "loss" row in the import report): `_PATCH_LIKE_TYPES` in the mapper is the twin of `patchLike` in the type catalogue,
@@ -1750,7 +1764,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **5,159 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **5,185 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

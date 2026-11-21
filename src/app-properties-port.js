@@ -236,6 +236,7 @@ export function _renderPortProps(panel){
         const effStatus=_stKnown?(pi.statusOvr??normalizePortStatus(pi.status)):'';
         const effVlan=_effPortVlan(pid);
         const effSpeed=pi.speedOvr??pi.speed??null;
+        const effDuplex=pi.duplexOvr||pi.duplex||'';
         const spdDisplay=effSpeed!=null?(effSpeed>=1000?`${(effSpeed/1000).toFixed(effSpeed%1000?1:0)}G`:`${effSpeed}M`):'';
         const spdPh=pi.speed!=null?(pi.speed>=1000?`${(pi.speed/1000).toFixed(pi.speed%1000?1:0)}G`:`${pi.speed}M`):t('pnl.dev.phSpeedEg');
         const snmpParts=[];
@@ -288,7 +289,7 @@ export function _renderPortProps(panel){
             return `${sep}<span data-tip="${escapeHTML(t(w === 'broken' ? 'port.stpBrokenTip' : 'port.stpBlockedTip'))}" style="background:rgba(110,118,129,.12);border:1px solid var(--panel-border);color:var(--text-muted);border-radius:3px;padding:1px 6px">STP ${escapeHTML(w)}</span>`;
         };
         const snmpBar=(snmpParts.length||portShade(pi,DOWN_STREAK_N)||pi.operWait||_stpBlk)?`<div class="snmp-bar" style="margin:0 0 10px"><span class="sb">SNMP</span>${escapeHTML(snmpParts.join(' · '))}${_shadeChip()}${_operWaitChip()}${_stpChip()}</div>`:'';
-        const rst=(f,lbl)=>pi[f]!=null?`<button class="toolbar-btn" style="padding:2px 6px;margin:0;font-size:var(--fs-2xs)" data-tip="${escapeHTML(t('pnl.dev.restoreField',{field:lbl}))}" data-act="port-clear-render" data-pid="${pid}" data-pfield="${f}">↺</button>`:'';
+        const rst=(f,lbl)=>pi[f]!=null?`<button class="toolbar-btn" style="padding:2px 6px;margin:0;font-size:var(--fs-2xs)" data-tip="${escapeHTML(t('pnl.dev.restoreField',{field:lbl}))}" data-act="port-clear-render" data-pid="${escapeHTML(pid)}" data-pfield="${escapeHTML(f)}">↺</button>`:'';
         // Select dello STATO dichiarabile. Una sola definizione, usata sia dallo
         // switchport sia dalla tappa passiva: due copie delle stesse cinque voci
         // divergono al primo che ne aggiunge una.
@@ -387,6 +388,17 @@ export function _renderPortProps(panel){
                        class="${pi.speedOvr!=null?'ovr':''}" style="flex:1"
                        data-change="port-speed" data-pid="${pid}" data-tip="${t('pnl.dev.speedTip')}">
                 ${rst('speedOvr',t('pnl.dev.fieldSpeed'))}
+              </div>
+            </div>
+            <div class="prop-group"><label>${t('port.duplex')}</label>
+              <div style="display:flex;gap:5px">
+                <select class="${pi.duplexOvr?'ovr':''}" style="flex:1" data-change="port-field" data-pid="${escapeHTML(pid)}" data-pfield="duplexOvr">
+                  <option value=""     ${effDuplex===''    ?'selected':''}>—</option>
+                  <option value="full" ${effDuplex==='full'?'selected':''}>${t('port.duplexFull')}</option>
+                  <option value="half" ${effDuplex==='half'?'selected':''}>${t('port.duplexHalf')}</option>
+                  <option value="auto" ${effDuplex==='auto'?'selected':''}>${t('port.duplexAuto')}</option>
+                </select>
+                ${rst('duplexOvr',t('port.duplex'))}
               </div>
             </div>`)}
             ${_passiveConduit ? '' : (()=>{
