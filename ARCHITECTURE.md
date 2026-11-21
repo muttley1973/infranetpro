@@ -241,6 +241,9 @@ lib/                   Shared browser + test modules (the heart of the app)
                     `fiberFront`: where each slot, cell and opening goes inside a box, for the PDF and
                     the draw.io export, which paint it.
                     Lays out only; which connector is mounted is always a declared field  (pure)
+  cable-category.js The fifteen categories of the cable panel (Cat3…Cat8, OS1/OS2, OM1…OM5) and what a value
+                    written by an import (`cat6a`, `fiber-sm`) is: which category, copper or fibre, which
+                    family. The validator, the category list and the NetBox import all ask it  (pure)
   device-model-kind.js  The TYPE of a catalogue model, and which models "Apply model" offers a device.
                     The CC0 library gives a model, never a type: `roleOf` (tools/import-device-types.js)
                     reads structure (outlets, serial ports, radios, port density) and `networkKind`
@@ -652,6 +655,22 @@ single-mode against multimode (`warn`: from outside a deliberate choice and a sl
 the *family*, not the grade — OM3 on an OM4 panel is only a shorter reach — and only when both sides are
 declared. The connector is deliberately not compared: a cable has one connector field for two ends, and an
 LC–SC cord is an ordinary product.
+The category field has the same one-definition rule, because two writers fill it: the cable panel's list (fifteen
+values, every grade NetBox's cable types have) and the DCIM import, which NetBox names its own way (`cat6a`,
+`mmf-om4`, `smf-os2`, `smf`). Until 2.13.0 the import wrote `cat6` and `fiber-sm` while the validator looked for
+`Cat6` and `OS2`, so the cable rules never fired on imported cables and the list showed "Not specified" over a value
+that was there. `lib/cable-category.js` now answers the three questions — which of the fifteen, copper or fibre,
+which family — for the validator, the list and the import alike. The import (`_cableFields` in `lib/dcim-map.js`)
+writes a category only when it IS one of the fifteen; where NetBox says less (`smf` without a grade) or more
+(`dac-passive`, the coaxial types) the category stays empty, a grade is not invented, and NetBox's own word goes to
+"Cable type". The medium is a separate fact: `_cableMedium` writes what the type declares (copper, DAC, fibre) and
+nothing for coaxial, power and USB. The speed and reach tables of the validator have no row for the six grades
+added later (Cat3, Cat5, Cat7A, OS1, OM1, OM2): a rule without a figure from the standard stays silent. Lengths
+come in through `_lengthM`, which knows NetBox's six units; an unknown unit writes nothing. Values already saved by
+the old import are not rewritten: the readers recognise them (`fiber-sm` still carries the family), and the list
+shows a value it does not offer instead of hiding it. A patch panel or a drawer that NetBox gives an IP does not get it (`ip.passiveIgnored`,
+a "loss" row in the import report): `_PATCH_LIKE_TYPES` in the mapper is the twin of `patchLike` in the type catalogue,
+and a test keeps them aligned.
 The PDF and the draw.io export are twins of this drawing, and for a while ignored it: a drawer got the square
 LEDs of any panel. They no longer do their own sums. `fiberFrontGeometry` (`lib/fiber-slot.js`) turns the same
 rows into numbers — where every slot, cell, opening and port number goes inside a box — with the constants of the
@@ -1661,7 +1680,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,996 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **5,032 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

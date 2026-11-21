@@ -223,7 +223,7 @@ test('cavo → link con endpoint risolti su slot, categoria, lunghezza, colore',
   assert.equal(l.id, 'nb-cbl-500');
   assert.equal(l.src, 'nb-dev-100-2');   // iface 1001 = slot 2
   assert.equal(l.dst, 'nb-dev-101-1');   // iface 1100 = slot 1
-  assert.equal(l.cableCategory, 'cat6');
+  assert.equal(l.cableCategory, 'Cat6', 'la categoria e quella che il pannello Cavo offre (Cat6), non il testo di NetBox');
   assert.equal(l.lengthM, 3);
   assert.equal(l.color, '#ff0000');
   assert.equal(report.counts.cables, 1);
@@ -671,7 +671,7 @@ test('cavo rear-port↔rear-port → backbone risolto via FK del front (stesso s
   assert.ok(l);
   // rear 3000 → slot 1 di PP-A ; rear 3100 → slot 1 di PP-B
   assert.deepEqual([l.src, l.dst].sort(), ['nb-dev-200-1', 'nb-dev-201-1'].sort());
-  assert.equal(l.cableCategory, 'cat6a');
+  assert.equal(l.cableCategory, 'Cat6A');
 });
 
 test('catena patch panel: lo slot passante è CONDIVISO fra i tratti (nessun segments[])', () => {

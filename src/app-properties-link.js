@@ -18,6 +18,7 @@ import { _routeHopRemovable, enterRoutingMode, removeRouteHop } from './app-cabl
 import { _wifiAssocHtml } from './app-wifi.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { cableIssueTexts, chainWarnTexts } from './app-issue-text.js';   // le PAROLE dei validatori puri (i18n), che le lib non hanno più
 import { fiberOnlyPanel } from '../lib/fiber-slot.js';   // quale nodo accetta SOLO fibra (cassetto ottico, patch panel «fibra»): una definizione sola
+import { canonicalCableCategory } from '../lib/cable-category.js';   // quale delle nove categorie e' un valore (anche `cat6a` dell'import): la tendina lo riconosce
 import { registerClickActions, registerChangeActions, registerBlurActions } from './app-delegation.js';   // ASSE B: handler del pannello cavo via event delegation (ex on* inline)
 
 // ASSE B (ritiro ponte): gli handler inline del pannello CAVO passano a data-act/
@@ -695,6 +696,13 @@ export function _renderLinkProps(panel){
                 // -------------------------------------------------------------------
 
                 const catLabel = l.medium==='fiber' ? t('cable.fiberType') : t('cable.category');
+                // La categoria la scrive anche chi importa da un DCIM (cat6, fiber-sm): la voce giusta si riconosce anche
+                // cosi, e un valore fuori elenco si MOSTRA com e invece di sembrare non specificata.
+                // (Niente apostrofi ne apici inversi in questi commenti: lo scanner dell escaping non capisce i commenti
+                // dentro la funzione che disegna questo pannello, e la darebbe per non provata.)
+                const _catSel = canonicalCableCategory(l.cableCategory);
+                const _catOdd = (l.cableCategory && !_catSel) ? String(l.cableCategory) : '';
+                const _catOddOpt = _catOdd ? '<option value="' + escapeHTML(_catOdd) + '" selected>' + escapeHTML(_catOdd) + '</option>' : '';
                 const _derivedCableType = [
                     l.medium==='fiber' ? t('cable.fiber') : l.medium==='dac' ? 'DAC' : l.medium==='copper' ? t('cable.copper') : '',
                     l.cableCategory || '',
@@ -745,15 +753,21 @@ export function _renderLinkProps(panel){
                 <label>${catLabel}</label>
                 <select class="${ovr('cableCategory')}" ${lockAttr} data-change="link-prop" data-lid="${escapeHTML(l.id)}" data-lprop="cableCategory" data-coerce="trim">
                   <option value="" ${!l.cableCategory?'selected':''}>${t('common.unspecifiedF')}</option>
-                  <option value="Cat5e" ${l.cableCategory==='Cat5e'?'selected':''}>Cat 5e</option>
-                  <option value="Cat6" ${l.cableCategory==='Cat6'?'selected':''}>Cat 6</option>
-                  <option value="Cat6A" ${l.cableCategory==='Cat6A'?'selected':''}>Cat 6A</option>
-                  <option value="Cat7" ${l.cableCategory==='Cat7'?'selected':''}>Cat 7</option>
-                  <option value="Cat8" ${l.cableCategory==='Cat8'?'selected':''}>Cat 8</option>
-                  <option value="OS2" ${l.cableCategory==='OS2'?'selected':''}>OS2 — Monomodale</option>
-                  <option value="OM3" ${l.cableCategory==='OM3'?'selected':''}>OM3 — Multimodale 10G</option>
-                  <option value="OM4" ${l.cableCategory==='OM4'?'selected':''}>OM4 — Multimodale 40/100G</option>
-                  <option value="OM5" ${l.cableCategory==='OM5'?'selected':''}>OM5 — Multimodale SWDM</option>
+                  <option value="Cat3" ${_catSel==='Cat3'?'selected':''}>Cat 3</option>
+                  <option value="Cat5" ${_catSel==='Cat5'?'selected':''}>Cat 5</option>
+                  <option value="Cat5e" ${_catSel==='Cat5e'?'selected':''}>Cat 5e</option>
+                  <option value="Cat6" ${_catSel==='Cat6'?'selected':''}>Cat 6</option>
+                  <option value="Cat6A" ${_catSel==='Cat6A'?'selected':''}>Cat 6A</option>
+                  <option value="Cat7" ${_catSel==='Cat7'?'selected':''}>Cat 7</option>
+                  <option value="Cat7A" ${_catSel==='Cat7A'?'selected':''}>Cat 7A</option>
+                  <option value="Cat8" ${_catSel==='Cat8'?'selected':''}>Cat 8</option>
+                  <option value="OS1" ${_catSel==='OS1'?'selected':''}>OS1 — Monomodale</option>
+                  <option value="OS2" ${_catSel==='OS2'?'selected':''}>OS2 — Monomodale</option>
+                  <option value="OM1" ${_catSel==='OM1'?'selected':''}>OM1 — Multimodale</option>
+                  <option value="OM2" ${_catSel==='OM2'?'selected':''}>OM2 — Multimodale</option>
+                  <option value="OM3" ${_catSel==='OM3'?'selected':''}>OM3 — Multimodale 10G</option>
+                  <option value="OM4" ${_catSel==='OM4'?'selected':''}>OM4 — Multimodale 40/100G</option>
+                  <option value="OM5" ${_catSel==='OM5'?'selected':''}>OM5 — Multimodale SWDM</option>${_catOddOpt}
                 </select>
               </div>
 

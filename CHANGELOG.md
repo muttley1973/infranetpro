@@ -6,8 +6,18 @@
 
 - **The PDF dossier and the draw.io export draw the fiber drawer the way the rack does.** A drawer used to come out with the square LEDs of any panel; now each port is a vertical slot with the openings of the connector you declared (LC, SC, MTP/MPO…), a blank plate is a dark slot, a module with several ports keeps its stacked cells, and a hidden port is left out. In draw.io the slot is a native cell with the port's id, so a cable still attaches to it. A drawer too big for its U, or set to two LED floors, keeps the squares, as on screen.
 
+### Added
+
+- **The cable Category list offers the six grades NetBox has and it did not:** Cat 3, Cat 5, Cat 7A, OS1, OM1 and OM2, so an old installation can be documented as it is. They carry no speed or reach rule — without a figure from the standard the checks stay silent rather than invent a threshold.
+
 ### Fixed
 
+- **A cable imported from NetBox now carries a category the cable panel knows, so the cable checks apply to it.** NetBox's `smf-os2`, `mmf-om4` and `cat6a` used to be written as `fiber-sm`, `fiber-mm` and `cat6` — values the panel does not offer and the checks did not recognise: a copper cable on a fibre-only panel went unnoticed, and the Category list read "Not specified" over a value that was there. They are now `OS2`, `OM4` and `Cat6A`. Where NetBox has no grade (`smf`, `mmf`) or says more (`dac-passive`, the coaxial types) the category stays empty and NetBox's own word goes into "Cable type". Projects imported before are not rewritten: the checks and the list now recognise the old values.
+- **The Category list shows a value it does not offer** (an imported `fiber-sm`, say) instead of "Not specified".
+- **An imported cable carries the medium its NetBox type declares** — copper for the twisted pairs and MRJ21, DAC for the twinax, fibre for multimode, single-mode and AOC; none for coaxial, power and USB, which InfraNet has no medium for. A DAC on a fibre-only panel is now flagged.
+- **An imported cable keeps its label and its status:** the label NetBox holds becomes the cable's label, *connected* is an active cable and *decommissioning* one to replace; *planned* stays undeclared, since InfraNet has no "planned" state.
+- **The length of an imported cable is converted for every NetBox unit.** Only the foot was; a 50 cm patch cord came in as 50 m, 100 inches as 100 m and 1 km as 1 m. Kilometres, metres, centimetres, miles, feet and inches now become metres, and a unit the import does not know writes no length instead of a guess.
+- **A patch panel or fiber drawer imported from NetBox no longer receives the IP NetBox holds for it.** A passive panel has no address; the import report now says how many it left out.
 - **A login no longer freezes the server for twice as long as it should.** The password check runs in slices of about 100 ms with a pause between them, but the first two slices ran back to back, so every other request waited about 205 ms. The check now yields before it starts, and the longest wait is about 100 ms, for sign-in and for a password change alike.
 
 ## [2.13.0] — 2026-11-20
