@@ -36,7 +36,20 @@ jobs:
         run: npm run typecheck
 
       - name: Run tests
-        run: npm test   # includes the bundle architecture guard (window-bridge rule)
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee "$RUNNER_TEMP/test.log"   # includes the bundle architecture guard (window-bridge rule)
+
+      # The step log needs a login to read; annotations do not. When the tests fail, say which ones.
+      - name: Name the failing tests (annotations)
+        if: failure()
+        run: |
+          [ -f "$RUNNER_TEMP/test.log" ] || exit 0
+          grep -E '^[[:space:]]*not ok' "$RUNNER_TEMP/test.log" | head -10 | while IFS= read -r l; do
+            echo "::error title=failing test::${l}"
+          done
+          detail=$(grep -E -A18 '^[[:space:]]*not ok' "$RUNNER_TEMP/test.log" | head -90 | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
+          if [ -n "$detail" ]; then echo "::error title=failing tests, with details::${detail}"; fi
 
       - name: E2E — migrated modules in a real browser (headless Chrome)
         run: RUN_E2E=1 npm run e2e   # Chrome is preinstalled on ubuntu-latest
