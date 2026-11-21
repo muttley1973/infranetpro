@@ -97,9 +97,10 @@ test('login ASINCRONO: il confronto bcrypt cede il controllo (era: server fermo 
   const MAX_PROVE = 3;
   const prove = [];
   for (let k = 0; k < MAX_PROVE; k++) {
-    let last = Date.now(), maxGap = 0;
-    const timer = setInterval(() => { const n = Date.now(); maxGap = Math.max(maxGap, n - last); last = n; }, 10);
     const t0 = Date.now();
+    let last = t0, maxGap = 0;
+    const gaps = [];   // i buchi >= 25 ms, come «quando e' iniziato+quanto e' durato»: dove sta lo stallo, non solo quanto e' grande
+    const timer = setInterval(() => { const n = Date.now(); const g = n - last; maxGap = Math.max(maxGap, g); if (g >= 25) gaps.push((last - t0) + '+' + g); last = n; }, 10);
     const r = await login('nessuno-' + t0 + '-' + k, 'qualunque');
     await new Promise(res => setTimeout(res, 30));   // lascia scattare il tick in coda, se il loop era bloccato
     const ms = Date.now() - t0;
@@ -107,13 +108,13 @@ test('login ASINCRONO: il confronto bcrypt cede il controllo (era: server fermo 
     failures++;                                       // ogni tentativo e' un fallimento dell'IP: conta nel budget
     assert.equal(r.status, 401);
     assert.ok(ms > 100, 'sanity: il confronto a costo 12 non è istantaneo (' + ms + ' ms)');
-    prove.push({ maxGap, ms });
+    prove.push({ maxGap, ms, gaps });
     if (maxGap < ms * 0.6) break;
   }
   const ok = prove.some(p => p.maxGap < p.ms * 0.6);
   assert.ok(ok,
     'il loop non deve restare fermo per quasi tutto il confronto, in nessuno dei ' + prove.length + ' tentativi: ' +
-    prove.map(p => 'buco massimo ' + p.maxGap + ' ms su ' + p.ms + ' ms').join(' · '));
+    prove.map(p => 'buco massimo ' + p.maxGap + ' ms su ' + p.ms + ' ms [buchi ≥25 ms: ' + p.gaps.join(' ') + ']').join(' · '));
 });
 
 test('login riuscito: NON consuma il budget per-IP (contano solo i fallimenti)', async () => {
