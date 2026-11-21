@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **The PDF dossier and the draw.io export draw the fiber drawer the way the rack does.** A drawer used to come out with the square LEDs of any panel; now each port is a vertical slot with the openings of the connector you declared (LC, SC, MTP/MPO…), a blank plate is a dark slot, a module with several ports keeps its stacked cells, and a hidden port is left out. In draw.io the slot is a native cell with the port's id, so a cable still attaches to it. A drawer too big for its U, or set to two LED floors, keeps the squares, as on screen.
+
+### Fixed
+
+- **A login no longer freezes the server for twice as long as it should.** The password check runs in slices of about 100 ms with a pause between them, but the first two slices ran back to back, so every other request waited about 205 ms. The check now yields before it starts, and the longest wait is about 100 ms, for sign-in and for a password change alike.
+
 ## [2.13.0] — 2026-11-20
 
 A fiber drawer you can compose slot by slot, sites on a real map, spanning-tree read and shown, and a cluster read from the device.

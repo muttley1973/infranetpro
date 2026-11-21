@@ -10,6 +10,7 @@ const TYPES = {
   patchpanel: { isRack: true, ports: 24, sizeU: 2 },
   server:     { isRack: true, ports: 4,  sizeU: 2 },
   cablemanager:{ isRack: true, ports: 0, sizeU: 1 },
+  fiberdrawer:{ isRack: true, ports: 24, sizeU: 1 },
   ap:         { isFloor: true },
 };
 
@@ -630,4 +631,142 @@ test('draw.io: senza portShade iniettato il diagramma perde i grigi ma non ne in
   const xml = build({ ports: { 'sw1-1': { status: 'active', adminDown: true } } });
   assert.match(cellOf(xml, 'sw1-1'), /#39d353/);
   assert.doesNotMatch(xml, /#0a0d11/);
+});
+
+// ── Il cassetto ottico: slot verticali coi fori, come il rack dal vivo e il PDF ─────────────────────────────────
+// La geometria (dove sta ogni slot, cella e foro) la decide lib/fiber-slot.js e arriva come helper iniettato
+// `fiberFront` — questa lib emette soltanto celle native. Qui l'helper e' composto con le lib vere, come fa la glue
+// di export.js (provata in test/export-fiberdrawer.test.js).
+const FS = require('../lib/fiber-slot.js');
+const FP = require('../lib/frontpanel.js');
+const fiberFront = (n, sizeU, box, hidden) => {
+  const fp = FP.frontPanelState(n, n.ports !== undefined ? n.ports : 24, false);
+  return FS.fiberFront(n, { portCount: fp.portCount, baseLayout: fp.baseLayout, sizeU, box, hidden });
+};
+const drawer = (over) => Object.assign({ id: 'fd1', type: 'fiberdrawer', rackId: 'r1', rackU: 12, sizeU: 1, ports: 24, name: 'FD-1',
+  spec: { ppFiberConnector: 'lc-duplex' } }, over || {});
+const fdBuild = (node, over) => build(Object.assign({ nodes: [node],
+  helpers: { types: TYPES, fiberFront } }, over || {}));
+const geom = (cell) => { const m = /<mxGeometry x="([-\d.]+)" y="([-\d.]+)" width="([\d.]+)" height="([\d.]+)"/.exec(cell); return { x: +m[1], y: +m[2], w: +m[3], h: +m[4] }; };
+
+test('cassetto: ogni porta e una scatola VERTICALE con id = pid, due fori ellittici sopra (LC duplex)', () => {
+  const xml = fdBuild(drawer());
+  for (let i = 1; i <= 24; i++) {
+    const g = geom(cellOf(xml, 'fd1-' + i));
+    assert.ok(g.h > g.w, `la porta ${i} e uno slot in piedi, non un quadrato (${g.w} x ${g.h})`);
+    assert.match(cellOf(xml, 'fd1-' + i), /parent="fd1"/);
+    assert.match(cellOf(xml, `fd1-${i}__h0`), /^<mxCell [^>]*style="ellipse;fillColor=#0b0f14;strokeColor=none;connectable=0;"/);
+    assert.ok(cellOf(xml, `fd1-${i}__h1`), 'il secondo foro');
+    assert.equal(cellOf(xml, `fd1-${i}__h2`), null, 'LC duplex = due fori');
+  }
+  assert.equal((xml.match(/style="ellipse/g) || []).length, 48);
+  // ogni cella ha un id suo: niente porte disegnate due volte (slot e LED insieme)
+  const ids = xml.match(/<mxCell id="[^"]*"/g) || [];
+  assert.equal(new Set(ids).size, ids.length, 'id di cella tutti diversi');
+  assert.equal((xml.match(/<mxCell id="fd1-\d+"/g) || []).length, 24);
+});
+
+test('cassetto: slot e fori stanno dentro la faccia del device, e i fori dentro il loro slot', () => {
+  const xml = fdBuild(drawer({ ports: 48, spec: { ppFiberConnector: 'lc-quad' } }));
+  const dev = geom(cellOf(xml, 'fd1'));
+  for (let i = 1; i <= 48; i++) {
+    const g = geom(cellOf(xml, 'fd1-' + i));
+    assert.ok(g.x >= 0 && g.y >= 0 && g.x + g.w <= dev.w + 0.01 && g.y + g.h <= dev.h + 0.01, `porta ${i} dentro la faccia`);
+    assert.ok(g.x + g.w <= 260 - 56 + 0.01, `porta ${i}: la riserva del nome (56) resta libera, come per le porte generate`);
+    for (const k of [0, 1]) {
+      const h = geom(cellOf(xml, `fd1-${i}__h${k}`));
+      assert.ok(h.x >= g.x - 0.01 && h.y >= g.y - 0.01 && h.x + h.w <= g.x + g.w + 0.01 && h.y + h.h <= g.y + g.h + 0.01, `foro ${k} della porta ${i} dentro lo slot`);
+      assert.ok(Math.abs((h.x + h.w / 2) - (g.x + g.w / 2)) < 0.03, `foro ${k} della porta ${i} al centro dello slot (un'ellisse e posizionata dall'angolo, non dal centro)`);
+    }
+  }
+});
+
+test('cassetto: SC un foro, MPO una bocca rettangolare con la ferrula, non dichiarato nessun foro', () => {
+  const sc = fdBuild(drawer({ spec: { ppFiberConnector: 'sc' } }));
+  assert.equal((sc.match(/style="ellipse/g) || []).length, 24);
+  assert.equal(cellOf(sc, 'fd1-1__h1'), null);
+  const mpo = fdBuild(drawer({ spec: { ppFiberConnector: 'mpo-12' } }));
+  assert.equal((mpo.match(/style="ellipse/g) || []).length, 0, 'l\'MPO non ha fori tondi');
+  assert.match(cellOf(mpo, 'fd1-1__h0'), /rounded=1;arcSize=\d+;fillColor=#0b0f14/);
+  assert.match(cellOf(mpo, 'fd1-1__h1'), /fillColor=#4b5563/, 'la ferrula MT, piu chiara');
+  const none = fdBuild(drawer({ spec: {} }));
+  assert.equal((none.match(/style="ellipse/g) || []).length, 0);
+  assert.ok(cellOf(none, 'fd1-1'), 'ma lo slot c\'e');
+});
+
+test('cassetto: il colore dello slot e quello della porta (stato, LAG), i fori non lo cambiano', () => {
+  const xml = fdBuild(drawer(), { ports: { 'fd1-1': { status: 'active' }, 'fd1-2': { status: 'fault' }, 'fd1-3': { lagGroup: 'g' } } });
+  assert.match(cellOf(xml, 'fd1-1'), /fillColor=#39d353/);
+  assert.match(cellOf(xml, 'fd1-2'), /fillColor=#f85149/);
+  assert.match(cellOf(xml, 'fd1-3'), /fillColor=#00d4ff/);
+  assert.match(cellOf(xml, 'fd1-4'), /fillColor=#6e7681/, 'non dichiarata: grigio');
+});
+
+test('cassetto: porta nascosta = nessuna cella ne fori, e il cavo verso di lei non produce arco', () => {
+  const xml = fdBuild(drawer(), {
+    nodes: [drawer(), { id: 'sw1', type: 'switch', rackId: 'r1', rackU: 8, ports: 24, name: 'SW' }],
+    ports: { 'fd1-4': { hidden: true } },
+    links: [{ id: 'L1', src: 'fd1-4', dst: 'sw1-1' }, { id: 'L2', src: 'fd1-5', dst: 'sw1-2' }],
+  });
+  assert.equal(cellOf(xml, 'fd1-4'), null);
+  assert.equal(cellOf(xml, 'fd1-4__h0'), null);
+  assert.ok(cellOf(xml, 'fd1-5'));
+  assert.equal(cellOf(xml, 'cbl_L1'), null, 'verso una porta nascosta: niente arco penzolante');
+  assert.match(cellOf(xml, 'cbl_L2'), /source="fd1-5"/, 'un cavo su una porta del cassetto si aggancia alla sua cella');
+});
+
+test('cassetto: lo spanning-tree in blocco disegna la diagonale sulla porta bloccata, solo su quella', () => {
+  const xml = fdBuild(drawer(), { helpers: { types: TYPES, fiberFront, stpBlocked: pid => pid === 'fd1-2' } });
+  assert.match(cellOf(xml, 'fd1-2__stp') || '', /strokeColor=#11161c/);
+  assert.doesNotMatch(xml, /id="fd1-1__stp"/);
+});
+
+test('cassetto: i numeri sotto gli slot dove c\'e posto (la faccia di draw.io e piu alta del 1U del PDF)', () => {
+  const xml = fdBuild(drawer());
+  const nums = xml.match(/id="fd1__num\d+"/g) || [];
+  assert.equal(nums.length, 24);
+  assert.match(cellOf(xml, 'fd1__num1'), /value="1"/);
+  assert.match(cellOf(xml, 'fd1__num1'), /^<mxCell [^>]*style="text;html=0;/);
+  // il quad: il numero e quello della PRIMA porta di ogni slot
+  const q = fdBuild(drawer({ ports: 48, spec: { ppFiberConnector: 'lc-quad' } }));
+  assert.match(cellOf(q, 'fd1__num2'), /value="3"/);
+});
+
+test('cassetto composto: lastra cieca e cella senza porta sono scatole scure senza id di porta', () => {
+  const xml = fdBuild(drawer({ ports: 5, spec: { ppFiberConnector: 'lc-duplex', fdSlots: ['lc-duplex', 'blank', 'lc-quad', 'mpo-12'] } }),
+    { ports: { 'fd1-3': { hidden: true } } });
+  assert.ok(cellOf(xml, 'fd1__plate2'), 'la lastra e il secondo slot');
+  assert.match(cellOf(xml, 'fd1__plate2'), /fillColor=#1a1a1a/);
+  assert.ok(cellOf(xml, 'fd1-2') && cellOf(xml, 'fd1-4'));
+  assert.equal(cellOf(xml, 'fd1-3'), null, 'la cella nascosta del quad non e una porta');
+  assert.match(xml, /id="fd1__empty3_1"/, 'ma resta vuota nello slot');
+});
+
+test('cassetto: senza l\'helper (chiamante vecchio) o se non si disegnano slot, vale il disegno di sempre', () => {
+  const noHelper = build({ nodes: [drawer()], helpers: { types: TYPES } });
+  assert.equal((noHelper.match(/style="ellipse/g) || []).length, 0);
+  assert.equal((noHelper.match(/id="fd1-\d+"/g) || []).length, 24, 'le porte ci sono, come LED quadrati');
+  const g = geom(cellOf(noHelper, 'fd1-1'));
+  assert.equal(g.w, g.h, 'quadrato');
+  // 25 slot a 1U non entrano: l'helper risponde null e si ripiega sul generico
+  const tooMany = fdBuild(drawer({ ports: 25 }));
+  assert.equal((tooMany.match(/style="ellipse/g) || []).length, 0);
+  assert.equal((tooMany.match(/id="fd1-\d+"/g) || []).length, 25);
+});
+
+test('cassetto: 48 slot a 2U sono due file, e uno switch accanto resta com\'era', () => {
+  const two = drawer({ ports: 48, sizeU: 2, spec: { ppFiberConnector: 'sc' } });
+  const xml = fdBuild(two, { nodes: [two, { id: 'sw1', type: 'switch', rackId: 'r1', rackU: 6, ports: 24, name: 'SW' }] });
+  const ys = new Set(Array.from({ length: 48 }, (_, i) => geom(cellOf(xml, 'fd1-' + (i + 1))).y));
+  assert.equal(ys.size, 2, 'due file');
+  assert.equal((xml.match(/style="ellipse/g) || []).length, 48, 'e sono slot coi fori, non LED: a 2U le U arrivano alla lib');
+  assert.ok(geom(cellOf(xml, 'fd1-1')).h > geom(cellOf(xml, 'fd1-1')).w);
+  const sw = geom(cellOf(xml, 'sw1-1'));
+  assert.equal(sw.w, sw.h, 'il LED dello switch e ancora quadrato');
+});
+
+test('cassetto: ZERO artefatti anche con i fori (niente image, foreignObject, html=1, whiteSpace=wrap)', () => {
+  const xml = fdBuild(drawer({ ports: 48, spec: { ppFiberConnector: 'lc-quad' } }));
+  assert.doesNotMatch(xml, /shape=image|<image\b|foreignObject|whiteSpace=wrap|html=1/);
+  assert.doesNotMatch(xml, /NaN|undefined|Infinity/);
 });

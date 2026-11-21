@@ -7,7 +7,7 @@
 // NODE_ID_PREFIX esposto (lo legge _nextNodeId in app.js); il resto è module-local.
 // ============================================================
 import { win, expose, t } from './_bridge.js';
-import { fiberNodeLayout, fiberLayoutRows } from '../lib/fiber-slot.js';   // lib pura: layout e file degli slot del cassetto ottico
+import { fiberDrawerRows } from '../lib/fiber-slot.js';   // lib pura: layout e file degli slot del cassetto ottico
 import { _patchPanelOffset } from './app.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 
 // Catalogo immutabile dei tipi di dispositivo. Costante: definita una volta,
@@ -255,7 +255,7 @@ export function _fiberSlotRows(node, portCount){
     if(!node || node.type !== 'fiberdrawer') return null;
     const fp = _frontPanelState(node, portCount);
     const sU = node.sizeU !== undefined ? node.sizeU : (TYPES.fiberdrawer && TYPES.fiberdrawer.sizeU);
-    return fiberLayoutRows(fiberNodeLayout(node, fp.portCount), sU, fp.baseLayout);
+    return fiberDrawerRows(node, fp.portCount, fp.baseLayout, sU);
 }
 
 export function _frontPanelRows(node, portCount){

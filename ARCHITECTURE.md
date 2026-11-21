@@ -237,7 +237,9 @@ lib/                   Shared browser + test modules (the heart of the app)
                     (LC duplex/quad, SC, SC duplex, ST, FC, MTP/MPO), `fiberNodeLayout` — a uniform
                     drawer or a COMPOSED one (`spec.fdSlots`: one key per slot, `blank` = blank
                     plate) through the SAME layout — the rows (24 slots per U, ONE rule for both),
-                    the counts, the words, and which port numbers move when a module changes.
+                    the counts, the words, which port numbers move when a module changes, and
+                    `fiberFront`: where each slot, cell and opening goes inside a box, for the PDF and
+                    the draw.io export, which paint it.
                     Lays out only; which connector is mounted is always a declared field  (pure)
   device-model-kind.js  The TYPE of a catalogue model, and which models "Apply model" offers a device.
                     The CC0 library gives a model, never a type: `roleOf` (tools/import-device-types.js)
@@ -650,8 +652,21 @@ single-mode against multimode (`warn`: from outside a deliberate choice and a sl
 the *family*, not the grade — OM3 on an OM4 panel is only a shorter reach — and only when both sides are
 declared. The connector is deliberately not compared: a cable has one connector field for two ends, and an
 LC–SC cord is an ordinary product.
-Every opening is a number from `lib/fiber-slot.js` passed through `Number()`, so no text from a project can
-reach the markup. Tests: `fiber-compose.test.js` (the pure part), `fiberdrawer-compose-front.test.js` and
+The PDF and the draw.io export are twins of this drawing, and for a while ignored it: a drawer got the square
+LEDs of any panel. They no longer do their own sums. `fiberFrontGeometry` (`lib/fiber-slot.js`) turns the same
+rows into numbers — where every slot, cell, opening and port number goes inside a box — with the constants of the
+live rack (a slot at most 8 wide, 2 between slots, 1 between cells), and the twins only paint:
+`drawFiberSlots` in `export.js`, `_fiberSlots` in `lib/drawio-export.js`, which receives it as an injected
+helper (`fiberFront`) because that lib knows neither rows nor connectors. The slot keeps the proportions of the
+drawing and shrinks only when the box is too small; the port number under it appears only where it costs less
+than a fifth of the slot's size — so not in the PDF's 1U row, yes at 2U and in draw.io. Where the live rack
+falls back to squares (more slots than the U allow, two LED floors chosen by hand) so do the twins. In draw.io a
+slot is a native cell carrying the port's id, so a cable still hooks onto it, and the openings are ellipses laid
+on top that cables cannot use. A port hidden in the project is dropped the way the live rack drops it.
+Every opening is a number from `lib/fiber-slot.js` passed through `Number()` (or `toFixed()` in the twins), so
+no text from a project can reach the markup. Tests: `fiber-compose.test.js` (the pure part),
+`fiber-front-geometry.test.js` (the geometry the twins paint), `export-fiberdrawer.test.js` and
+`drawio-export.test.js` (the two twins), `fiberdrawer-compose-front.test.js` and
 `fiberdrawer-compose-props.test.js` (the rack and the panel in the stub DOM) and
 `test/e2e/fiberdrawer-composer.test.js` (the gestures: mouse, keyboard, finger).
 
@@ -1646,7 +1661,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **4,941 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **4,985 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

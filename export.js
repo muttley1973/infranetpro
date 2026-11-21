@@ -842,6 +842,8 @@ function exportDrawio(){
             // Spanning-tree in blocco (i membri di un Port-channel bloccato portano lo stato dal poll): STESSA
             // regola del rack (lib/port-state.js). Serve a disegnare la diagonale sul LED della porta.
             stpBlocked:         pid => (typeof stpBlockedState === 'function') ? !!stpBlockedState(state.ports[pid]) : false,
+            // Il frontale a slot del cassetto ottico: la STESSA geometria del PDF e del rack dal vivo (lib/fiber-slot.js).
+            fiberFront:         (n, sizeU, box, hidden) => _fiberFrontFor(n, sizeU, box, hidden),
             isAbsent:           n => _absentIds.has(n.id) && n.snmpStatus !== 'ok',
             // Colore cavo = stessa convenzione della vista live (topologia/fanout):
             // override manuale, poi colore VLAN; null -> il builder usa il default.
@@ -859,6 +861,17 @@ function exportDrawio(){
     a.download=`${_exportFileStem()}_rack.drawio`;
     a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
+
+// Il frontale a SLOT di un cassetto ottico per i due gemelli (PDF e draw.io): le file di slot, le celle e i fori
+// già posizionati dentro `box` ({ x, y, w, h }), o `null` (non è un cassetto, o non si disegnano slot e vale il
+// frontale generico). Le file le decide la lib, con le stesse due scelte del rack dal vivo (quante porte, che
+// layout di base): lib/fiber-slot.js `fiberFront`, lib/frontpanel.js `frontPanelState`. `hidden(porta)` = porta nascosta.
+function _fiberFrontFor(node, sizeU, box, hidden){
+    if(!node || typeof fiberFront !== 'function' || typeof frontPanelState !== 'function') return null;   // (chi sia un cassetto lo decide la lib)
+    const def = TYPES.fiberdrawer || {};
+    const fp = frontPanelState(node, node.ports !== undefined ? node.ports : (def.ports || 0), !!def.mgmtEligible);
+    return fiberFront(node, { portCount: fp.portCount, baseLayout: fp.baseLayout, sizeU, box, hidden });
 }
 
 function _buildRackSVG(rackId, opts){
@@ -952,7 +965,63 @@ function _buildRackSVG(rackId, opts){
         return out;
     };
 
+    // Il colore di una porta, UNA regola per ogni porta che si disegna: la misura dello switch, poi il LAG (ciano),
+    // poi lo stato dichiarato.
+    const ledFillFor = (pid, pi) => shadeColor(pi)
+        || (portLag(pid) ? '#00d4ff' : statusColor(normalizePortStatus(pi.statusOvr ?? pi.status)));
+    // Spanning-tree in blocco (anche un membro di un Port-channel bloccato: lo porta dal poll): una diagonale sottile
+    // sul LED, da vertice a vertice, come sul rack dal vivo. La regola è una sola (lib/port-state.js): qui l'export
+    // dice la stessa cosa dello schermo, non meno. '' se la porta non è bloccata.
+    const stpDiagSvg = (pi, px, py, pw, ph) => {
+        if(!(typeof stpBlockedState === 'function' && stpBlockedState(pi))) return '';
+        const dsw = Math.max(0.35, Math.min(pw, ph) * 0.12), di = dsw / 2;
+        return `<line x1="${(px+di).toFixed(1)}" y1="${(py+di).toFixed(1)}" x2="${(px+pw-di).toFixed(1)}" y2="${(py+ph-di).toFixed(1)}" stroke="#11161c" stroke-width="${dsw.toFixed(2)}" stroke-linecap="round"/>`;
+    };
+
+    // Il cassetto ottico: la porta è uno SLOT verticale coi fori del connettore dichiarato, non un LED quadrato.
+    // Dove sta ogni slot, ogni cella e ogni foro lo decide la lib (lib/fiber-slot.js, `fiberFront`: le stesse
+    // costanti e le stesse file del rack dal vivo); qui si dipinge soltanto. `null` = non si disegnano slot (25 slot a
+    // 1U, o due piani di LED chiesti): vale il frontale generico di sempre.
+    const drawFiberSlots = (dev, x, y, w, h) => {
+        const sU = normalizeNumber(dev.sizeU ?? TYPES[dev.type]?.sizeU ?? 1, 1, 1, rackSize);
+        const front = _fiberFrontFor(dev, sU, { x, y, w, h }, p => !!(state.ports[`${dev.id}-${p}`] || {}).hidden);
+        if(!front) return null;
+        const HOLE = '#0b0f14', FERRULE = '#4b5563';   // gemelli di .fo-svg in 04-floor-rack.css
+        let out = '';
+        front.rows.forEach(row => row.forEach(s => {
+            if(s.plate){
+                // la lastra cieca: nessuna porta, più scura di una cella senza porta
+                out += `<rect x="${s.x.toFixed(2)}" y="${s.y.toFixed(2)}" width="${s.w.toFixed(2)}" height="${s.h.toFixed(2)}" rx="0.6" fill="#000000" fill-opacity="0.55" stroke="#ffffff" stroke-opacity="0.12" stroke-width="0.3"/>`;
+                return;
+            }
+            s.cells.forEach(c => {
+                if(c.port === null){
+                    out += `<rect x="${c.x.toFixed(2)}" y="${c.y.toFixed(2)}" width="${c.w.toFixed(2)}" height="${c.h.toFixed(2)}" rx="0.6" fill="#000000" fill-opacity="0.35"/>`;
+                    return;
+                }
+                const pid = `${dev.id}-${c.port}`;
+                const pi = state.ports[pid] || {};
+                const lag = portLag(pid);
+                let g = `<g><title>${safe(portName(pid))} - VLAN ${safe(_effPortVlan(pid))}${lag ? ' - LAG' : ''}</title>`
+                    +`<rect x="${c.x.toFixed(2)}" y="${c.y.toFixed(2)}" width="${c.w.toFixed(2)}" height="${c.h.toFixed(2)}" rx="0.6" fill="${safe(ledFillFor(pid, pi))}" stroke="#334155" stroke-width="0.3"/>`;
+                c.holes.forEach(hl => {
+                    g += hl.t === 'c'
+                        ? `<circle cx="${hl.cx.toFixed(2)}" cy="${hl.cy.toFixed(2)}" r="${hl.r.toFixed(2)}" fill="${safe(HOLE)}"/>`
+                        : `<rect x="${hl.x.toFixed(2)}" y="${hl.y.toFixed(2)}" width="${hl.w.toFixed(2)}" height="${hl.h.toFixed(2)}" rx="${hl.rx.toFixed(2)}" fill="${safe(hl.fer ? FERRULE : HOLE)}"/>`;
+                });
+                out += g + stpDiagSvg(pi, c.x, c.y, c.w, c.h) + `</g>`;
+            });
+            if(s.num){
+                const numBase = s.num.y + s.num.h * 0.78;   // la linea di base del numero, sotto lo slot
+                out += `<text x="${s.num.x.toFixed(2)}" y="${numBase.toFixed(2)}" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="${front.numFs.toFixed(1)}" fill="#d0d0d0">${Number(s.num.port)}</text>`;
+            }
+        }));
+        return out;
+    };
+
     const drawPorts = (dev, x, y, w, h) => {
+        const slotsSvg = drawFiberSlots(dev, x, y, w, h);
+        if(slotsSvg !== null) return slotsSvg;
         const pcTotal = dev.ports !== undefined ? dev.ports : (TYPES[dev.type]?.ports || 0);
         const fp = dev.frontPanel || {};
         const sfpCount = fp.separateSfp ? Math.max(0, Math.min(parseInt(fp.sfpCount,10)||0, pcTotal)) : 0;
@@ -1021,21 +1090,13 @@ function _buildRackSVG(rackId, opts){
             if(!isVisible(i)) return '';
             const pid = `${dev.id}-${i}`;
             const pi = state.ports[pid] || {};
-            const st = normalizePortStatus(pi.statusOvr ?? pi.status);
             const vlan = _effPortVlan(pid);
             const lag = portLag(pid);
-            // Ordine: misura dello switch, poi LAG (ciano), poi stato dichiarato.
-            const ledFill = shadeColor(pi) || (lag ? '#00d4ff' : statusColor(st));
+            const ledFill = ledFillFor(pid, pi);
             const px = cx - pSize / 2, py = ledCenterY - pSize / 2;
             let g = `<g><title>${safe(portName(pid))} - VLAN ${safe(vlan)}${lag ? ' - LAG' : ''}</title>`
                 +`<rect x="${px.toFixed(1)}" y="${py.toFixed(1)}" width="${pSize.toFixed(1)}" height="${pSize.toFixed(1)}" rx="1.2" fill="${ledFill}" stroke="#334155" stroke-width="0.55"/>`;
-            // Spanning-tree in blocco (anche un membro di un Port-channel bloccato: lo porta dal poll): una
-            // diagonale sottile sul LED, da vertice a vertice, come sul rack dal vivo. La regola è una sola
-            // (lib/port-state.js): qui l'export dice la stessa cosa dello schermo, non meno.
-            if(typeof stpBlockedState === 'function' && stpBlockedState(pi)){
-                const dsw = Math.max(0.35, pSize * 0.12), di = dsw / 2;
-                g += `<line x1="${(px+di).toFixed(1)}" y1="${(py+di).toFixed(1)}" x2="${(px+pSize-di).toFixed(1)}" y2="${(py+pSize-di).toFixed(1)}" stroke="#11161c" stroke-width="${dsw.toFixed(2)}" stroke-linecap="round"/>`;
-            }
+            g += stpDiagSvg(pi, px, py, pSize, pSize);
             // Numero dentro il LED: font proporzionale (più stretto per 2 cifre),
             // colore scuro per contrasto sui LED colorati. Nascosto se il LED è
             // troppo piccolo per contenerlo in modo leggibile.
