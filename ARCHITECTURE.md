@@ -671,6 +671,15 @@ the old import are not rewritten: the readers recognise them (`fiber-sm` still c
 shows a value it does not offer instead of hiding it. A patch panel or a drawer that NetBox gives an IP does not get it (`ip.passiveIgnored`,
 a "loss" row in the import report): `_PATCH_LIKE_TYPES` in the mapper is the twin of `patchLike` in the type catalogue,
 and a test keeps them aligned.
+A device's rack position is the same kind of trap: NetBox numbers a rack's units from `starting_unit` (never below 1)
+and, with `desc_units`, from the top, while InfraNet's `rackU` is always the lowest occupied unit counted from the bottom
+starting at 1. `_physicalU` in `lib/dcim-map.js` converts (`p - S + 1` from the bottom, `N - (p - S) - h + 1` from the
+top, N the rack height, h the device's) and answers `null` where it cannot say — from the top without the device
+height, or a position outside the rack — so no unit is invented: the device stays in the rack without a `rackU` and the
+report names it (`rack.unitUnplaced`). A second "loss" row (`rack.numbering`) says how many racks number their units
+differently, because the unit labels InfraNet draws do not match NetBox's. The standard numbering (from 1, from the
+bottom) passes through untouched and without a ceiling check, as it always did. A test redraws the rack the way NetBox
+does, row by row from the top, as an oracle independent of the formula.
 The wireless side of the NetBox import follows the same two-level model as the app (`radios[i]` = the physical
 radio, `radios[i].ssids[]` = the BSS) and the same rule — what the model cannot hold is a declared gap, never a
 silent loss. Three decisions that are not visible from the code. **A WLAN comes in only when it is `active`** (or
@@ -1696,7 +1705,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **5,057 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **5,072 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
