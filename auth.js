@@ -45,7 +45,17 @@ const _bcryptGate = createGate({
 async function _withBcryptSlot(fn) {
   const release = await _bcryptGate.acquire();
   if (!release) return { busy: true };
-  try { return { value: await fn() }; } finally { release(); }
+  try {
+    // Cedere il controllo UNA volta PRIMA di cominciare. bcryptjs lavora a fette di <=100 ms e passa da una
+    // all'altra con `setImmediate`, ma la PRIMA fetta parte dentro il callback di rete che ha portato la
+    // richiesta (fase di poll) e il `setImmediate` che accoda gira nella fase di check della STESSA iterazione,
+    // prima che i timer abbiano un turno: le prime due fette (~100 ms l'una) fanno UN blocco solo da ~200 ms.
+    // Misurato (esperimento isolato e CI): buchi 0+205 205+101 contro 0+103 103+101 204+101 con questo
+    // yield. Cosi' anche la prima fetta parte dalla fase di check e le altre dalla successiva: fra due
+    // fette c'e' sempre un giro di timer, e il server non resta mai fermo piu' di una fetta.
+    await new Promise((resolve) => setImmediate(resolve));
+    return { value: await fn() };
+  } finally { release(); }
 }
 function _busy(res) {
   res.set('Retry-After', '3');

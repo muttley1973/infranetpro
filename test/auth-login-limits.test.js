@@ -95,6 +95,16 @@ test('login ASINCRONO: il confronto bcrypt cede il controllo (era: server fermo 
   // vedere (`compareSync`) NON e' uno stallo: il buco coincide con TUTTO il confronto, a ogni tentativo.
   // Chi stalla una volta non stalla tre volte di fila; chi blocca il server le fallisce tutte e tre.
   const MAX_PROVE = 3;
+  // ⚠️ Il rapporto da solo NON bastava (21/11, CI: «buco massimo 217 ms su 299 ms» in TUTTI e tre i tentativi, non
+  // piu' a caso). Le fette di bcryptjs sono di TEMPO DI MURO (<=100 ms) su qualunque macchina, ma la prima partiva
+  // dentro il callback di rete e la seconda, accodata con `setImmediate`, girava nella fase di check della stessa
+  // iterazione: un blocco solo da ~200 ms (`0+205 205+101` nei buchi). Su una macchina lenta (confronto >= 340 ms)
+  // 200/340 stava sotto 0,6 e il difetto passava; su una veloce (~290 ms) 0,7 e cadeva. Ora il server cede prima
+  // di cominciare (auth.js `_withBcryptSlot`) e il buco e' UNA fetta (~102 ms misurati). Il tetto e' quindi anche
+  // ASSOLUTO: 160 ms = una fetta piu' il margine per il giro di rete, ben sotto i ~205 del vecchio comportamento
+  // e i >= 280 di `compareSync`. Il rapporto resta, per una macchina cosi' lenta che una fetta supera il 60%.
+  const MAX_BUCO_MS = 160;
+  const buco = (maxGap, ms) => maxGap < Math.min(ms * 0.6, MAX_BUCO_MS);
   const prove = [];
   for (let k = 0; k < MAX_PROVE; k++) {
     const t0 = Date.now();
@@ -109,9 +119,9 @@ test('login ASINCRONO: il confronto bcrypt cede il controllo (era: server fermo 
     assert.equal(r.status, 401);
     assert.ok(ms > 100, 'sanity: il confronto a costo 12 non è istantaneo (' + ms + ' ms)');
     prove.push({ maxGap, ms, gaps });
-    if (maxGap < ms * 0.6) break;
+    if (buco(maxGap, ms)) break;
   }
-  const ok = prove.some(p => p.maxGap < p.ms * 0.6);
+  const ok = prove.some(p => buco(p.maxGap, p.ms));
   assert.ok(ok,
     'il loop non deve restare fermo per quasi tutto il confronto, in nessuno dei ' + prove.length + ' tentativi: ' +
     prove.map(p => 'buco massimo ' + p.maxGap + ' ms su ' + p.ms + ' ms [buchi ≥25 ms: ' + p.gaps.join(' ') + ']').join(' · '));
