@@ -32,6 +32,7 @@ import { openAllVmSections } from './app-properties-vm.js';   // una VM nuova si
 import { vmNics, vmPrimaryIp, migrateVmNics, nextVmNicId, VM_FLAT_NET_FIELDS, VM_NIC_FIELDS, buildVmIdentityIndex, findVmForRow } from '../lib/vm-nics.js';   // vNIC: lib pura importata ESM (come lib/ipv6.js)
 import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS dal guest-OS della VM (lib pura)
 import { parseVlanList } from '../lib/vlan-trunk.js';   // il parser VLAN canonico, lo stesso di carriedVlans: una vNIC su un trunk puo' dichiararne piu' d'una
+import { VM_LIFECYCLES } from '../lib/device-status.js';   // il ciclo di vita dichiarabile di una VM (planned, staged, failed, decommissioning)
 import { vmStateConflict } from '../lib/vm-presence.js';   // dichiarata una cosa, la rete ne dice un'altra? (lib pura, la prova la scrive la Verifica)
 
 // Piattaforme datacenter (hypervisor) e homelab: liste diverse, stesso campo
@@ -103,6 +104,7 @@ function updateVm(nodeId, vmId, field, value){
     const n = nodeById(nodeId); if(!n || !Array.isArray(n.vms)) return;
     const vm = n.vms.find(v => v && v.id === vmId); if(!vm) return;
     const v = String(value == null ? '' : value).trim();
+    if(field === 'status' && v && VM_LIFECYCLES.indexOf(v) < 0) return;   // scala chiusa: un ciclo di vita fuori elenco non entra
     if(_VM_NUM_FIELDS[field]){
         const num = _VM_NUM_FIELDS[field] === 'int' ? parseInt(v, 10) : parseFloat(v);
         if(Number.isFinite(num) && num > 0) vm[field] = num; else delete vm[field];
@@ -275,6 +277,8 @@ function _vmSummaryHtml(vm, displayName){
 
     const bits = [];
     if(vm.role) bits.push(esc(vm.role));
+    // Il ciclo di vita fuori servizio (pianificata, guasta, in dismissione…) si legge nella riga: il pallino dice solo se e' accesa.
+    if(vm.status && VM_LIFECYCLES.indexOf(vm.status) >= 0) bits.push(esc(t('hv.life.' + vm.status)));
     if(res) bits.push((fromSnmp
         ? `<i class="fas fa-satellite-dish vm-row-measured" title="${esc(t('hv.vmSnmpMeasured'))}"></i> `
         : '') + esc(res));

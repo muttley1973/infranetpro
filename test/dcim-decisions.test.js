@@ -84,7 +84,7 @@ test('difensivo: report vuoto, issue senza codice, code sconosciuto', () => {
 
 test('il catalogo non regala opzioni: solo i codici con una vera alternativa', () => {
   const withOptions = Object.keys(DECISION_CATALOG).filter(c => (DECISION_CATALOG[c].options || []).length > 1);
-  assert.deepEqual(withOptions.sort(), ['device.statusNotActive', 'ports.overTemplate']);
+  assert.deepEqual(withOptions.sort(), ['device.statusNotActive', 'ports.overTemplate', 'vm.statusNotActive']);
 });
 
 test('status non attivo: il default e\' il comportamento storico, la scelta si spedisce', () => {

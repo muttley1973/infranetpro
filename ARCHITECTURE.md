@@ -712,6 +712,27 @@ wireless module imports its radios all the same. What NetBox still has and the m
 reason to model it: WLAN groups as an entity of their own (the group's name is kept as provenance), the custom channel
 frequency (`rf_channel_frequency`, which the band and channel already say), the wireless types that are not Wi-Fi radios
 (Bluetooth, Zigbee, cellular), and the WPA2/WPA3 generation, which NetBox does not tell apart.
+The virtual machines NetBox declares were measured the same way and given a place by what each thing is. **Notes**:
+the description and the comments are two hand-written texts and both enter, joined by " — " as for devices (the comments
+used to vanish as soon as a description existed). **Life cycle**: NetBox folds two things into one status — whether the
+machine is on (`active`, `offline`) and whether it is in service. Those two words stay in `vm.state` (the power switch) and
+are not written twice; the other four — `planned`, `staged`, `failed`, `decommissioning`, the ones that say "not there
+yet / not any more / not working" — go to `vm.status` (`VM_LIFECYCLES` and `vmLifecycle` in `lib/device-status.js`, the
+devices' vocabulary, editable in the panel), and NetBox's own word stays verbatim in `vm.source.status`. The choice is the
+devices' one (`vm.statusNotActive`: import all by default, since someone documenting a rollout has everything `planned`;
+"only the VMs in service" leaves them out, and `vmsSkipped` keeps the "no host" and "outside the census" counts honest).
+A VM that declares it is not in service is not contradicted by the network's silence (`vmStateConflict`, the `expected` of
+`presenceView`, `followedState`: no "stopped" is written over a declaration that already explains the silence); the other contradiction — it answers while declared stopped — is untouched.
+**Cards**: in mode `tagged` the tagged VLANs enter `nics[].vlan` as the tolerant list ("10,20,30", the native one first),
+the field `carriedVlans` already reads for the host's uplink trunk, which is the field's consumer; `tagged-all` has no list
+to write and the report says so (`vm.taggedAll`), because the trunk lacks something. A VID is accepted only as an integer
+from 1 to 4094 (`+null` is 0). Enabled (only when false), MTU, VRF, description, parent and bridge are read-only
+provenance in `nic.source` (`nicSourceRows`): no engine reads them. The VM's tenant, cluster and virtual disks (one by one,
+in GB; the sum stays `diskGb`) are in `vm.source` (`vmSourceRows`). The server reads `virtual-disks/` in its own `try`, with
+the same second belt as the VMs (an unknown filter answers with the whole database). `primary_ip6` is read like
+`primary_ip4`. What InfraNet does not keep is counted, one row per field (`vm.fieldsSkipped`, kinds `vmf.*`): serial, tags,
+custom fields, start on boot, local context, owner, config template, VM type, and on the cards extra MAC addresses,
+Q-in-Q, VLAN translation and L2VPN.
 The PDF and the draw.io export are twins of this drawing, and for a while ignored it: a drawer got the square
 LEDs of any panel. They no longer do their own sums. `fiberFrontGeometry` (`lib/fiber-slot.js`) turns the same
 rows into numbers — where every slot, cell, opening and port number goes inside a box — with the constants of the
@@ -1721,7 +1742,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **5,106 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **5,145 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

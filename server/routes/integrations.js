@@ -399,6 +399,17 @@ async function _pullForImport(client, sel) {
         ]);
         nb.vmInterfaces = vif.results; if (vif.truncated) nb.truncated = true;
         nb.vmIpAddresses = vip.results; if (vip.truncated) nb.truncated = true;
+        // I dischi virtuali (NetBox 4.1+), uno per riga: servono al riquadro «Dichiarato dal DCIM» della VM. Un suo `try`:
+        // un NetBox piu' vecchio non ha l'endpoint e non deve portarsi dietro le schede appena lette.
+        try {
+          const vdk = await _batchByField(client, '/api/virtualization/virtual-disks/', 'virtual_machine_id', vmIds);
+          // Seconda cintura come per le VM: un filtro sconosciuto fa rispondere con TUTTO il database.
+          const wantVm = new Set(vmIds.map(String));
+          nb.vmDisks = vdk.results.filter(d => { const r = d && d.virtual_machine; const id = r && typeof r === 'object' ? r.id : r; return id != null && wantVm.has(String(id)); });
+          if (vdk.truncated) nb.truncated = true;
+        } catch (_) {
+          nb.vmDisks = [];
+        }
       }
     } catch (_) {
       // NetBox senza l'app di virtualizzazione (o permessi che non la coprono):
@@ -934,4 +945,5 @@ async function _pullVpnLinks(client, siteIds) {
 }
 
 router._sameOrigin = _sameOrigin;   // esportato per il test di sicurezza dell'egress
+router._pullForImport = _pullForImport;   // esportato per il test della lettura delle VM (client finto)
 module.exports = router;

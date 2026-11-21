@@ -43,6 +43,8 @@ import { _mgmtBuildUrl, _mgmtProtoDef, _mgmtProtoOptionsHtml } from './app-manag
 import { vmNics, vmPrimaryIp } from '../lib/vm-nics.js';   // lib pura importata ESM (come lib/ipv6.js)
 import { osIconHtmlFor } from '../lib/os-icon.js';   // icona OS (accento colorato nell'intestazione)
 import { presenceView, vmStateConflict } from '../lib/vm-presence.js';   // cosa dice la rete della VM, accanto allo stato dichiarato
+import { VM_LIFECYCLES } from '../lib/device-status.js';   // il ciclo di vita dichiarabile di una VM: lo stesso vocabolario degli apparati
+import { vmSourceRows, nicSourceRows } from '../lib/dcim-source-view.js';   // cio' che il DCIM dichiara della VM e delle sue schede: sola lettura
 
 // Sistemi guest: stessa lista dell'host (un guest e' un OS, non una piattaforma).
 const _VM_GUEST_OS = [
@@ -160,7 +162,7 @@ function _mgmtRowVm(vm, ref){
 // Il campo «Port-group / vSwitch» è testo dichiarato ed è ANCHE il punto di
 // aggancio di una futura integrazione con le API dell'hypervisor: è il nome che
 // vSphere (port group) e Proxmox (bridge) restituiscono per ogni adattatore.
-function _nicCardHtml(nic, i, total, ref){
+function _nicCardHtml(nic, i, total, ref, rawNic){
     const r = `${ref} data-vm-nic="${_esc(nic.id)}"`;
     const fld = (field, label, value, opts) => {
         opts = opts || {};
@@ -193,6 +195,7 @@ function _nicCardHtml(nic, i, total, ref){
           ${fld('portGroup', t('hv.vmNicPortGroup'), nic.portGroup, { ph: t('hv.vmNicPortGroupPh') })}
         </div>
         ${fld('ip6', t('net.ip6'), nic.ip6, { ph: '2001:db8::1' })}
+        ${nicSourceRows(rawNic).length ? `<div class="vm-hint"><i class="fas fa-file-import"></i> ${_esc(t('src.header'))}: ${nicSourceRows(rawNic).map(r => `${_esc(t(r.label))} ${_esc(r.valueKey ? t(r.valueKey) : r.value)}`).join(' · ')}</div>` : ''}
     </div>`;
 }
 
@@ -334,10 +337,12 @@ function _presenceHtml(vm){
     const when = iso => { try { return new Date(iso).toLocaleString(); } catch(_){ return String(iso || ''); } };
     const line = (cls, ico, text) => `<div class="vm-hint${_esc(cls ? ' ' + cls : '')}"><i class="fas ${_esc(ico)}"></i> ${_esc(text)}</div>`;
     const out = [];
-    const v = presenceView(vm.proof);
+    const v = presenceView(vm.proof, undefined, vm);
     if(v){
         const last = v.last ? ' ' + t('hv.pres.lastSuffix', { when: when(v.last) }) : '';
-        if(v.kind === 'seen')        out.push(line('', 'fa-satellite-dish', t('hv.pres.seen', { when: when(v.at), via: _VIA[v.via] || '—' })));
+        // Il silenzio di una VM che dichiara di non essere in servizio e' la risposta attesa: una riga neutra, non un avviso.
+        if(v.expected) out.push(line('', 'fa-circle-info', t('hv.pres.expectedAbsent', { life: t('hv.life.' + v.expected) })));
+        else if(v.kind === 'seen')        out.push(line('', 'fa-satellite-dish', t('hv.pres.seen', { when: when(v.at), via: _VIA[v.via] || '—' })));
         else if(v.kind === 'silent') out.push(line('vm-hint-warn', 'fa-circle-question', t('hv.pres.silent', { when: when(v.at) }) + last));
         else if(v.kind === 'gone')   out.push(line('vm-hint-warn', 'fa-plug-circle-xmark', t('hv.pres.gone', { when: when(v.at) }) + last));
         else                         out.push(line('', 'fa-clock-rotate-left', t('hv.pres.last', { when: when(v.at) })));
@@ -346,6 +351,15 @@ function _presenceHtml(vm){
     if(conflict) out.push(line('vm-hint-warn', 'fa-triangle-exclamation', t('hv.pres.' + conflict)));
     if(vm.stateAuto) out.push(line('', 'fa-wand-magic-sparkles', t('hv.pres.auto')));
     return out.join('');
+}
+
+// «Dichiarato dal DCIM» della VM: la stessa cosa del riquadro degli apparati (di chi e', lo stato con la parola di NetBox,
+// il cluster, i dischi), in sola lettura. Niente riga per cio' che il DCIM non dichiara: un vuoto stampato si legge come un dato.
+function _vmSourceHtml(vm){
+    const rows = vmSourceRows(vm);
+    if(!rows.length) return '';
+    const items = rows.map(r => `<div class="dcim-src-row"><span class="dcim-src-k">${_esc(t(r.label))}</span><span class="dcim-src-v">${_esc(r.value)}</span></div>`).join('');
+    return `<p class="prop-notes-header"><i class="fas fa-file-import"></i> ${t('src.header')}</p><div class="dcim-src" data-tip="${_esc(t('src.tipVm'))}">${items}</div>`;
 }
 
 export function _renderVmProps(panel){
@@ -399,8 +413,10 @@ export function _renderVmProps(panel){
     const identity = _section('fa-id-card', t('hv.vmSecIdentity'),
         _f(ref, 'name', t('hv.vmName'), vm.name, { ph: t('hv.vmNamePh') })
         + _f(ref, 'role', t('hv.vmRole'), vm.role, { ph: t('hv.vmRolePh') })
-        + _sel(ref, 'guestOs', t('f.os'), vm.guestOs, _VM_GUEST_OS, osRef),
-        _preview([_esc(vm.role), _esc(osLabel)]), 'vm-identity');
+        + _sel(ref, 'guestOs', t('f.os'), vm.guestOs, _VM_GUEST_OS, osRef)
+        // Ciclo di vita: scala chiusa, vuoto = in servizio. L'accensione sta nell'interruttore in testata, non qui.
+        + _sel(ref, 'status', t('hv.vmLifecycle'), vm.status, VM_LIFECYCLES.map(v => [v, t('hv.life.' + v)]), 'data-no-manual="1"'),
+        _preview([_esc(vm.role), _esc(osLabel), vm.status && VM_LIFECYCLES.indexOf(vm.status) >= 0 ? _esc(t('hv.life.' + vm.status)) : '']), 'vm-identity');
 
     // Rete & accesso: COME si raggiunge la macchina (il nome con cui si presenta
     // e la console di gestione). Gli INDIRIZZI non stanno piu' qui: vivono sulle
@@ -421,7 +437,8 @@ export function _renderVmProps(panel){
     const nics = vmNics(vm);
     const shown = nics.length ? nics : [{ id: 'nic1' }];
     const vnics = _section('fa-ethernet', t('hv.vmSecNics'),
-        shown.map((nic, i) => _nicCardHtml(nic, i, shown.length, ref)).join('')
+        // `vmNics` normalizza a un catalogo chiuso e lascia fuori la provenienza: la si rilegge dalla scheda vera, per id.
+        shown.map((nic, i) => _nicCardHtml(nic, i, shown.length, ref, (Array.isArray(vm.nics) ? vm.nics : []).find(x => x && x.id === nic.id))).join('')
         + `<button type="button" class="toolbar-btn" style="width:100%;justify-content:center;margin-top:4px" `
         + `${ref} data-act="vm-nic-add"><i class="fas fa-plus"></i> ${t('hv.vmNicAdd')}</button>`
         + `<div class="vm-hint"><i class="fas fa-info-circle"></i> ${t('hv.vmNicsHint')}</div>`,
@@ -463,7 +480,7 @@ export function _renderVmProps(panel){
     // Ordine: chi e' (identita') → quanto pesa (risorse) → come la raggiungi
     // (rete, poi le sue porte vNIC, poi l'integrazione) → chi risponde e come si
     // consegna.
-    panel.innerHTML = header + _presenceHtml(vm) + identity + resources + network + vnics + _snmpSectionHtml(vm, ref) + handover;
+    panel.innerHTML = header + _presenceHtml(vm) + identity + resources + network + vnics + _snmpSectionHtml(vm, ref) + handover + _vmSourceHtml(vm);
     // Stesso harness del pannello device: aggiunge «Personalizzato…» alle select
     // che non dichiarano data-no-manual, cosi' il sistema operativo non e' limitato
     // alla lista (una VM puo' ospitare qualsiasi cosa) senza inventare un secondo
