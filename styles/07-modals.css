@@ -47,6 +47,22 @@
         #conn-banner { position:fixed; bottom:14px; left:50%; transform:translateX(-50%); background:#2d1a00; border:1px solid #e3b341; color:#e3b341; padding:8px 18px; border-radius: var(--radius-md); font-size:var(--fs-md); z-index:3000; display:none; gap:8px; align-items:center; }
         #conn-banner.show { display:flex; }
 
+        /* Avviso «password generata» (sotto la testata). Come #conn-banner e .toast-warn l'ambra e' il colore dei
+           «attenzione, non e' un guasto»; parte spento e lo accende `.show` (initAuth). In flusso, non fixed:
+           il body e' una colonna flex e #workspace ha `flex:1`, quindi la fascia toglie ai pannelli la sua altezza
+           invece di coprirli. */
+        #pwd-notice { display:none; align-items:center; gap:10px; flex-shrink:0; min-height:34px; padding:4px 16px;
+            background:#2d1a00; border-bottom:1px solid #e3b341; color:#e3b341; font-size:var(--fs-sm); line-height:1.4; }
+        #pwd-notice.show { display:flex; }
+        #pwd-notice > i { flex:none; }
+        #pwd-notice .pwd-notice-msg { flex:1 1 auto; min-width:0; }
+        #pwd-notice .pwd-notice-act { flex:none; padding:3px 10px; font-size:var(--fs-xs); }
+        #pwd-notice .pwd-notice-x { flex:none; background:none; border:0; cursor:pointer; color:inherit; opacity:.75;
+            padding:4px 7px; border-radius:var(--radius-sm); font-size:var(--fs-xs); line-height:1; font-family:inherit; }
+        #pwd-notice .pwd-notice-x:hover { opacity:1; background:rgba(227,179,65,.15); }
+        #pwd-notice .pwd-notice-x:focus-visible { outline:2px solid var(--accent); outline-offset:1px; opacity:1; }
+        @media (max-width: 700px) { #pwd-notice { flex-wrap:wrap; } }
+
         input[type="file"] { display:none; }
 
         /* ===== RACK ICONS ON FLOOR PLAN ===== */

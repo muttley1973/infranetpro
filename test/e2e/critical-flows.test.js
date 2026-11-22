@@ -2877,6 +2877,110 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.equal(r.bareRead, 'tester', '_currentUser leggibile BARE (var-ify su window) per i file legacy');
     });
 
+    await t.test('avviso «password generata»: lo accende SOLO il server, il dialogo usa la rotta del proprio cambio e lo spegne', async () => {
+      // Qui l'auth e' bypassata (DEV_NO_AUTH): /api/auth/me risponde con passwordGenerated:false. Si finge la risposta
+      // del server (e quella di /api/auth/password) sostituendo `fetch`, e si pilota la pagina VERA coi click delegati.
+      const r = await page.evaluate(async () => {
+        const realFetch = window.fetch;
+        const calls = [];
+        const UTENTE = { id: 0, username: 'dev', role: 'admin' };
+        let meBody = { ok: true, user: UTENTE, version: '2.14.0', passwordGenerated: true };
+        let pwdReply = { ok: true };
+        window.fetch = (u, o) => {
+          calls.push({ url: String(u), method: (o && o.method) || 'GET', body: (o && o.body) || null });
+          if (u === '/api/auth/me') return Promise.resolve({ ok: true, json: () => Promise.resolve(meBody) });
+          if (u === '/api/auth/password') return Promise.resolve({ ok: true, json: () => Promise.resolve(pwdReply) });
+          return realFetch(u, o);
+        };
+        const notice = document.getElementById('pwd-notice');
+        const shown = () => notice.classList.contains('show') && getComputedStyle(notice).display !== 'none';
+        const msg = document.getElementById('chpwd-msg');
+        const pausa = () => new Promise(res => setTimeout(res, 60));
+        const apriEInvia = async () => {
+          notice.querySelector('[data-act="change-password"]').click();
+          const aperto = document.getElementById('chpwd-overlay').style.display === 'flex';
+          document.getElementById('chpwd-old').value = 'vecchia-pwd';
+          document.getElementById('chpwd-new').value = 'nuova-pwd-1';
+          document.getElementById('chpwd-confirm').value = 'nuova-pwd-1';
+          calls.length = 0;
+          document.querySelector('[data-act="chpwd-submit"]').click();
+          await pausa();
+          return aperto;
+        };
+        const out = {};
+        try {
+          out.inizialeSpento = !shown();
+
+          // 1) tutto cio' che non e' `true` lascia l'avviso spento (campo assente = server piu' vecchio)
+          out.nonVero = [];
+          for (const v of [false, undefined, null, 'true', 1, 0, '']) {
+            meBody = { ok: true, user: UTENTE, version: '2.14.0', passwordGenerated: v };
+            await window.initAuth();
+            out.nonVero.push(shown());
+          }
+
+          // 2) il server dice `true`: l'avviso compare, fra la testata e il sotto-header, senza far uscire i pannelli
+          meBody = { ok: true, user: UTENTE, version: '2.14.0', passwordGenerated: true };
+          await window.initAuth();
+          out.acceso = shown();
+          const nr = notice.getBoundingClientRect();
+          out.sopra = document.querySelector('header').getBoundingClientRect().bottom <= nr.top + 0.5;
+          out.sotto = document.getElementById('modern-subbar').getBoundingClientRect().top >= nr.bottom - 0.5;
+          out.dentro = document.getElementById('workspace').getBoundingClientRect().bottom <= innerHeight + 0.5;
+          out.testo = notice.querySelector('.pwd-notice-msg').textContent.trim();
+
+          // 3) la X lo nasconde fino al prossimo caricamento (initAuth lo riaccende: non c'e' memoria)
+          notice.querySelector('[data-act="pwd-notice-dismiss"]').click();
+          out.chiuso = !shown();
+          await window.initAuth();
+          out.ritorna = shown();
+
+          // 4) «Cambia password» apre il dialogo; l'invio usa la rotta del PROPRIO cambio e basta
+          out.dialogoAperto = await apriEInvia();
+          out.chiamate = calls.filter(c => c.url.startsWith('/api/auth/')).map(c => c.method + ' ' + c.url);   // le altre richieste della pagina (sondaggi) non c'entrano
+          const corpo = calls.find(c => c.url === '/api/auth/password');
+          out.corpo = corpo && JSON.parse(corpo.body);
+          out.msgOk = msg.textContent;
+          out.msgOkClasse = msg.className;
+          out.spentoDopo = !shown();
+          document.querySelector('[data-act="chpwd-close"]').click();
+
+          // 5) il server rifiuta (password attuale errata): messaggio del server, avviso ancora acceso
+          await window.initAuth();
+          pwdReply = { ok: false, error: 'Password attuale errata' };
+          await apriEInvia();
+          out.msgKo = msg.textContent;
+          out.msgKoClasse = msg.className;
+          out.ancoraAcceso = shown();
+          document.querySelector('[data-act="chpwd-close"]').click();
+        } finally {
+          window.fetch = realFetch;
+          await window.initAuth();   // di nuovo la risposta vera del bypass: avviso spento
+          out.finale = !shown();
+        }
+        return out;
+      });
+      assert.equal(r.inizialeSpento, true, 'col bypass dell\'auth (nessun flag) l\'avviso e\' spento');
+      assert.deepEqual(r.nonVero, [false, false, false, false, false, false, false], 'solo `passwordGenerated === true` accende l\'avviso');
+      assert.equal(r.acceso, true, 'il server dice true → l\'avviso compare');
+      assert.ok(r.sopra && r.sotto, 'sta fra la testata e il sotto-header');
+      assert.ok(r.dentro, 'i pannelli non escono dallo schermo: la fascia toglie altezza, non li copre');
+      assert.match(r.testo, /password generata al primo avvio/, 'dice quale password');
+      assert.equal(r.chiuso, true, 'la X lo nasconde');
+      assert.equal(r.ritorna, true, 'senza memoria: al prossimo caricamento il server lo riaccende');
+      assert.equal(r.dialogoAperto, true, 'il tasto dell\'avviso apre il dialogo «Cambia password»');
+      assert.deepEqual(r.chiamate, ['POST /api/auth/password'],
+        'il dialogo chiama SOLO la rotta del proprio cambio: niente login «di controllo», niente PUT /api/auth/users (da amministratore, e azzera la sessione di chi lo chiama)');
+      assert.deepEqual(r.corpo, { currentPassword: 'vecchia-pwd', newPassword: 'nuova-pwd-1' });
+      assert.equal(r.msgOk, 'Password aggiornata');
+      assert.match(r.msgOkClasse, /\bok\b/);
+      assert.equal(r.spentoDopo, true, 'cambiata la password, l\'avviso si spegne');
+      assert.equal(r.msgKo, 'Password attuale errata', 'l\'errore e\' quello del server');
+      assert.match(r.msgKoClasse, /\berr\b/);
+      assert.equal(r.ancoraAcceso, true, 'un cambio fallito non spegne l\'avviso');
+      assert.equal(r.finale, true, 'ripristino: avviso spento');
+    });
+
     await t.test('ASSE B: modale editor protocolli + modale topo-crawl + tooltip topologia via event delegation', async () => {
       const r = await page.evaluate(() => {
         try {

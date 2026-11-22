@@ -10,8 +10,8 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="5,238 tests, 0 failing" src="https://img.shields.io/badge/tests-5%2C238%20%C2%B7%200%20failing-3fb950"></a>
-  <a href="#testing"><img alt="162 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-162%20real--browser%20flows-3fb950"></a>
+  <a href="#testing"><img alt="5,253 tests, 0 failing" src="https://img.shields.io/badge/tests-5%2C253%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="163 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-163%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#discovery--classification-engines"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
   <img alt="No database" src="https://img.shields.io/badge/database-none-8b949e">
@@ -93,7 +93,7 @@ npm install
 npm start
 ```
 
-Open **http://localhost:8421**. An **admin** account is created on first start with a random password, printed once in the console — change it right away from the user menu (**Change password**).
+Open **http://localhost:8421**. An **admin** account is created on first start with a random password, printed once in the console — change it right away from the user menu (**Change password**); until you do, the page shows a reminder.
 
 - 🐳 **Container:** `docker compose up -d --build` — host networking by default, so discovery is complete. See [Docker](#docker).
 - 🖥️ **Windows:** double-click `avvia.bat`. Details in [Installation](#installation) and [Configuration](#configuration).
@@ -308,7 +308,7 @@ npm install        # also builds the frontend bundle (postinstall)
 npm start          # or: node server.js
 ```
 
-Open **http://localhost:8421**. On first start an **admin** account is created with a random password, printed once in the console; the server does not force a change, so do it from the user menu (**Change password**). On Windows, double-click `avvia.bat`.
+Open **http://localhost:8421**. On first start an **admin** account is created with a random password, printed once in the console; the server does not force a change, but the page shows a reminder until you make it, from the user menu (**Change password**). On Windows, double-click `avvia.bat`.
 
 > **Prefer `git clone` over "Download ZIP".** The frontend bundle is a build artifact and is git-ignored; `npm install` rebuilds it, so a clone always runs the current code. A ZIP has no `.git`, cannot tell you its version and does not update. To confirm you are current: `src/app.js` exists and there is **no** root `app.js`.
 
@@ -525,8 +525,8 @@ RUN_E2E=1 npm run e2e # headless end-to-end in a real Chrome — off by default
 - Coverage focuses on the pure logic that has historically broken: SNMP parsing, discovery and classification, the three engines, cable validation, IPAM and LAG audits — plus an app-wide smoke test that loads every script into a DOM stub and asserts rendering never throws.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **656** of them.
-- `npm test` runs the full regression suite (currently **5,238 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **162 flows**).
+- `npm run check` parses every JS source of the product — **658** of them.
+- `npm test` runs the full regression suite (currently **5,253 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **163 flows**).
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that lists something, and the test count measured against what the suite really prints.
 
 **CI** ([GitHub Actions](.github/workflows/ci.yml)) runs `npm run check`, `npm run lint`, `npm run typecheck`, `npm test` and the browser end-to-end suite (`npm run e2e`) on every push and pull request to `main`, on Node 18, 20, 22 and 24.

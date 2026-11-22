@@ -31,6 +31,7 @@ async function initAuth(){
         store._currentUser = d.user;
         _applyRoleUI();
         _showVersion(d.version);
+        _showPasswordNotice(d.passwordGenerated === true);
     } catch(_){
         window.location.href='/login';
     }
@@ -44,6 +45,15 @@ function _showVersion(version){
     if(!a || !label) return;
     a.textContent = label;
     a.hidden = false;
+}
+
+// L'avviso «password generata» (#pwd-notice): lo accende solo il server, con `passwordGenerated === true` in
+// /api/auth/me — qualsiasi altro valore (campo assente, server piu' vecchio, stringa) lo lascia spento. Si
+// spegne cambiando la password col dialogo, o con la X fino al prossimo caricamento (nessuna memoria in
+// localStorage: un avviso di sicurezza che si puo' zittire per sempre non e' piu' un avviso).
+function _showPasswordNotice(on){
+    const el = document.getElementById('pwd-notice');
+    if(el) el.classList.toggle('show', !!on);
 }
 
 function _applyRoleUI(){
@@ -240,16 +250,21 @@ async function umChangePassword(){
     msg.className='um-msg';
     if(!oldPwd||!newPwd||!confirm){ msg.textContent='Compila tutti i campi'; msg.className='um-msg err'; return; }
     if(newPwd!==confirm){ msg.textContent='Le nuove password non coincidono'; msg.className='um-msg err'; return; }
-    if(newPwd.length<6){ msg.textContent='La password deve avere almeno 6 caratteri'; msg.className='um-msg err'; return; }
+    // La lunghezza minima la dice il SERVER (MIN_PASSWORD_LEN di auth.js, con il suo messaggio, prima di ogni
+    // confronto bcrypt): qui c'era un «6» che non era il suo 8, e una password di 7 caratteri passava il
+    // controllo della pagina per farsi rifiutare dopo.
     try {
-        const check=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({username:store._currentUser.username,password:oldPwd})});
-        const cd=await check.json();
-        if(!cd.ok){ msg.textContent='Password attuale non corretta'; msg.className='um-msg err'; return; }
-        const r=await fetch(`/api/auth/users/${store._currentUser.id}`,{method:'PUT',
-            headers:{'Content-Type':'application/json'},body:JSON.stringify({password:newPwd})});
+        // La rotta del PROPRIO cambio password, con la password attuale dentro (la verifica il server). Prima il
+        // dialogo faceva un login «di controllo» e poi `PUT /api/auth/users/<io>`, che e' una rotta da
+        // amministratore: un visualizzatore prendeva 403, e un amministratore vedeva «Password aggiornata» ma
+        // alla richiesta dopo la sessione era morta (il PUT azzera quelle dell'utente, anche la sua).
+        const r=await fetch('/api/auth/password',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({currentPassword:oldPwd,newPassword:newPwd})});
         const d=await r.json();
-        if(d.ok){ msg.textContent='Password aggiornata'; msg.className='um-msg ok'; }
+        if(d.ok){
+            msg.textContent='Password aggiornata'; msg.className='um-msg ok';
+            _showPasswordNotice(false);   // ora la password l'ha scelta una persona: l'avviso non ha piu' ragione
+        }
         else { msg.textContent=d.error||'Errore'; msg.className='um-msg err'; }
     } catch(_){ msg.textContent=t('pnl.sys.networkError'); msg.className='um-msg err'; }
 }
@@ -396,7 +411,8 @@ registerClickActions({
     'user-menu-toggle':  () => toggleUserMenu(),
     'user-manager-open': () => { openUserManager(); closeUserMenu(); },
     'change-password':   () => { openChangePassword(); closeUserMenu(); },
-    'lang-switch':       (el) => switchLang(el.dataset.lang),
+    'pwd-notice-dismiss':() => _showPasswordNotice(false),
+    'lang-switch':      (el) => switchLang(el.dataset.lang),
     'logout':            () => doLogout(),
     // Menu Import/Export (header): toggle + la voce «Importa JSON» (owned qui). La voce
     // «Importa CSV» è registrata in app-csv-import.js (OWNER di openCsvImport, importa di

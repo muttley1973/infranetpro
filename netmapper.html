@@ -243,6 +243,17 @@
     </div>
 </header>
 
+<!-- Avviso «password generata»: compare SOLO se il server dice (/api/auth/me → passwordGenerated) che l'account
+     ha ancora la password scritta nel log al primo avvio. Un avviso, non un blocco: «Cambia password» apre il
+     dialogo di sempre, la X lo nasconde fino al prossimo caricamento. Sta fra la testata e il sotto-header
+     (fuori dall'header: il suo budget di larghezza e' tarato al pixel) e fuori da #export-area. -->
+<div id="pwd-notice" role="status">
+    <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+    <span class="pwd-notice-msg" data-i18n="user.pwdGenerated">Stai usando la password generata al primo avvio, scritta nel log del server: chi la legge può entrare. Scegline una tua.</span>
+    <button type="button" class="um-btn primary pwd-notice-act" data-act="change-password"><i class="fas fa-key"></i> <span data-i18n="user.changePw">Cambia password</span></button>
+    <button type="button" class="pwd-notice-x" data-act="pwd-notice-dismiss" data-i18n-aria="common.close" aria-label="Chiudi"><i class="fas fa-times" aria-hidden="true"></i></button>
+</div>
+
 <!-- Sotto-header: breadcrumb (sx) - suggerimento prossimo-passo (centro) -
      statistiche progetto (dx). Contenuto reso da src/app-subbar.js (renderSubbar,
      agganciato a renderAll). Fuori da #export-area -> non entra negli export. -->

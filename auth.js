@@ -205,7 +205,13 @@ function ensureDefaultAdmin() {
   const hash = bcrypt.hashSync(pwd, BCRYPT_COST);
   const now  = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
-  saveUsers([{ id: 1, username: 'admin', passwordHash: hash, role: 'admin', createdAt: now }]);
+  // `passwordGenerated`: questa password l'ha scelta il SERVER e l'ha scritta nel suo log. Finche' il
+  // flag c'e', /api/auth/me lo dice e la pagina mostra un avviso; sparisce quando la password cambia
+  // (changeOwnPassword, o il reset di un admin in updateUser). Un avviso, non un obbligo: nessuna rotta
+  // si ferma per questo. Solo l'admin creato QUI lo porta: una password scelta da una persona
+  // (createUser) non e' «generata», e uno `users.json` di prima del flag non lo ha — non si sa se
+  // quella password sia stata cambiata, e dirlo comunque sarebbe un'invenzione.
+  saveUsers([{ id: 1, username: 'admin', passwordHash: hash, role: 'admin', createdAt: now, passwordGenerated: true }]);
 
   console.log('');
   console.log('  ╔══════════════════════════════════════════════════╗');
@@ -217,6 +223,13 @@ function ensureDefaultAdmin() {
   console.log('  ║   ⚠  Cambia la password al primo accesso!        ║');
   console.log('  ╚══════════════════════════════════════════════════╝');
   console.log('');
+}
+
+// L'account ha ancora la password che il server ha generato al primo avvio? Falso per chi non e' nel file
+// (anche la sessione fittizia del bypass di sviluppo, id 0) e per ogni account senza il flag.
+function _hasGeneratedPassword(userId) {
+  const u = loadUsers().find(x => x.id === userId);
+  return !!(u && u.passwordGenerated === true);
 }
 
 function _randomPassword() {
@@ -385,7 +398,10 @@ function logoutApi(req, res) {
 const APP_VERSION = require('./package.json').version;
 
 function meApi(req, res) {
-  res.json({ ok: true, user: _publicUser(req.session.user), version: APP_VERSION });
+  // `passwordGenerated` sta FUORI da `user`: `user` e' la sessione, questo e' lo stato del file utenti, e si
+  // legge a ogni richiesta cosi' sparisce non appena la password cambia, senza un nuovo login.
+  res.json({ ok: true, user: _publicUser(req.session.user), version: APP_VERSION,
+             passwordGenerated: _hasGeneratedPassword(req.session.user.id) });
 }
 
 // Cambio password del PROPRIO account: ogni utente autenticato, viewer inclusi
@@ -437,6 +453,7 @@ async function changeOwnPassword(req, res) {
       return res.status(409).json({ ok: false, error: 'La password è stata modificata nel frattempo: riprova' });
     }
     users[idx].passwordHash = newHash;
+    delete users[idx].passwordGenerated;                    // ora la password l'ha scelta una persona
     saveUsers(users);
     _bumpEpoch(uid);                                        // le ALTRE sessioni muoiono
     req.session.user.epoch = _epochOf(uid);                 // ...ma non questa
@@ -515,7 +532,10 @@ function updateUser(req, res) {
   if (password || (role && role !== users[idx].role)) _bumpEpoch(id);
 
   if (role) users[idx].role = role;
-  if (password) users[idx].passwordHash = bcrypt.hashSync(password, BCRYPT_COST);
+  if (password) {
+    users[idx].passwordHash = bcrypt.hashSync(password, BCRYPT_COST);
+    delete users[idx].passwordGenerated;                    // la password l'ha scelta un amministratore, non il server
+  }
 
   saveUsers(users);
   res.json({ ok: true, user: { id: users[idx].id, username: users[idx].username, role: users[idx].role } });
