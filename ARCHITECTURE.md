@@ -238,7 +238,7 @@ lib/                   Shared browser + test modules (the heart of the app)
                     that wins. A segment key is only comparable against one built from
                     the SAME prefix list — producer and consumer must be handed it  (pure)
   netnames.js linkstate.js correlate.js cabling.js
-  app-version.js    The version under the logo and where its click goes: `versionLabel` ("v2.14.0" or '' —
+  app-version.js    The version under the logo and where its click goes: `versionLabel` ("v2.15.0" or '' —
                     never "vundefined") and the changelog URL. The server says the version
                     (`/api/auth/me`, from package.json): not a fifth place to touch at a release  (pure)
   topo-lines.js frontpanel.js stack.js ha-pair.js
