@@ -347,7 +347,13 @@ async function pollSNMP(nodeId){
 // Topologia, che fanno l'auto-link "al volo").
 async function pollAllSNMP(opts){
     const dataOnly = !!(opts && opts.dataOnly);
-    if(store._snmpSyncing){
+    // La Verifica (runDriftCheck) tiene `store._driftRunning` per TUTTO il suo giro — la lettura SNMP e, dopo, lo sweep di
+    // raggiungibilita' (10-45 s) — e chiama questa funzione da dentro: lei passa `byVerify`. Chiunque altro (il tasto
+    // «Sincronizza ora», il tasto destro su Topologia) durante lo sweep trovava `_snmpSyncing` spento e partiva in
+    // PARALLELO: due letture insieme sugli stessi apparati, contro la regola «mai due sweep SNMP insieme» che lo scheduler
+    // rispetta con `isBlocked`. Senza `byVerify` un controllo su `_driftRunning` bloccherebbe la Verifica con se' stessa.
+    const byVerify = !!(opts && opts.byVerify);
+    if(store._snmpSyncing || (store._driftRunning && !byVerify)){
         // «Sincronizza ora» durante un giro in corso tornava muto. Lo scheduler e la
         // Verifica (silent/dataOnly) non passano di qui da occupati: controllano prima.
         if(!(opts && (opts.silent || dataOnly))) _showToast(t(store._autoMonitorRunning ? 'msg.net.busyMonitor' : 'msg.net.busySync'), 'warn');

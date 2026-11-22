@@ -7,6 +7,7 @@
 import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
 import { escapeHTML } from './app-util.js';
+import { versionLabel } from '../lib/app-version.js';   // «v2.13.1» o '': la versione sotto il logo (pura, testata)
 import { closeFloorMenu, closeRackMenu } from './app-search-zoom-rack.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { switchLang } from './app.js';   // ASSE B: menu utente via data-act (ex win.switchLang)
 import { registerClickActions } from './app-delegation.js';   // ASSE B: event delegation (data-act) — menu utente
@@ -29,9 +30,20 @@ async function initAuth(){
         if(!d.ok){ window.location.href='/login'; return; }
         store._currentUser = d.user;
         _applyRoleUI();
+        _showVersion(d.version);
     } catch(_){
         window.location.href='/login';
     }
+}
+
+// La versione sotto il logo (la dice il server: /api/auth/me). Un valore che non e' x.y.z — o un server piu'
+// vecchio della pagina, che non manda il campo — lascia l'etichetta nascosta: meglio niente che «vundefined».
+function _showVersion(version){
+    const a = document.getElementById('app-version');
+    const label = versionLabel(version);
+    if(!a || !label) return;
+    a.textContent = label;
+    a.hidden = false;
 }
 
 function _applyRoleUI(){

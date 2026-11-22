@@ -26,8 +26,8 @@ are no long-term branches.
 
 | Version | Security fixes |
 |---|---|
-| 2.13.x | yes |
-| 2.12.x and older | no — upgrade |
+| 2.14.x | yes |
+| 2.13.x and older | no — upgrade |
 
 ## What the threat model already assumes
 
@@ -35,7 +35,8 @@ are no long-term branches.
 whether a finding is a vulnerability or a deployment choice:
 
 - **The server binds to `127.0.0.1`.** Publishing it on a network is the operator's decision, and
-  is meant to happen behind a TLS reverse proxy (`INFRANET_TRUST_PROXY=1`).
+  is meant to happen behind a TLS reverse proxy (`INFRANET_TRUST_PROXY=1`). A `HOST` outside the
+  loopback prints a warning at startup.
 - **Live egress is admin-chosen.** SNMP polls and DHCP drivers reach only a host an admin entered.
   The two places where the multi-site map leaves your network are both the **server's**, never
   the browser's (`connect-src 'self'` and `img-src 'self'` stay, pinned by a test): "Find from the

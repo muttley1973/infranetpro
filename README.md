@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="5,185 tests, 0 failing" src="https://img.shields.io/badge/tests-5%2C185%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="5,206 tests, 0 failing" src="https://img.shields.io/badge/tests-5%2C206%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="161 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-161%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#discovery--classification-engines"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -99,18 +99,18 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 - 🖥️ **Windows:** double-click `avvia.bat`. Details in [Installation](#installation) and [Configuration](#configuration).
 - **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.13.0) — a fiber drawer you can compose slot by slot, sites on a real map, and spanning-tree read and shown.**
+> 📰 **What's new (v2.14.0) — what NetBox declares now comes in as fields: virtual machines, Wi-Fi, port speed, duplex and PoE.**
 >
-> - A new passive rack device, the fiber drawer: vertical slots showing the openings of the connector you declare (LC, SC, MTP/MPO…), and a window to give each slot its own module — drag it, or tap and sweep with a finger — that says which cables sit on ports that move.
-> - Each site can carry a position (typed, found from its address, or read from the DCIM) and the Sites map has a geographic view on OpenStreetMap; spanning-tree is read and shown on the switch card, with a mark on blocked ports.
-> - A FortiGate cluster is read as evidence and a failover is explained from the declared HA pair; a slow switch no longer loses its LAG, and the Docker image runs Node 24.
+> - A virtual machine has a life cycle of its own, its notes, tagged VLANs, IPv6 and disks come in, and a VM that is not in service is no longer called "gone"; a radio's width, power and role, an SSID's cipher (TKIP is flagged) and NetBox's wireless links come in too.
+> - The speed NetBox declares is the port's declared speed, the duplex has its own list in the port panel and a cable warns on full against half, and the PoE class goes on the cable so the PoE rules apply to an imported one.
+> - A device imported into a rack that does not number from U1 lands in the right unit, and the PDF dossier and the draw.io export draw the fiber drawer as slots; the version sits under the logo, the search finds a MAC in any spelling, and "Sync now" no longer overlaps a Verify run.
 >
 > Earlier:
+> - **v2.13.0** — a fiber drawer you can compose slot by slot, sites on a real map, spanning-tree read and shown, and a FortiGate cluster read as evidence.
 > - **v2.12.0** — the Verify run looks at your virtual machines, a VM's state is the colour of its icon, and Undo and Redo keep what you did.
 > - **v2.11.19** — the dossier lives inside Export PDF, the catalogue update works again, and the manuals describe the interface as it is.
 > - **v2.11.18** — a machine you documented stays documented, Ctrl+Z does what it says, and the VM card closes like the host panel.
 > - **v2.11.17** — a neighbour is created as what it announces over LLDP/CDP; a hostile id can no longer run code; "0 found" says when the scan could not look.
-> - **v2.11.16** — a value says where it comes from; a model you typed is no longer called a swapped device.
 >
 > Every release, in detail: [CHANGELOG.md](CHANGELOG.md).
 
@@ -349,7 +349,7 @@ Everything is an **environment variable** — no config file.
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | `8421` | TCP port |
-| `HOST` | `127.0.0.1` | Interface to bind; keep loopback unless behind a proxy or VPN (`0.0.0.0` in a container) |
+| `HOST` | `127.0.0.1` | Interface to bind; keep loopback unless behind a proxy or VPN (`0.0.0.0` in a container). A non-loopback value prints a startup warning, which `INFRANET_TRUST_PROXY=1` silences |
 | `SESSION_SECRET` | *(auto)* | Session signing secret |
 | `INFRANET_PROJECTS_DIR` | `./projects` | Projects and image assets |
 | `INFRANET_SKINS_DIR` | `./skins` | Uploaded panel skins |
@@ -525,8 +525,8 @@ RUN_E2E=1 npm run e2e # headless end-to-end in a real Chrome — off by default
 - Coverage focuses on the pure logic that has historically broken: SNMP parsing, discovery and classification, the three engines, cable validation, IPAM and LAG audits — plus an app-wide smoke test that loads every script into a DOM stub and asserts rendering never throws.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **646** of them.
-- `npm test` runs the full regression suite (currently **5,185 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **161 flows**).
+- `npm run check` parses every JS source of the product — **654** of them.
+- `npm test` runs the full regression suite (currently **5,206 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **161 flows**).
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that lists something, and the test count measured against what the suite really prints.
 
 **CI** ([GitHub Actions](.github/workflows/ci.yml)) runs `npm run check`, `npm run lint`, `npm run typecheck`, `npm test` and the browser end-to-end suite (`npm run e2e`) on every push and pull request to `main`, on Node 18, 20, 22 and 24.

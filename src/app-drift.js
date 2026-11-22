@@ -382,7 +382,7 @@ async function runDriftCheck(opts = {}){
         const docSnap = _driftBuildDocSnapshot();      // PRIMA del sync (i campi base verranno sovrascritti)
         // silent propagato: il poll di una Verifica programmata non deve scrivere NULLA
         // sul bottone attività (secondo lucchetto sull'invariante qui sopra).
-        if(hasSnmp) await win.pollAllSNMP({ deferPresence:false, silent }); // no ricalcolo presenza differito: la Verifica fa già il compute completo con sweep (evita doppio streak — DRIFT-A1)
+        if(hasSnmp) await win.pollAllSNMP({ deferPresence:false, silent, byVerify:true }); // no ricalcolo presenza differito: la Verifica fa già il compute completo con sweep (evita doppio streak — DRIFT-A1)
         const sweep = await _driftReachabilitySweep();  // presenza multi-segnale (ping/ARP/TCP) + tabella ARP
         _driftComputeFromDoc(docSnap, sweep || {});     // streaks + snapshot realtà + buildDriftReport
         _driftAutoRenewIps();                           // opt-in: rinnova IP dei MAC noti (DHCP)

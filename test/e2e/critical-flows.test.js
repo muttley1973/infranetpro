@@ -472,6 +472,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         await p.waitForFunction(
           () => typeof window._fitHeader === 'function' && !!document.querySelector('header'),
           null, { timeout: 15000 });
+        // La versione sotto il logo arriva da /api/auth/me: si aspetta che ci sia prima di misurare.
+        await p.waitForFunction(() => { const v = document.getElementById('app-version'); return !!v && !v.hidden && /^v\d+\.\d+\.\d+$/.test(v.textContent); }, null, { timeout: 15000 });
         const r = await p.evaluate(() => {
           // Accende i badge come fa l'app quando il polling è attivo e i dati
           // sono freschi (stessa via: style.display sul badge).
@@ -487,12 +489,85 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           return {
             twoRows: (right.offsetTop - title.offsetTop) > 20,
             verificaShown: verifica ? Math.round(verifica.getBoundingClientRect().width) > 5 : false,
+            // Col nome del logo visibile la versione sta dentro la sua larghezza: non cede mai.
+            nameShown: getComputedStyle(h.querySelector('.header-name')).display !== 'none',
+            versionShown: getComputedStyle(document.getElementById('app-version')).display !== 'none',
+            hfv: h.classList.contains('hfv'),
           };
         });
         assert.equal(r.twoRows, false, 'header su UNA riga coi badge di stato accesi (niente wrap)');
         assert.ok(r.verificaShown, 'l’etichetta «Verifica» (azione primaria) resta visibile');
+        assert.ok(r.nameShown, 'a 1760px il nome del logo è a schermo');
+        assert.ok(r.versionShown && !r.hfv, 'col nome visibile la versione sotto il logo resta (non pesa: sta dentro la larghezza del nome)');
+        // Sotto pressione VERA (la testata va a capo comunque) la versione resta lo stesso: con il nome visibile sta
+        // dentro la sua larghezza, e toglierla non libererebbe niente — cederebbe per niente.
+        const r1b = await p.evaluate(() => {
+          const h = document.querySelector('header');
+          const right = h.querySelector('.header-right');
+          const title = h.querySelector('.header-title');
+          const ver = document.getElementById('app-version');
+          const spacer = document.createElement('span');
+          spacer.style.cssText = 'display:inline-block;height:1px;flex-shrink:0;width:2000px';
+          right.appendChild(spacer);
+          window._fitHeader();
+          const out = { cls: h.className, versionShown: getComputedStyle(ver).display !== 'none', wrapped: (right.offsetTop - title.offsetTop) > 20 };
+          spacer.remove();
+          window._fitHeader();
+          return out;
+        });
+        assert.equal(r1b.wrapped, true, 'precondizione: con 2000px di distanziatore la testata va a capo anche dopo il fitter');
+        assert.ok(r1b.versionShown && !/\bhfv\b/.test(r1b.cls), 'col nome visibile, anche sotto pressione, la versione non cede (toglierla non libera niente)');
       } finally {
         await p.close();
+      }
+      // A 1300px il nome è nascosto e la versione affianca il riquadro (+34px): coi badge accesi è la PRIMA a cedere,
+      // prima di qualunque etichetta (hfv, non hf1) — se no a 1300 si perdono cinque etichette per una scritta.
+      const p2 = await browser.newPage({ viewport: { width: 1300, height: 900 } });
+      try {
+        await p2.goto(srv.baseURL, { waitUntil: 'load' });
+        await p2.waitForFunction(
+          () => typeof window._fitHeader === 'function' && !!document.querySelector('header'),
+          null, { timeout: 15000 });
+        await p2.waitForFunction(() => { const v = document.getElementById('app-version'); return !!v && !v.hidden && /^v\d+\.\d+\.\d+$/.test(v.textContent); }, null, { timeout: 15000 });
+        const r2 = await p2.evaluate(() => {
+          const h = document.querySelector('header');
+          const right = h.querySelector('.header-right');
+          const title = h.querySelector('.header-title');
+          const ver = document.getElementById('app-version');
+          const wrapped = () => (right.offsetTop - title.offsetTop) > 20;
+          // La pressione si CREA: un distanziatore nel cluster destro. Quanti badge servano per andare a capo
+          // cambia con il font e la finestra; lo spazio libero invece si misura (ricerca binaria sulla larghezza
+          // piu' grande che sta con la versione nascosta).
+          const spacer = document.createElement('span');
+          spacer.style.cssText = 'display:inline-block;height:1px;flex-shrink:0;width:0';
+          right.appendChild(spacer);
+          const wrapsWith = (w, versionHidden) => { h.className = ''; ver.style.display = versionHidden ? 'none' : ''; spacer.style.width = w + 'px'; void h.offsetWidth; return wrapped(); };
+          let lo = 0, hi = 600;
+          while (lo < hi) { const mid = Math.ceil((lo + hi) / 2); if (wrapsWith(mid, true)) hi = mid - 1; else lo = mid; }
+          const slack = lo;                       // px liberi a testata senza versione
+          const stato = () => { ver.style.display = ''; window._fitHeader(); return { cls: h.className, versionShown: getComputedStyle(ver).display !== 'none', wrap: wrapped() }; };
+          // Pressione: 10px meno dello spazio libero — sta SENZA la versione (+34px) e non CON.
+          const conPressione = { wrapSenzaFitter: wrapsWith(slack - 10, false) };
+          spacer.style.width = (slack - 10) + 'px';
+          Object.assign(conPressione, stato());
+          // Nessuna pressione: 60px meno dello spazio libero — la versione ci sta e DEVE restare.
+          spacer.style.width = Math.max(0, slack - 60) + 'px';
+          const senzaPressione = stato();
+          spacer.remove(); ver.style.display = ''; window._fitHeader();
+          return { nameShown: getComputedStyle(h.querySelector('.header-name')).display !== 'none', slack, conPressione, senzaPressione };
+        });
+        assert.equal(r2.nameShown, false, 'a 1300px il nome del logo è nascosto (resta il riquadro)');
+        assert.ok(r2.slack >= 60, 'la prova ha bisogno di almeno 60px liberi a testata senza versione (misurati ' + r2.slack + '): se non ci sono, la testata a 1300px è già al limite');
+        assert.equal(r2.senzaPressione.versionShown, true, 'con spazio a sufficienza la versione c’è, accanto al riquadro');
+        assert.equal(r2.senzaPressione.wrap, false);
+        assert.doesNotMatch(r2.senzaPressione.cls, /\bhfv\b/, 'senza pressione la versione non cede');
+        assert.equal(r2.conPressione.wrapSenzaFitter, true, 'precondizione: con la versione e quella pressione la testata andrebbe a capo');
+        assert.equal(r2.conPressione.wrap, false, 'col fitter la testata resta su UNA riga');
+        assert.equal(r2.conPressione.versionShown, false, 'sotto pressione la versione cede');
+        assert.match(r2.conPressione.cls, /\bhfv\b/, 'ed è la classe hfv a farla cedere');
+        assert.doesNotMatch(r2.conPressione.cls, /\bhf1\b/, 'prima della versione NESSUNA etichetta si porta a icona');
+      } finally {
+        await p2.close();
       }
     });
 

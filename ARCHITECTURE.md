@@ -31,8 +31,11 @@ These are deliberate. Don't "fix" them without understanding why:
    that logic to the DOM. (See §3.)
 4. **Manual-first** ([ADR](docs/adr/manual-first.md)). User-entered data always
    wins; SNMP/discovery never silently overwrites a manual value.
-5. **Localhost-bound.** The server binds `127.0.0.1` only. It is a LAN tool that
-   runs *inside* the network it documents, not a public service.
+5. **Localhost-bound.** The server binds `127.0.0.1` by default. It is a LAN tool that
+   runs *inside* the network it documents, not a public service. `HOST` can change that
+   (a container needs `0.0.0.0`), and a non-loopback value prints one `[SICUREZZA]` line at
+   startup (`server/bind-warning.js`; `addrScope` decides what loopback is, not a string
+   compare); `INFRANET_TRUST_PROXY=1` declares the TLS proxy and silences it.
 
 > **Why these exist — decision records.** The *why* behind the rules that make the
 > tool trustworthy lives in **[`docs/adr/`](docs/adr/)**: the data-integrity
@@ -59,6 +62,9 @@ server/scan-target.js  The ONE reading of an address that is about to become tra
                        checked and sent (`ping.exe` reads `010.8.8.8` as octal, i.e. 8.8.8.8, while the
                        project deliberately reads it as 10.8.8.8). Multicast, broadcast and 0.0.0.0/8
                        are never a host: a community sent to a group reaches the whole segment.
+server/bind-warning.js The startup warning when `HOST` is not loopback: `isLoopbackHost` asks `addrScope`
+                       (127.0.0.0/8, ::1, ::ffff:127.x, `localhost`), never a string compare; silent with
+                       `INFRANET_TRUST_PROXY=1`. It warns, it does not forbid (a container needs 0.0.0.0).
 server/organization-store.js  data/organization.json — ONE organisation per installation,
                        never inside a project (a copy in each would be the same fact twice).
                        Atomic write + .bak; a corrupt file is read from the .bak, and only if that
@@ -232,6 +238,9 @@ lib/                   Shared browser + test modules (the heart of the app)
                     that wins. A segment key is only comparable against one built from
                     the SAME prefix list — producer and consumer must be handed it  (pure)
   netnames.js linkstate.js correlate.js cabling.js
+  app-version.js    The version under the logo and where its click goes: `versionLabel` ("v2.14.0" or '' —
+                    never "vundefined") and the changelog URL. The server says the version
+                    (`/api/auth/me`, from package.json): not a fifth place to touch at a release  (pure)
   topo-lines.js frontpanel.js stack.js ha-pair.js
   fiber-slot.js     The fiber drawer, planned one slot at a time: the openings of each connector
                     (LC duplex/quad, SC, SC duplex, ST, FC, MTP/MPO), `fiberNodeLayout` — a uniform
@@ -1764,7 +1773,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **5,185 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **5,206 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

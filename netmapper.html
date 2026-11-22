@@ -34,16 +34,21 @@
 <body>
 
 <header>
-    <div class="header-title"><i class="fas fa-network-wired"></i> <span>Infra<span style="color:var(--accent)">Net</span> Pro</span></div>
+    <!-- Il logo: il riquadro a sinistra e, a destra, il nome IN ALTO e la versione IN BASSO, dentro lo stesso
+         rettangolo del riquadro (34px): la testata non cambia misura. La versione la scrive initAuth (la dice
+         il server: /api/auth/me) e, finche' non c'e', l'etichetta resta nascosta. L'href e' scritto qui perche'
+         il link funzioni anche se lo script non parte: lib/app-version.js ha lo stesso indirizzo (CHANGELOG_URL)
+         e test/app-version.test.js li pretende uguali. -->
+    <div class="header-title"><i class="fas fa-network-wired"></i> <div class="header-brand-text"><span class="header-name">Infra<span style="color:var(--accent)">Net</span> Pro</span><a id="app-version" class="header-version" href="https://github.com/muttley1973/infranetpro/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer" data-i18n-tip="hdr.versionTip" data-tip="Storia delle modifiche su GitHub" data-i18n-aria="hdr.versionTip" aria-label="Storia delle modifiche su GitHub" hidden></a></div></div>
     <div class="header-sep"></div>
 
     <!-- Project management -->
     <div class="project-bar">
         <select id="project-select" data-change="project-select" data-i18n-tip="project.tipCurrent" data-tip="Progetto corrente"></select>
-        <button class="toolbar-btn" data-act="project-new"       data-i18n-tip="project.tipNew"       data-tip="Nuovo progetto"><i class="fas fa-plus"></i></button>
-        <button class="toolbar-btn" data-act="project-rename"    data-i18n-tip="project.tipRename"    data-tip="Rinomina"><i class="fas fa-pen"></i></button>
-        <button class="toolbar-btn" data-act="project-duplicate" data-i18n-tip="project.tipDuplicate" data-tip="Duplica"><i class="fas fa-copy"></i></button>
-        <button class="toolbar-btn danger-quiet" data-act="project-delete" data-i18n-tip="project.tipDelete" data-tip="Elimina progetto"><i class="fas fa-trash"></i></button>
+        <button class="toolbar-btn" data-act="project-new"       data-i18n-tip="project.tipNew"       data-tip="Nuovo progetto" data-i18n-aria="project.tipNew" aria-label="Nuovo progetto"><i class="fas fa-plus"></i></button>
+        <button class="toolbar-btn" data-act="project-rename"    data-i18n-tip="project.tipRename"    data-tip="Rinomina" data-i18n-aria="project.tipRename" aria-label="Rinomina"><i class="fas fa-pen"></i></button>
+        <button class="toolbar-btn" data-act="project-duplicate" data-i18n-tip="project.tipDuplicate" data-tip="Duplica" data-i18n-aria="project.tipDuplicate" aria-label="Duplica"><i class="fas fa-copy"></i></button>
+        <button class="toolbar-btn danger-quiet" data-act="project-delete" data-i18n-tip="project.tipDelete" data-tip="Elimina progetto" data-i18n-aria="project.tipDelete" aria-label="Elimina progetto"><i class="fas fa-trash"></i></button>
     </div>
     <!-- «Salva» sta QUI, attaccato alla barra del progetto: salva il progetto che il
          selettore lì accanto ha aperto, e i due gesti si leggono insieme. Prima stava
@@ -96,8 +101,8 @@
     </div>
 
     <!-- Undo / Redo -->
-    <button class="toolbar-btn" id="btn-undo" data-act="undo" data-i18n-tip="undo.tip" data-tip="Annulla (Ctrl+Z)" disabled><i class="fas fa-rotate-left"></i></button>
-    <button class="toolbar-btn" id="btn-redo" data-act="redo" data-i18n-tip="redo.tip" data-tip="Ripeti (Ctrl+Y)"  disabled><i class="fas fa-rotate-right"></i></button>
+    <button class="toolbar-btn" id="btn-undo" data-act="undo" data-i18n-tip="undo.tip" data-tip="Annulla (Ctrl+Z)" data-i18n-aria="undo.tip" aria-label="Annulla (Ctrl+Z)" disabled><i class="fas fa-rotate-left"></i></button>
+    <button class="toolbar-btn" id="btn-redo" data-act="redo" data-i18n-tip="redo.tip" data-tip="Ripeti (Ctrl+Y)" data-i18n-aria="redo.tip" aria-label="Ripeti (Ctrl+Y)"  disabled><i class="fas fa-rotate-right"></i></button>
     <!-- NIENTE `margin-left:auto` qui (né sul gemello `.header-right`): i due margini auto
          accumulavano lo spazio libero in DUE vuoti simmetrici attorno a una ricerca a
          larghezza fissa. Ora lo spazio lo assorbe la RICERCA (`flex-grow`, sotto), che
@@ -110,9 +115,9 @@
     <div class="search-panel">
         <div class="search-input-wrap">
             <i class="fas fa-search"></i>
-            <input id="global-search" type="search" data-i18n-ph="search.ph" placeholder="Cerca dispositivi, porte, link…" autocomplete="off"
+            <input id="global-search" type="search" data-i18n-ph="search.ph" placeholder="Cerca dispositivi, porte, link…" data-i18n-aria="search.ph" aria-label="Cerca dispositivi, porte, link…" autocomplete="off"
                    data-input="global-search" data-focus="global-search" data-keydown="global-search">
-            <button id="global-search-clear" data-i18n-tip="search.clearTip" data-tip="Cancella" data-act="search-clear"><i class="fas fa-times"></i></button>
+            <button id="global-search-clear" data-i18n-tip="search.clearTip" data-tip="Cancella" data-i18n-aria="search.clearTip" aria-label="Cancella" data-act="search-clear"><i class="fas fa-times"></i></button>
         </div>
         <div id="search-results"></div>
     </div>

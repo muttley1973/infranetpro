@@ -15,6 +15,7 @@ import { renderProps } from './app-properties.js';   // ritiro ponte fase 2: fun
 import { renderAll, rackUPx } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES, typeName, _nodeSpecView } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES) + nome localizzato
 import { trace } from './app-pointer.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
+import { macMatchesQuery } from '../lib/mac-class.js';   // la ricerca per MAC confronta chiavi, non testo
 import { snapFloor, FLOOR_SNAP_STEP } from '../lib/floor-snap.js';   // aggancio alla griglia: stessa regola del drag (rispetta gridHidden) + il passo che la griglia DISEGNA
 
 // Stato ricerca: module-local (prima era `let` in app.js, usato SOLO qui).
@@ -50,7 +51,8 @@ function buildSearchResults(query) {
                    view.assignedUser,
                    view.rackId,getRackName(view.rackId),view.notes]
                   .filter(Boolean).join(' ').toLowerCase();
-        if(hay.includes(q)){
+        // Il MAC si cerca per CHIAVE, non per testo: `aa-bb-cc…` e `aabb.ccdd.eeff` trovano `AA:BB:CC:…` (lib/mac-class.js).
+        if(hay.includes(q) || macMatchesQuery(view.mac, q)){
             const loc=def.isRack?`${getRackName(node.rackId)} - U${node.rackU||'?'}`
                                  :`Floor ${Math.round(node.x||0)}, ${Math.round(node.y||0)}`;
             const userTag = view.assignedUser ? ` - 👤 ${view.assignedUser}` : '';

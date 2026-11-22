@@ -380,8 +380,12 @@ function logoutApi(req, res) {
   });
 }
 
+// La versione dell'app la dice il SERVER, dal package.json: la testata la mostra sotto il logo
+// (lib/app-version.js) e non e' un quinto posto da toccare al rilascio.
+const APP_VERSION = require('./package.json').version;
+
 function meApi(req, res) {
-  res.json({ ok: true, user: _publicUser(req.session.user) });
+  res.json({ ok: true, user: _publicUser(req.session.user), version: APP_VERSION });
 }
 
 // Cambio password del PROPRIO account: ogni utente autenticato, viewer inclusi

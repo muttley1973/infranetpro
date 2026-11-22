@@ -24,6 +24,7 @@ const ROOT         = __dirname;
 
 // ---- Persistenza progetti (server/projects-store.js) ------------------------
 const { PROJECTS_DIR, hardenTree, hardenFile, hardenBackup } = require('./server/projects-store');
+const { bindWarning } = require('./server/bind-warning');   // l'avviso quando HOST non e' loopback
 
 // ============================================================
 // Express
@@ -270,6 +271,9 @@ if (require.main === module) {
     console.log('    Premi Ctrl+C per fermare il server');
     console.log('  ================================================');
     console.log('');
+    // HOST fuori dal loopback = il server e' raggiungibile dalla rete: lo si dice, una volta (server/bind-warning.js).
+    const esposto = bindWarning(HOST, process.env);
+    if (esposto) { console.warn(esposto); console.log(''); }
   });
 
   server.on('error', err => {

@@ -15,7 +15,7 @@ import { nodeById, markDirty, getNodeByPortId, getPortNodeId, renderCables, _sho
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { _findPortByIfName } from './app-topology-discover.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
-import { applyPollResult } from './app-snmp.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
+import { applyPollResult, postSnmpRead } from './app-snmp.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { _vlansToRangeStr } from './app-vlan-autopoll.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { materializeTopologyNodes } from './app-topology-rebuild.js';   // materializza i nodi mancanti (gateway annunciato + switch inferito) col poll già raccolto
 import { pickBestIp6, canonicalizeIpv6 } from '../lib/ipv6.js';   // ND discovery: scelta ip6 rappresentativo (bundlato ESM, come app.js — NON un globale su window)
@@ -293,12 +293,8 @@ async function _refreshSnmpPortInventory(force=false){
                 v3privPass: cfg.v3privPass || '',
                 v3secLevel: cfg.v3secLevel || 'authPriv'
             });
-            const r = await fetch('/api/poll', {
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body
-            });
-            const data = await r.json();
+            // Con scadenza lato client (postSnmpRead): un apparato che non risponde non tiene il giro appeso.
+            const data = await postSnmpRead('/api/poll', body);
             if(!data.ok) return;
             applyPollResult(n.id, data, { noHistory:true, noRender:true });
             refreshed++;

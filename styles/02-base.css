@@ -46,6 +46,21 @@
         .header-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
         .header-title { font-weight: bold; font-size:var(--fs-xl); display: flex; align-items: center; gap: 8px; white-space: nowrap; flex-shrink: 0; }
         .header-title i { color: var(--accent); }
+        /* Il logo: il riquadro a sinistra e, a destra, il NOME e sotto la VERSIONE (col link alla storia delle
+           modifiche), dentro lo stesso rettangolo del riquadro: l'altezza la da' il riquadro, 34px
+           (`align-self: stretch`), quindi la testata non cambia misura e il riquadro resta dov'e'.
+           Il nome e' uno `<span>` e la versione un `<a>`: sotto i 1738px `.header-title span` nasconde il NOME
+           (e il suo interno) e restano riquadro + versione (+34px di larghezza). Li' la versione e' la PRIMA cosa
+           a cedere se la testata va a capo: `header.hfv`, messa da src/app-header-fit.js prima di ogni etichetta. */
+        .header-brand-text { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; align-self: stretch; }
+        /* Le due scritte stanno VICINE (3-4px fra una e l'altra, non 12) e la coppia e' centrata nell'altezza del
+           riquadro, con lo stesso margine sopra e sotto. Misurato a schermo con Segoe UI (il `system-ui` di
+           Windows): ogni riga ha un po' d'aria (il mezzo-interlinea), quindi a occhio la coppia sarebbe ~1,5px
+           troppo bassa; -.08em sul nome la porta a 4,2px sopra e 4,0px sotto l'inchiostro. */
+        .header-name { line-height: 1; margin-top: -.08em; }
+        .header-version { font-size: var(--fs-2xs); font-weight: 600; line-height: 1; letter-spacing: .02em; white-space: nowrap; color: var(--text-muted); text-decoration: none; }
+        .header-version:hover, .header-version:focus-visible { color: var(--accent); text-decoration: underline; }
+        header.hfv .header-version { display: none; }
         /* Il `|` separa DOMINI, non elementi: da 13 a 5 (passaggio information design).
            Il margine laterale è ciò che rende leggibile il raggruppamento — dentro un
            dominio vale il solo gap dell'header (6px), al confine 6+3+1+3+6 ≈ 19px. */

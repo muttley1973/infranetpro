@@ -92,6 +92,9 @@ test('/api/auth/me: 401 senza cookie, utente con cookie', async () => {
   const me = await request('GET', '/api/auth/me', { cookie: lr.cookie });
   assert.equal(me.status, 200);
   assert.equal(me.json.user.username, 'admin');
+  // La testata mostra la versione sotto il logo (lib/app-version.js) e la prende da qui: dal package.json,
+  // non da una copia scritta nella pagina. Senza cookie il server non la dice a nessuno (401 qui sopra).
+  assert.equal(me.json.version, require('../package.json').version);
 });
 
 test('RBAC: viewer NON accede alla gestione utenti (403); admin sì (200) senza hash', async () => {

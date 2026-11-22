@@ -21,6 +21,7 @@
 import { expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: selId/selType dopo l'assorbimento
 import { escapeHTML, normalizeMacAddress } from './app-util.js';
+import { postSnmpRead } from './app-snmp.js';   // POST di UNA lettura SNMP con scadenza lato client (mai `fetch` nudo su /api/poll)
 import { nodeById, markDirty, pushHistory, recordSnapshot, _invalidateIdx, getNodeDisplayName, _showToast, _removeNodeById } from './app.js';   // ritiro ponte: funzioni del nucleo (ex win.*)
 import { propagateVlans, _ensureVlanColor } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { renderProps, _buildDeviceBrandModelPreview, _propsSectionIsOpen, _buildInventoryFieldsHtml } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
@@ -444,8 +445,8 @@ export async function pollVmSnmp(hostId, vmId){
     });
     let data;
     try {
-        const r = await fetch('/api/poll', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
-        data = await r.json();
+        // Con scadenza lato client (postSnmpRead): una VM che non risponde non lascia la scheda in attesa per sempre.
+        data = await postSnmpRead('/api/poll', body);
     } catch(e){ data = { ok: false, error: String(e && e.message || e) }; }
     if(!data || !data.ok){
         // Niente conclusioni sullo stato: si annota solo il tentativo fallito.

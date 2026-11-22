@@ -11,7 +11,9 @@
 // Le media query non possono reagire alla comparsa di un badge (non è una
 // condizione di larghezza), quindi qui MISURIAMO e recuperiamo spazio nella
 // PRIORITÀ chiesta:
-//   1) prima si portano a ICONA le etichette dei pulsanti (meno importanti →
+//   0) prima di tutto cede la VERSIONE sotto il logo, ma solo quando affianca il
+//      riquadro nudo (sotto i 1738px il nome e' nascosto): classe `hfv`;
+//   1) poi si portano a ICONA le etichette dei pulsanti (meno importanti →
 //      più importanti: Esporta, Dashboard, Salva, Multisito, Scopri);
 //   2) SOLO come ultima risorsa si stringe la barra di ricerca.
 // L'etichetta di «Verifica» (azione primaria) non si tocca mai — resta l'unica
@@ -46,6 +48,14 @@ if (typeof document !== 'undefined' && typeof window !== 'undefined') {
     return (right.offsetTop - title.offsetTop) > WRAP_EPS;
   }
 
+  // La versione e' a schermo E sta in piu' rispetto al nome del logo (che a quella larghezza e' nascosto)?
+  function versionTakesWidth(h) {
+    const ver = h.querySelector('.header-version');
+    const name = h.querySelector('.header-name');
+    if (!ver || !name || ver.offsetParent === null) return false;
+    return window.getComputedStyle(name).display === 'none';
+  }
+
   function fitHeader() {
     const h = header();
     if (!h) return;
@@ -53,6 +63,12 @@ if (typeof document !== 'undefined' && typeof window !== 'undefined') {
     // spazio è tornato — es. si spegne un badge o si allarga la finestra), poi
     // si sale di livello solo quanto serve.
     for (let i = 1; i <= MAX_LEVEL; i++) h.classList.remove('hf' + i);
+    h.classList.remove('hfv');
+    // 0) La VERSIONE sotto il logo cede per PRIMA, prima di qualunque etichetta: e' la cosa meno importante
+    // della testata. Pesa solo quando il NOME del logo e' nascosto (sotto i 1738px resta il riquadro e la
+    // versione gli si affianca: +34px); con il nome visibile sta dentro la sua larghezza e toglierla non
+    // libererebbe niente, quindi resta.
+    if (isWrapped(h) && versionTakesWidth(h)) h.classList.add('hfv');
     let level = 0;
     while (level < MAX_LEVEL && isWrapped(h)) {
       level++;
