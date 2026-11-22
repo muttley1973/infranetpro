@@ -688,9 +688,11 @@ function _geoHintText(d) {
   return '';
 }
 
-/** Come è nato il punto, a parole. */
+/** Come è nato il punto, a parole. Un punto trovato con «Trova» non porta frase: l'origine resta scritta nel documento
+ *  (`geo.source`), ma a schermo la riga «proposta da Trova e scelta da te» non diceva niente che chi l'ha premuto non sapesse. */
 function _geoSourceText(geo) {
-  return geo ? t('org.geoSource.' + (geo.source || 'none')) : '';
+  if (!geo || geo.source === 'geocoded') return '';
+  return t('org.geoSource.' + (geo.source || 'none'));
 }
 
 /** Una coordinata come testo da mostrare in un campo. */

@@ -15,6 +15,7 @@
 ### Changed
 
 - **Search results list devices first, then ports, then cables.** The list is capped at 40, and a switch's ports (which now match more) could fill it and push a device further down out of sight.
+- **A site's position no longer says "Offered by Find and chosen by you".** The line under the coordinates told whoever had just pressed **Find** what they had just done. The origin is still kept in the document (`geo.source`); the other lines — typed by hand, pointed out on the map, read from the DCIM — stay.
 
 ### Fixed
 

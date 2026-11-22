@@ -49,7 +49,8 @@ const CODE = {
   'org.role.': IS.SITE_ROLES,
   // Il punto di una sede: come è nato (con «dichiarata» per un documento che non lo
   // diceva) e i nomi con cui «Trova» può non riuscire — quelli della rotta.
-  'org.geoSource.': IS.GEO_SOURCES.concat(['none']),
+  // `geocoded` NON ha una frase: l'origine resta nel documento ma a schermo non si scrive (vedi `_geoSourceText`).
+  'org.geoSource.': IS.GEO_SOURCES.filter(k => k !== 'geocoded').concat(['none']),
   'org.geoErr.': GEOCODE_ERRORS.concat(['generic']),
   // E quelli della lettura dal DCIM: i nomi sono quelli della rotta.
   'org.geoDcimErr.': GEODCIM_ERRORS.concat(['generic']),
