@@ -448,7 +448,9 @@ lib/                   Shared browser + test modules (the heart of the app)
                     checkLagPair → LACP mode across the two ends  (pure)
   ipam-audit.js     buildIpamAudit → duplicate addresses (v4+v6, canonical; an address that a
                     declared HA pair or cluster shares — both units say so — is listed apart as
-                    the group's service address, never as a conflict) + overlapping
+                    the group's service address, never as a conflict; nor is one that two
+                    DECLARED, different VRFs hold — read from ipam.addresses[] by value, and
+                    listed apart too; if either VRF is missing it stays a duplicate) + overlapping
                     prefixes + addresses outside the declared plan + VLANs the document
                     carries and the plan never names (IPAM hygiene, doc↔doc). The VLAN check
                     compares against what was DECLARED — a name or a network — and never
@@ -1773,7 +1775,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **5,206 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **5,229 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

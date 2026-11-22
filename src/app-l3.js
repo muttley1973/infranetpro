@@ -86,7 +86,8 @@ function _portIpNodes(){
         if(!nd) continue;
         const k = _k(pi.ip);
         if(k === _k(nd.ip) || k === _k(nd.ip6)) continue;
-        out.push({ id: nd.id, name: getNodeDisplayName(nd) || nd.name || nd.id, ip: pi.ip, ip6: '', type: nd.type });
+        out.push({ id: nd.id, name: getNodeDisplayName(nd) || nd.name || nd.id, ip: pi.ip, ip6: '', type: nd.type,
+                   portId: pid, deviceRef: (nd.source && nd.source.deviceId != null) ? nd.source.deviceId : undefined });
     }
     return out;
 }
@@ -116,6 +117,9 @@ function _l3BuildModel(withUsage, opts){
         // il gruppo HA DICHIARATO (lib/ha-pair.js: spec, o top-level legacy): serve all'audit per non
         // accusare di duplicato l'indirizzo di servizio che una coppia o un cluster condivide
         haPeer: (n.spec && n.spec.haPeer) || n.haPeer || '', haGroupId: (n.spec && n.spec.haGroupId) || n.haGroupId || '',
+        // l'ÀNCORA con cui gli indirizzi del DCIM (`ipam.addresses[]`) si legano a questo apparato: la VRF di un IP
+        // si legge da lì, e due apparati con lo stesso IP in VRF diverse non sono un duplicato
+        deviceRef: (n.source && n.source.deviceId != null) ? n.source.deviceId : undefined,
     }));
     // Gli IP delle VM entrano SOLO nell'audit igiene (duplicati), non nella
     // risoluzione del gateway: quel binding pilota badge e tendine sui nodi VERI
@@ -135,6 +139,7 @@ function _l3BuildModel(withUsage, opts){
     // qui sopra viene da `vlanColors`, che si riempie da solo con ogni VLAN letta
     // via SNMP e quindi non può fare da piano.
     return { prefixes, vlans, ipamByVid, nodes, usageByCidr,
+             addresses: (store.state.ipam && Array.isArray(store.state.ipam.addresses)) ? store.state.ipam.addresses : [],
              vlanNames: store.state.vlanNames || {},
              vlansInUse: collectVlansInUse({
                  ports: store.state.ports, nodes: store.state.nodes, links: store.state.links,
@@ -314,11 +319,19 @@ function _l3HygieneHtml(audit, esc){
     const _fuori = (audit && audit.addressesOutsidePlan) ? audit.addressesOutsidePlan : [];
     const _vlanFuori = (audit && audit.vlansOutsidePlan) ? audit.vlansOutsidePlan : [];
     const _nc = (audit && audit.notChecked) ? audit.notChecked : [];
-    if(!audit || (!audit.duplicateIps.length && !audit.subnetOverlaps.length && !_expected && !_fuori.length && !_vlanFuori.length && !_nc.length)) return '';
+    const _acrossVrf = (audit && audit.duplicateIpsAcrossVrf) ? audit.duplicateIpsAcrossVrf : [];
+    if(!audit || (!audit.duplicateIps.length && !audit.subnetOverlaps.length && !_expected && !_acrossVrf.length && !_fuori.length && !_vlanFuori.length && !_nc.length)) return '';
     const rs = 'style="font-size:0.8rem;color:var(--text-muted);padding:2px 0"';
     const rows = [];
     for(const d of audit.duplicateIps){
         rows.push(`<div ${rs}>⚠ ${t('l3.dupIpRow',{ip:`<b>${esc(d.ip)}</b>`, names:esc(d.nodes.map(n=>n.name).join(', '))})}</div>`);
+    }
+    // Lo stesso indirizzo in due VRF DICHIARATE e diverse non è un duplicato (due tabelle di routing) e non ha
+    // il triangolino. Ma si dice, con i NOMI delle VRF se l'import li ha: «ce n'erano e li ho giudicati normali»
+    // non è «non ce n'erano». Senza un nome (un import vecchio) si scrive il numero, che è tutto ciò che si sa.
+    for(const d of _acrossVrf){
+        const vrfs = (d.vrfs || []).map(v => v.name || ('VRF ' + v.id)).join(', ');
+        rows.push(`<div ${rs}>${t('l3.dupIpAcrossVrfRow',{ip:`<b>${esc(d.ip)}</b>`, vrfs:esc(vrfs)})}</div>`);
     }
     // La riga nomina i PREFISSI, non le VLAN: una rete senza VLAN non ha un numero
     // da citare, e due prefissi della stessa VLAN che si intersecano non si

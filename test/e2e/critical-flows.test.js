@@ -5998,6 +5998,53 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.sviHasBoth, 'la sezione SVI del device elenca ENTRAMBE le reti che instrada');
     });
 
+    await t.test('igiene IPAM: lo stesso IP in due VRF dichiarate NON è un duplicato (e si dice), nella stessa VRF sì', async () => {
+      // Il caso vero: due firewall di due clienti sulla stessa 172.16.0.1, e due server nella STESSA VRF sulla
+      // 10.0.0.5. L'indirizzo si lega all'apparato per `source.deviceId` (come lo scrive l'import NetBox) e la VRF
+      // si legge da `ipam.addresses[]`. Dal bundle vero: il vecchio controllo accusava anche i primi due.
+      const r = await page.evaluate(() => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        const mk = (id, name, ip, deviceId) => ({ id, type: 'router', name, x: 0, y: 0, w: 60, h: 40, ip, ports: 4, source: { deviceId } });
+        state.nodes.push(mk('vrfa', 'FW-CLIENTE-A', '172.16.0.1', 11), mk('vrfb', 'FW-CLIENTE-B', '172.16.0.1', 12),
+                         mk('vrfc', 'SRV-ALFA', '10.0.0.5', 13), mk('vrfd', 'SRV-BETA', '10.0.0.5', 14));
+        // Un IP di PORTA (un'interfaccia routed) si lega alla porta, anche su un apparato senza `source`: due router
+        // con lo stesso 10.8.8.8 su una loro interfaccia, in due VRF.
+        const nodoSenzaRef = (id, name) => ({ id, type: 'router', name, x: 0, y: 0, w: 60, h: 40, ports: 4 });
+        state.nodes.push(nodoSenzaRef('vrfe', 'RT-NORD'), nodoSenzaRef('vrff', 'RT-SUD'));
+        state.ports['vrfe-1'] = Object.assign(state.ports['vrfe-1'] || {}, { ip: '10.8.8.8' });
+        state.ports['vrff-1'] = Object.assign(state.ports['vrff-1'] || {}, { ip: '10.8.8.8' });
+        state.ipam.addresses = [
+          { address: '10.8.8.8/24', portId: 'vrfe-1', vrfId: 3, vrfName: 'RETE-X' },
+          { address: '10.8.8.8/24', portId: 'vrff-1', vrfId: 4, vrfName: 'RETE-Y' },
+          { address: '172.16.0.1/24', deviceId: '11', vrfId: 1, vrfName: 'CLIENTE-A' },
+          { address: '172.16.0.1/24', deviceId: '12', vrfId: 2, vrfName: 'CLIENTE-B' },
+          { address: '10.0.0.5/24', deviceId: '13', vrfId: 7, vrfName: 'COMUNE' },
+          { address: '10.0.0.5/24', deviceId: '14', vrfId: 7, vrfName: 'COMUNE' },
+        ];
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const _cta = document.createElement('button');
+        _cta.dataset.act = 'overview-l3-report'; document.body.appendChild(_cta);
+        _cta.click();
+        const ov = document.getElementById('l3-overlay');
+        const hyg = ov ? ov.querySelector('.l3-hygiene') : null;
+        const res = { text: hyg ? hyg.textContent : '', hasHygiene: !!hyg };
+        const clBtn = ov && ov.querySelector('[data-act="l3-close"]');
+        if (clBtn) clBtn.click();
+        return res;
+      });
+      assert.ok(r.hasHygiene, 'la sezione «Igiene IPAM» c\'è (un duplicato vero e una nota a parte)');
+      assert.ok(!/IP 172\.16\.0\.1 su più device|IP 172\.16\.0\.1 on multiple devices/.test(r.text),
+        'due VRF diverse: nessuna accusa di duplicato sulla 172.16.0.1: ' + r.text);
+      assert.ok(/172\.16\.0\.1/.test(r.text) && /CLIENTE-A/.test(r.text) && /CLIENTE-B/.test(r.text),
+        'ma si dice, coi nomi delle VRF: «ce n\'erano e li ho giudicati normali»: ' + r.text);
+      assert.ok(/IP 10\.0\.0\.5 (su più device|on multiple devices)/.test(r.text),
+        'la STESSA VRF resta un duplicato vero: ' + r.text);
+      assert.ok(!/IP 10\.8\.8\.8 (su più device|on multiple devices)/.test(r.text),
+        'l\'IP di PORTA si lega alla porta: due VRF diverse, nessuna accusa: ' + r.text);
+      assert.ok(/10\.8\.8\.8/.test(r.text) && /RETE-X/.test(r.text) && /RETE-Y/.test(r.text),
+        'e anche quello si dice, coi nomi: ' + r.text);
+    });
+
     await t.test('igiene VLAN: una VLAN in uso che il piano non dichiara arriva a schermo', async () => {
       // Prima non c'era NESSUN segnale: un apparato poteva portare la VLAN 30 e il
       // piano non nominarla mai. La regola sta nei test puri di lib/ipam-audit.js;

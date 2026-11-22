@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **The same IP in two different VRFs is no longer reported as a duplicate.** Two firewalls of two customers on the same `172.16.0.1` are two routing tables, not a clash — and the prefix check already knew it; the address check did not. The VRF of an address is now read from the addresses NetBox declares, and the pair is excused only when **both** VRFs are declared and different: if one is missing the app cannot tell, and it still reports the duplicate. What it excused is said, not dropped — the L3 report lists the address with the VRF names. The import now keeps the VRF's name next to its number (on addresses and on prefixes); a project imported before shows "VRF 7" until it is imported again.
+
 ## [2.14.0] — 2026-11-22
 
 What NetBox declares now comes in as fields — virtual machines, Wi-Fi, port speed, duplex and PoE — and the fiber drawer reaches the PDF and draw.io.

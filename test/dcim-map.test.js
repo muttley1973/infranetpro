@@ -1955,6 +1955,47 @@ test('la fusione non dipende dall\'ORDINE in cui NetBox risponde', () => {
   }
 });
 
+// ── La VRF ha un NOME, non solo un numero (22/11) ──────────────────────────
+// Un id da solo non si legge: «VRF 7» non dice a chi guarda il report di che cliente si parla. L'import teneva
+// `vrfId` e buttava il nome che NetBox gli dava. Il nome sta accanto all'id, sul prefisso e sull'indirizzo, e
+// serve a chi mostra («IP 172.16.0.1 in VRF diverse (CLIENTE-A, CLIENTE-B)») e a `lib/ipam-audit.js`.
+test('VRF: il nome viaggia accanto all\'id, sull\'indirizzo e sul prefisso', () => {
+  const nb = fixture();
+  nb.ipAddresses[0].vrf = { id: 5, name: 'CLIENTE-A' };
+  nb.prefixes = [{ id: 1, prefix: '10.0.0.0/24', vrf: { id: 5, name: 'CLIENTE-A' } }];
+  const { state } = map.netboxToState(nb);
+  const a = state.ipam.addresses.find(x => x.address === '10.0.0.2/24');
+  assert.equal(a.vrfId, 5);
+  assert.equal(a.vrfName, 'CLIENTE-A');
+  const p = state.ipam.prefixes.find(x => x.cidr === '10.0.0.0/24');
+  assert.equal(p.vrfId, 5);
+  assert.equal(p.vrfName, 'CLIENTE-A');
+});
+
+test('VRF: senza nome si tiene l\'id e NON si inventa un nome; senza VRF non c\'è nessuno dei due', () => {
+  const nb = fixture();
+  nb.ipAddresses[0].vrf = { id: 6 };
+  nb.ipAddresses.push({ id: 81, address: '10.0.0.3/24' });
+  const { state } = map.netboxToState(nb);
+  const senzaNome = state.ipam.addresses.find(x => x.address === '10.0.0.2/24');
+  assert.equal(senzaNome.vrfId, 6);
+  assert.equal('vrfName' in senzaNome, false);
+  const globale = state.ipam.addresses.find(x => x.address === '10.0.0.3/24');
+  assert.equal('vrfId' in globale, false);
+  assert.equal('vrfName' in globale, false);
+});
+
+test('VRF: il nome del prefisso sopravvive alla fusione di due righe con lo stesso CIDR, in qualunque ordine', () => {
+  const A = { id: 1, prefix: '10.10.20.0/24', vlan: { vid: 20 } };
+  const B = { id: 2, prefix: '10.10.20.0/24', vlan: null, vrf: { id: 9, name: 'CLIENTI' } };
+  for (const righe of [[A, B], [B, A]]) {
+    const { state } = map.netboxToState({ devices: [], prefixes: righe });
+    const r = state.ipam.prefixes.find(p => p.cidr === '10.10.20.0/24');
+    assert.equal(r.vrfId, 9);
+    assert.equal(r.vrfName, 'CLIENTI', 'il nome sta accanto all\'id che si è tenuto');
+  }
+});
+
 // ── Le stringhe di NetBox sono di un sistema TERZO (08/09) ─────────────────
 // `_str` è il confine: 92 chiamate, ed è lì che un dato di qualcun altro diventa
 // il nostro documento. Misurato con un mock ostile: un nome di apparato da 2 MB
