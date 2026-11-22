@@ -126,7 +126,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 </p>
 
 <p align="center">
-  <img src="GitHub%20Images/Multisito.png" alt="InfraNet Pro — Multi-site: the map in place of the floor plan, the connection-type tile above it and, under it, a drawer of tables for sites, links, WAN lines and coherence, with the card of the chosen link" width="900"><br>
+  <img src="GitHub%20Images/Multisito.jpg" alt="InfraNet Pro — Multi-site: the map in place of the floor plan, the connection-type tile above it and, under it, a drawer of tables for sites, links, WAN lines and coherence, with the card of the chosen link" width="900"><br>
   <em>Multi-site is a view of the workspace: the map takes the place of the floor plan, a tile filters the link types and the WAN access types, and a drawer underneath holds the sites, the links, the WAN lines and the counters of what does not add up — a table on the right, the card of the chosen row on the left. Double-click a site to walk down into its project.</em>
 </p>
 
