@@ -122,26 +122,35 @@ body.view-multisite .ms-dock:not([hidden]) { display:flex; }
 .ms-grip::after { content:''; width:44px; height:3px; border-radius:2px; background:#3a4756; }
 .ms-grip:hover::after, .ms-grip:focus-visible::after { background:var(--accent); }
 .ms-grip:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
-.ms-dock-bar { height:44px; flex:none; box-sizing:border-box; display:flex; align-items:center; gap:12px; padding:0 14px; border-bottom:1px solid var(--panel-border); }
+.ms-dock-bar { height:44px; flex:none; box-sizing:border-box; display:flex; align-items:center; gap:12px; padding:0 14px; border-bottom:1px solid var(--panel-border);
+               container-type:inline-size; container-name:ms-bar; }
 .ms-tabs { display:flex; align-items:stretch; height:100%; flex:none; }
-.ms-org { display:inline-flex; align-items:center; gap:8px; flex:0 1 auto; min-width:0; }
+/* `overflow:hidden`: se la barra è troppo stretta il campo si ritaglia dentro il suo riquadro, e non si dipinge MAI sopra le schede
+   (con un font più largo — su Linux, per dire — il campo da 110 px sbordava sulla scheda «Sedi» e la intercettava il clic). */
+.ms-org { display:inline-flex; align-items:center; gap:8px; flex:0 1 auto; min-width:0; overflow:hidden; }
 .ms-org i { color:var(--accent); font-size:var(--fs-md); flex:none; }
 .ms-org-lab { flex:none; font:700 var(--fs-sm) var(--font-ui); color:var(--text-muted); white-space:nowrap; }
 /* Più spazio ai due campi di testo: crescono fin dove c'è posto (una barra a 1900 px ne ha da vendere) e cedono per primi
-   quando la barra si stringe — le schede e i bottoni non si schiacciano mai. */
-.ms-org input { width:300px; min-width:110px; flex:0 1 300px; height:32px; box-sizing:border-box; padding:0 10px; background:var(--surface-2); border:1px solid var(--panel-border); border-radius:var(--radius-md);
+   quando la barra si stringe — le schede e i bottoni non si schiacciano mai. Cede PRIMA la ricerca (vedi sotto), poi il nome. */
+.ms-org input { width:300px; min-width:90px; flex:0 1 300px; height:32px; box-sizing:border-box; padding:0 10px; background:var(--surface-2); border:1px solid var(--panel-border); border-radius:var(--radius-md);
                 color:var(--text-main); font:600 var(--fs-sm) var(--font-ui); }
 .ms-org input::placeholder { color:var(--text-muted); font-weight:400; }
 .ms-org input:focus { outline:none; border-color:var(--accent); }
 .ms-org input:disabled { opacity:.6; cursor:not-allowed; }
 .ms-spacer { flex:1; }
-.ms-dock .ms-search { margin:0; width:340px; min-width:130px; flex:0 1 340px; }
+.ms-dock .ms-search { margin:0; width:340px; min-width:130px; flex:0 4 340px; }
 .ms-dock .ms-search input { min-width:0; }
 .ms-sep { flex:none; width:1px; height:24px; background:#3a4756; }
 .ms-actions { display:flex; align-items:center; gap:8px; flex:none; }
 .ms-actions .um-btn { white-space:nowrap; }
 .ms-actions .org-dropped { max-width:260px; }
-.ms-collapse { width:32px; height:32px; display:grid; place-items:center; background:transparent; border:1px solid var(--panel-border); border-radius:var(--radius-md); color:var(--text-muted); cursor:pointer; }
+/* La barra si stringe a gradini, misurati con un font largo (Verdana ≈ DejaVu Sans, quello di Linux): prima spariscono le icone
+   delle schede, poi la parola «Organizzazione» (il campo resta, col nome per lo screen reader), poi la ricerca. A 1920 px non
+   cambia niente. */
+@container ms-bar (max-width:1560px) { .ms-tab i { display:none; } .ms-tab { padding:0 11px; } .ms-dock .ms-search { min-width:96px; } }
+@container ms-bar (max-width:1320px) { .ms-org-lab { display:none; } }
+@container ms-bar (max-width:1120px) { .ms-dock .ms-search { display:none; } }
+.ms-collapse { flex:none; width:32px; height:32px; display:grid; place-items:center; background:transparent; border:1px solid var(--panel-border); border-radius:var(--radius-md); color:var(--text-muted); cursor:pointer; }
 .ms-collapse:hover { color:var(--text-main); background:var(--surface-hover); }
 .ms-collapse:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .ms-dock.is-collapsed .ms-collapse i { transform:rotate(180deg); }

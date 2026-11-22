@@ -8968,6 +8968,32 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         assert.ok(acceso.cassetto > 150 && acceso.carta > 200, 'la carta e il cassetto si dividono lo spazio (cassetto ' + acceso.cassetto + 'px, carta ' + acceso.carta + 'px)');
         assert.match(acceso.briciola, /Multisito/, 'la sotto-header dice dove si è');
 
+        // La barra del cassetto non si sovrappone alle schede, nemmeno con un testo più largo. In CI (Linux, un altro font) il
+        // campo «Organizzazione» copriva «Sedi» e il clic su quella scheda non arrivava: tre flussi caduti dopo 30 s. Il testo si
+        // allarga con la spaziatura fra le lettere, così la prova non dipende dai font che ha la macchina.
+        const barra = await orgPage.evaluate(async () => {
+          const st = document.createElement('style');
+          st.textContent = '.ms-dock-bar, .ms-dock-bar * { letter-spacing: 1.2px !important; }';
+          document.head.appendChild(st);
+          await new Promise(r => setTimeout(r, 200));
+          const schede = [...document.querySelectorAll('#ms-tabs .ms-tab')];
+          const coperte = schede.filter(t => {
+            const r = t.getBoundingClientRect();
+            const e = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+            return !(e && (e === t || t.contains(e)));
+          }).map(t => t.dataset.tab);
+          const campo = document.getElementById('ms-org-name').getBoundingClientRect();
+          const prima = schede[0].getBoundingClientRect();
+          const bar = document.querySelector('.ms-dock-bar');
+          const esito = { schede: schede.length, coperte, campoR: Math.round(campo.right), primaX: Math.round(prima.x), sbordo: bar.scrollWidth - bar.clientWidth };
+          st.remove();
+          return esito;
+        });
+        assert.equal(barra.schede, 4);
+        assert.deepEqual(barra.coperte, [], 'nessuna scheda è coperta da un altro elemento della barra');
+        assert.ok(barra.campoR <= barra.primaX, 'il campo del nome finisce prima della prima scheda (campo a ' + barra.campoR + ' px, scheda a ' + barra.primaX + ' px)');
+        assert.equal(barra.sbordo, 0, 'la barra non sborda');
+
         // Acceso, il bottone della testata è cyan pieno come «Verifica» (stesso fondo e stesso colore del testo): è un interruttore.
         // Il mouse resta SOPRA il bottone dopo il clic, e l'hover lo scurisce (come quello di «Verifica»): lo si sposta prima di confrontare.
         await orgPage.mouse.move(5, 400);
