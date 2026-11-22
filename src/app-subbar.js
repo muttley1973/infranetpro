@@ -82,17 +82,18 @@ function _orgCrumbEl(ctx) {
   // Un'organizzazione senza nome è normale (il campo è facoltativo): l'etichetta
   // generica dice comunque DOVE porta il bottone, che è il punto.
   b.textContent = ctx.orgName || t('subbar.org');
-  b.title = t('subbar.upTip', { site: ctx.siteName || t('subbar.siteNoName') });
-  const ico = document.createElement('i'); ico.className = 'fas fa-arrow-turn-up';
+  // Un interruttore a due versi, e la briciola dice quale: dal progetto SALE alle sedi (e atterra sulla sede da cui si
+  // viene); a vista accesa TORNA alla planimetria di quella sede. Con un solo verso, il secondo clic non faceva niente —
+  // e un bottone che non fa niente si legge come un bottone rotto.
+  const acceso = store._viewMode === 'multisite';
+  const sede = ctx.siteName || t('subbar.siteNoName');
+  b.title = acceso ? t('subbar.downTip', { site: sede }) : t('subbar.upTip', { site: sede });
+  const ico = document.createElement('i'); ico.className = 'fas ' + (acceso ? 'fa-arrow-turn-down' : 'fa-arrow-turn-up');
   b.insertBefore(ico, b.firstChild);
-  // Accende il Multisito cliccando il bottone REALE della toolbar: una sola definizione di «come
-  // si apre», già registrata su data-act. ⚠️ È un INTERRUTTORE: se la vista è già accesa, un altro
-  // clic la spegnerebbe — e questo bottone dice «vai su», non «torna indietro».
+  // Clicca il bottone REALE della toolbar: una sola definizione di «come si accende e si spegne», già registrata su
+  // data-act (e col suo controllo delle modifiche non salvate).
   b.addEventListener('click', () => {
-    try {
-      const el = document.getElementById('btn-org');
-      if (el && el.getAttribute('aria-pressed') !== 'true') el.click();
-    } catch (_) {}
+    try { const el = document.getElementById('btn-org'); if (el) el.click(); } catch (_) {}
   });
   return b;
 }

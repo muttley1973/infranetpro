@@ -8968,6 +8968,17 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         assert.ok(acceso.cassetto > 150 && acceso.carta > 200, 'la carta e il cassetto si dividono lo spazio (cassetto ' + acceso.cassetto + 'px, carta ' + acceso.carta + 'px)');
         assert.match(acceso.briciola, /Multisito/, 'la sotto-header dice dove si è');
 
+        // Acceso, il bottone della testata è cyan pieno come «Verifica» (stesso fondo e stesso colore del testo): è un interruttore.
+        // Il mouse resta SOPRA il bottone dopo il clic, e l'hover lo scurisce (come quello di «Verifica»): lo si sposta prima di confrontare.
+        await orgPage.mouse.move(5, 400);
+        // ⚠️ Si ASPETTA l'uguaglianza invece di leggerla subito: i bottoni hanno una transizione di 0,15 s su sfondo e colore, e
+        // una lettura nell'istante del clic vede il colore di PRIMA — cioè un test che passa o no secondo il momento.
+        await orgPage.waitForFunction(() => {
+          const c = (id) => getComputedStyle(document.getElementById(id));
+          const a = c('btn-org'), b = c('btn-drift');
+          return a.backgroundColor === b.backgroundColor && a.color === b.color;
+        }, null, { timeout: 3000 });
+
         // ⭐ Il nome dell'ORGANIZZAZIONE sta in testa al cassetto: nella finestra vecchia aveva il suo campo, e
         // nel cassetto era sparito senza che nessuno se ne accorgesse — se ne è accorto chi lo usa.
         const nome = await orgPage.evaluate(() => ({ v: document.getElementById('ms-org-name').value, d: document.getElementById('ms-org-name').disabled }));
@@ -9132,6 +9143,72 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         assert.equal(dopo.riquadri, 0, 'la carta viene buttata: Leaflet lasciata attaccata a un contenitore nascosto perde memoria');
         assert.equal(dopo.altezza, '0px', 'e il cassetto non tiene più spazio');
         assert.equal(dopo.premuto, 'false');
+        assert.deepEqual(orgErrors, [], 'nessun errore JS: ' + orgErrors.join(' | '));
+      } finally {
+        await orgPage.close();
+      }
+    });
+
+    // ⭐ Il «↥ Organizzazione» della briciola: dal progetto SALE alle sedi e atterra sulla sede da cui si viene, e a vista
+    // accesa TORNA alla planimetria di quella sede. Non aveva nessuna prova: con la vista accesa non faceva niente, e
+    // salendo atterrava sulla prima riga dell'elenco — due difetti che chi lo usa ha visto subito.
+    await t.test('«Multisito» dalla briciola: «↥ organizzazione» atterra sulla sede da cui si viene, e a vista accesa riporta alla planimetria', async () => {
+      const orgPage = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+      const orgErrors = [];
+      orgPage.on('pageerror', (e) => orgErrors.push(String(e)));
+      try {
+        await orgPage.goto(srv.baseURL, { waitUntil: 'load' });
+        await orgPage.waitForFunction(() => typeof renderAll === 'function' && Array.isArray(state.nodes) && window.currentProjectId != null, null, { timeout: 15000 });
+        const pid = await orgPage.evaluate(() => String(window.currentProjectId));
+        // ⚠️ La sede del progetto aperto NON è la prima dell'elenco: se lo fosse, «atterra sulla sede giusta» sarebbe vero
+        // anche con la scelta automatica della prima riga, cioè per il motivo sbagliato.
+        await orgPage.evaluate(async (id) => {
+          await fetch('/api/organization', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: 'e2e-su', name: 'E2E Su',
+              sites: [
+                { id: 'rm', name: 'Roma', role: 'spoke', geo: { lat: 41.9, lng: 12.5, source: 'manual' } },
+                { id: 'mi', name: 'Milano', role: 'hub', projectRef: id, geo: { lat: 45.46, lng: 9.19, source: 'manual' } },
+              ],
+              uplinks: [], links: [],
+            }),
+          });
+        }, pid);
+        await orgPage.reload({ waitUntil: 'load' });
+        await orgPage.waitForFunction(() => typeof renderAll === 'function' && Array.isArray(state.nodes) && window.currentProjectId != null, null, { timeout: 15000 });
+        assert.equal(await orgPage.evaluate(() => String(window.currentProjectId)), pid, 'dopo il ricaricamento si è nello stesso progetto');
+        await orgPage.waitForSelector('.msb-up', { timeout: 10000 });
+
+        const prima = await orgPage.evaluate(() => {
+          const b = document.querySelector('.msb-up');
+          return { testo: b.textContent.trim(), tip: b.title, vista: document.body.classList.contains('view-multisite') };
+        });
+        assert.match(prima.testo, /E2E Su/, 'il bottone porta il nome dell\'organizzazione');
+        assert.match(prima.tip, /Milano/, 'e il tooltip dice la sede in cui si è');
+        assert.equal(prima.vista, false);
+
+        // Salire: la vista si accende e la sede scelta è QUELLA, non la prima.
+        await orgPage.click('.msb-up');
+        await orgPage.waitForSelector('body.view-multisite #ms-master tbody tr.is-sel', { timeout: 10000 });
+        const su = await orgPage.evaluate(() => ({
+          riga: document.querySelector('#ms-master tr.is-sel')?.dataset.id,
+          scheda: document.querySelector('#ms-detail .org-row-title')?.value,
+          tip: document.querySelector('.msb-up').title,
+        }));
+        assert.equal(su.riga, 'mi', 'si arriva sulla sede del progetto aperto, che non è la prima dell\'elenco');
+        assert.equal(su.scheda, 'Milano', 'e la sua scheda è quella aperta');
+        assert.match(su.tip, /planimetria/i, 'a vista accesa il bottone dice che riporta alla planimetria');
+
+        // Scendere: lo stesso bottone spegne la vista e rende la planimetria. Con un solo verso questo clic non faceva niente.
+        await orgPage.click('.msb-up');
+        await orgPage.waitForFunction(() => !document.body.classList.contains('view-multisite'), null, { timeout: 5000 });
+        const giu = await orgPage.evaluate(() => ({
+          pavimento: getComputedStyle(document.getElementById('floor-canvas')).display,
+          tip: document.querySelector('.msb-up').title,
+        }));
+        assert.notEqual(giu.pavimento, 'none', 'la planimetria è tornata');
+        assert.match(giu.tip, /sedi e ai collegamenti/, 'e il bottone torna a dire «su»');
         assert.deepEqual(orgErrors, [], 'nessun errore JS: ' + orgErrors.join(' | '));
       } finally {
         await orgPage.close();

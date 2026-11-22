@@ -156,6 +156,8 @@ const _st = {
   /** Il collegamento e la linea WAN scelti (la sede scelta è `selSite`): la scheda a destra mostra la riga della scheda aperta. */
   selLink: '',
   selUp: '',
+  /** Vero dall'accensione della vista fino all'arrivo dell'organizzazione: dice di atterrare sulla sede del progetto aperto. */
+  landPending: false,
   /** Il cassetto: aperto o ridotto alla sola barra, e quanto è alto da aperto (px). */
   dockOpen: true,
   dockH: 320,
@@ -328,8 +330,24 @@ async function _load() {
     _st.loadErr = String((e && e.message) || e);
   } finally {
     _st.loading = false;
+    if (_st.view && _st.landPending) { _st.landPending = false; _landOnCurrentSite(); }
     _render();
   }
+}
+
+/**
+ * Salendo da un progetto («↥ Organizzazione» nella briciola) si arriva SULLA SEDE da cui si veniva — scelta nella tabella
+ * e col cerchio acceso sulla carta — e non su una qualunque. Il tooltip del bottone lo promette («stai guardando
+ * “Torino Filiale”»), e arrivare sulla prima riga dell'elenco lo smentiva: tornava «alle sedi», non «alla sede».
+ * Il legame progetto→sede è `site.projectRef`; se nessuna sede punta al progetto aperto non si sceglie niente.
+ */
+function _landOnCurrentSite() {
+  const pid = store.currentProjectId;
+  if (pid == null) return;
+  const sua = _sites().find(x => x.projectRef != null && String(x.projectRef) === String(pid));
+  if (!sua) return;
+  _st.selSite = sua.id; _st.tab = 'sites'; _st.focusLink = null;
+  _revealDone = '';                        // la riga si porta sotto gli occhi anche se era già stata scelta prima
 }
 
 // ── Il progetto di una sede: apparati e reti DICHIARATE ───────────────────
@@ -3360,7 +3378,8 @@ export function setMultisite(on, forza) {
     if (document.body.classList.contains('view-overview') && typeof setOverview === 'function') setOverview(false);
     store._viewMode = 'multisite';
     _wireStage();
-    if (_st.dirty) { _applyDock(); _render(); }
+    _st.landPending = true;
+    if (_st.dirty) { _st.landPending = false; _landOnCurrentSite(); _applyDock(); _render(); }
     else {
       _st.tab = 'sites'; _st.dropped = null; _st.wanReport = null; _st.wanBusy = false; _st.geoFind = null;
       _applyDock();

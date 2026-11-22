@@ -526,7 +526,7 @@ RUN_E2E=1 npm run e2e # headless end-to-end in a real Chrome — off by default
 
 Current local quality baseline:
 - `npm run check` parses every JS source of the product — **660** of them.
-- `npm test` runs the full regression suite (currently **5,263 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **165 flows**).
+- `npm test` runs the full regression suite (currently **5,263 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **166 flows**).
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that lists something, and the test count measured against what the suite really prints.
 
 **CI** ([GitHub Actions](.github/workflows/ci.yml)) runs `npm run check`, `npm run lint`, `npm run typecheck`, `npm test` and the browser end-to-end suite (`npm run e2e`) on every push and pull request to `main`, on Node 18, 20, 22 and 24.

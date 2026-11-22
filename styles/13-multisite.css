@@ -10,6 +10,12 @@
    Lo disegna src/app-inter-site.js; i numeri del tile li dà lib/multisite-view.js.
    ============================================================ */
 
+/* ── Il bottone della testata ── */
+/* Acceso, «Multisito» è cyan pieno come «Verifica» (`.toolbar-btn.primary`): il bottone è un interruttore, e dalla testata
+   deve vedersi che si è dentro una vista diversa dalla planimetria. */
+body.view-multisite #btn-org { background:var(--accent); color:#000; font-weight:600; border-color:var(--accent); }
+body.view-multisite #btn-org:hover { background:#00bced; }
+
 /* ── Il centro: la carta al posto della planimetria ── */
 body.view-multisite #floorplan-grid,
 body.view-multisite #floor-canvas,
