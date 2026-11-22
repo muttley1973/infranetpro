@@ -85,10 +85,14 @@ function _orgCrumbEl(ctx) {
   b.title = t('subbar.upTip', { site: ctx.siteName || t('subbar.siteNoName') });
   const ico = document.createElement('i'); ico.className = 'fas fa-arrow-turn-up';
   b.insertBefore(ico, b.firstChild);
-  // Apre il pannello «Sedi e collegamenti» cliccando il bottone REALE della
-  // toolbar: una sola definizione di «come si apre», già registrata su data-act.
+  // Accende il Multisito cliccando il bottone REALE della toolbar: una sola definizione di «come
+  // si apre», già registrata su data-act. ⚠️ È un INTERRUTTORE: se la vista è già accesa, un altro
+  // clic la spegnerebbe — e questo bottone dice «vai su», non «torna indietro».
   b.addEventListener('click', () => {
-    try { const el = document.getElementById('btn-org'); if (el) el.click(); } catch (_) {}
+    try {
+      const el = document.getElementById('btn-org');
+      if (el && el.getAttribute('aria-pressed') !== 'true') el.click();
+    } catch (_) {}
   });
   return b;
 }
@@ -114,6 +118,7 @@ function _crumbEl() {
   // map → Planimetria · topology → Topologia · overview → Panoramica. Riusa le
   // etichette gia' esistenti (ov.label = bottone Panoramica, f.topology).
   const viewLabel = store._viewMode === 'overview' ? t('ov.label').trim()
+    : store._viewMode === 'multisite' ? t('org.btnLabel').trim()
     : store._viewMode === 'topology' ? t('f.topology')
     : t('subbar.floor');
   const view = document.createElement('span'); view.textContent = viewLabel; wrap.appendChild(view);

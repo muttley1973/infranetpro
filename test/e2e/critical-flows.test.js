@@ -8579,8 +8579,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         assert.equal(seed.putStatus, 200, "l'organizzazione di partenza viene scritta");
 
         await orgPage.click('#btn-org');
-        await orgPage.waitForSelector('#org-overlay.open', { timeout: 5000 });
-        await orgPage.click('button[data-act="org-tab"][data-tab="sites"]');
+        await orgPage.waitForSelector('body.view-multisite #ms-master tbody tr[data-id="mi"]', { timeout: 5000 });
+        // La lettura è per SEDE e sta nella scheda della sede: si sceglie dalla tabella.
+        await orgPage.click('#ms-master tbody tr[data-id="mi"]');
         await orgPage.waitForSelector('button[data-act="org-wan-from-dcim"][data-idx="0"]:not([disabled])', { timeout: 10000 });
 
         // Milano, poi Roma: l'ambito lo decide il progetto della SEDE, quindi la
@@ -8588,16 +8589,23 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         await orgPage.click('button[data-act="org-wan-from-dcim"][data-idx="0"]');
         await orgPage.waitForSelector('.org-wan-report', { timeout: 15000 });
         await orgPage.waitForFunction(() => /Milano/.test(document.querySelector('.org-wan-head')?.textContent || ''), null, { timeout: 10000 });
-        await orgPage.click('button[data-act="org-tab"][data-tab="sites"]');
+        // L'esito porta alla scheda delle linee: per leggere la seconda sede si torna alle sedi.
+        await orgPage.click('#ms-tabs [data-tab="sites"]');
+        await orgPage.click('#ms-master tbody tr[data-id="rm"]');
         await orgPage.waitForSelector('button[data-act="org-wan-from-dcim"][data-idx="1"]:not([disabled])', { timeout: 10000 });
         await orgPage.click('button[data-act="org-wan-from-dcim"][data-idx="1"]');
         await orgPage.waitForFunction(() => /Roma/.test(document.querySelector('.org-wan-head')?.textContent || ''), null, { timeout: 15000 });
 
+        // Le linee di TUTTE le sedi stanno nella tabella «Linee WAN»: è lì che si conta cosa c'è.
+        await orgPage.click('#ms-tabs [data-tab="wan"]');
+        await orgPage.waitForSelector('#ms-master tbody tr', { timeout: 5000 });
         const dopoImport = await orgPage.evaluate(() => ({
-          uplinks: document.querySelectorAll('.org-pane article.org-row').length,
-          providers: [...document.querySelectorAll('.org-pane input[data-field="provider"][data-scope="uplink"]')].map(i => i.value),
+          uplinks: document.querySelectorAll('#ms-master tbody tr').length,
+          conto: document.querySelector('#ms-tabs [data-tab="wan"] .ms-count').textContent.trim(),
+          providers: [...document.querySelectorAll('#ms-master tbody tr td:nth-of-type(2)')].map(i => i.textContent.trim()),
         }));
         assert.equal(dopoImport.uplinks, 3, 'le due linee lette dal DCIM si AGGIUNGONO a quella scritta a mano, non la sostituiscono');
+        assert.equal(dopoImport.conto, '3', 'e il conto del gruppo dice lo stesso');
         assert.deepEqual(dopoImport.providers.slice().sort(), ['Fastweb', 'TIM', 'WindTre Business']);
 
         await orgPage.click('button[data-act="org-tab"][data-tab="links"]');
@@ -8607,7 +8615,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const box = document.querySelector('.org-f-underlay');
           const et = [...box.querySelectorAll('label.org-check')].map(l => l.textContent.replace(/\s+/g, ' ').trim());
           return {
-            righeCollegamento: document.querySelectorAll('.org-pane article.org-row').length,
+            righeCollegamento: document.querySelectorAll('#ms-master tbody tr').length,
             n: box.querySelectorAll('input[data-change="org-underlay"]').length,
             etichette: et,
             spuntate: box.querySelectorAll('input[data-change="org-underlay"]:checked').length,
@@ -8713,7 +8721,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         assert.deepEqual(seed.underlay, ['u-to', 'wan_sparito_ieri'], 'e non ne cancella nemmeno una in silenzio');
 
         await orgPage.click('#btn-org');
-        await orgPage.waitForSelector('#org-overlay.open', { timeout: 5000 });
+        await orgPage.waitForSelector('body.view-multisite #ms-dock', { timeout: 5000 });
         await orgPage.click('button[data-act="org-tab"][data-tab="links"]');
         await orgPage.waitForSelector('.org-f-underlay', { timeout: 10000 });
 
@@ -8776,7 +8784,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       }
     });
 
-    await t.test('«Sedi e collegamenti»: il bottone «aggiungi» sta nella barra, e cambiare un valore non riporta l’elenco in cima', async () => {
+    await t.test('«Sedi e collegamenti»: ogni «aggiungi» sta dove si aggiunge, e cambiare un valore non riporta la scheda in cima', async () => {
       const orgPage = await browser.newPage({ viewport: { width: 1500, height: 950 } });
       const orgErrors = [];
       orgPage.on('pageerror', (e) => orgErrors.push(String(e)));
@@ -8784,11 +8792,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         await orgPage.goto(srv.baseURL, { waitUntil: 'load' });
         await orgPage.waitForFunction(() => typeof renderAll === 'function' && Array.isArray(state.nodes), null, { timeout: 15000 });
 
-        // ⚠️ OTTO sedi, e non tre: servono a far SCORRERE il pannello. Con poche
-        // righe il riquadro non trabocca, lo scorrimento è 0 prima e 0 dopo, e la
-        // prova passerebbe senza provare niente. È successo davvero misurando a
-        // mano — per questo la prima asserzione qui sotto è che ci sia qualcosa
-        // da scorrere.
+        // ⚠️ OTTO sedi e SETTE collegamenti, e non due: servono a far SCORRERE la scheda.
+        // Con poche righe il riquadro non trabocca, lo scorrimento è 0 prima e 0 dopo, e la
+        // prova passerebbe senza provare niente. È successo davvero misurando a mano — per
+        // questo la prima asserzione qui sotto è che ci sia qualcosa da scorrere.
         await orgPage.evaluate(async () => {
           await fetch('/api/organization', {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -8796,87 +8803,335 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
               id: 'e2e3', name: 'E2E Scorrimento',
               sites: Array.from({ length: 8 }, (_, i) => ({ id: 's' + i, name: 'Sede ' + i, role: 'standalone' })),
               uplinks: [{ id: 'u0', siteId: 's0', provider: 'Tizio' }],
-              links: [{ id: 'l0', aSiteId: 's0', bSiteId: 's1' }],
+              links: Array.from({ length: 7 }, (_, i) => ({ id: 'l' + i, aSiteId: 's' + i, bSiteId: 's' + (i + 1) })),
             }),
           });
         });
         await orgPage.click('#btn-org');
-        await orgPage.waitForSelector('#org-overlay.open', { timeout: 5000 });
+        await orgPage.waitForSelector('body.view-multisite #ms-master tbody tr', { timeout: 5000 });
 
-        // ① Un bottone per scheda, dentro la barra e a destra — e NESSUNO dove non
-        // si aggiunge niente: la mappa è una vista, la coerenza è un referto.
+        // ① «Aggiungi» è UNO, in testa al cassetto, e cambia con la scheda aperta: la sede, il
+        // collegamento, la linea — e NESSUNO nella coerenza, che è un referto. Le vecchie barre non ci sono più.
         const perScheda = {};
-        for (const tab of ['map', 'sites', 'wan', 'links', 'audit']) {
-          await orgPage.click('button[data-act="org-tab"][data-tab="' + tab + '"]');
-          await orgPage.waitForSelector('#org-body .org-tabs', { timeout: 5000 });
+        for (const tab of ['sites', 'links', 'wan', 'audit']) {
+          await orgPage.click('#ms-tabs [data-tab="' + tab + '"]');
+          await orgPage.waitForFunction((k) => document.querySelector('#ms-tabs .ms-tab.active')?.dataset.tab === k, tab, { timeout: 5000 });
           perScheda[tab] = await orgPage.evaluate(() => {
-            const barra = document.querySelector('#org-body .org-tabs');
-            const b = barra.querySelector('.org-tab-add');
-            if (!b) return { azione: null };
-            const bb = barra.getBoundingClientRect(), ab = b.getBoundingClientRect();
+            const azioni = [...document.querySelectorAll('#ms-actions [data-act^="org-add-"]')];
+            const bar = document.querySelector('.ms-dock-bar').getBoundingClientRect();
+            const b = azioni[0];
             return {
-              azione: b.dataset.act,
-              dentroLaBarra: ab.top >= bb.top - 1 && ab.bottom <= bb.bottom + 1,
-              aDestra: ab.left > bb.left + bb.width / 2,
+              azioni: azioni.map(x => x.dataset.act),
+              dentroLaBarra: !!b && b.getBoundingClientRect().top >= bar.top - 1 && b.getBoundingClientRect().bottom <= bar.bottom + 1,
             };
           });
         }
-        assert.equal(perScheda.sites.azione, 'org-add-site', 'la scheda Sedi offre «aggiungi una sede»');
-        assert.equal(perScheda.wan.azione, 'org-add-uplink', 'la scheda Linee WAN offre «aggiungi una linea»');
-        assert.equal(perScheda.links.azione, 'org-add-link', 'la scheda Collegamenti offre «aggiungi un collegamento»');
-        assert.equal(perScheda.map.azione, null, 'la Mappa non ha un bottone di aggiunta: è una vista');
-        assert.equal(perScheda.audit.azione, null, 'la Coerenza non ha un bottone di aggiunta: è un referto');
-        for (const k of ['sites', 'wan', 'links']) {
-          assert.ok(perScheda[k].dentroLaBarra, k + ': il bottone sta DENTRO la barra delle schede, non sopra o sotto');
-          assert.ok(perScheda[k].aDestra, k + ': e sta a destra, non in mezzo alle schede');
-        }
+        assert.deepEqual(perScheda.sites.azioni, ['org-add-site'], 'la scheda Sedi offre «aggiungi una sede», e solo quella');
+        assert.deepEqual(perScheda.links.azioni, ['org-add-link'], 'la scheda Collegamenti offre «aggiungi un collegamento»');
+        assert.deepEqual(perScheda.wan.azioni, ['org-add-uplink'], 'la scheda Linee WAN offre «aggiungi una linea»');
+        assert.deepEqual(perScheda.audit.azioni, [], 'la Coerenza non ha un bottone di aggiunta: è un referto');
+        for (const k of ['sites', 'links', 'wan']) assert.ok(perScheda[k].dentroLaBarra, k + ': il bottone sta DENTRO la barra del cassetto, non sopra o sotto');
+        assert.equal(await orgPage.evaluate(() => document.querySelectorAll('.org-tab-add, #ms-left, #ms-right').length), 0, 'le vecchie barre e le colonne laterali non ci sono più');
 
-        // ② Cambiare un valore non riporta in cima.
-        await orgPage.click('button[data-act="org-tab"][data-tab="sites"]');
-        await orgPage.waitForSelector('#org-body .org-row', { timeout: 5000 });
+        // ② Cambiare un valore non riporta in cima. La scheda della riga è lunga, e scorre da sé.
+        await orgPage.click('#ms-tabs [data-tab="links"]');
+        await orgPage.waitForSelector('#ms-detail .org-row select', { timeout: 5000 });
+        // ⚠️ Il cassetto si apre alla misura che mostra TUTTA la scheda: non c'è niente da scorrere. Lo si
+        // restringe con la tastiera dalla maniglia (freccia giù), che è anche la prova che la maniglia risponde.
+        await orgPage.focus('#ms-dock-grip');
+        for (let i = 0; i < 12; i++) await orgPage.keyboard.press('ArrowDown');
         const scorrimento = await orgPage.evaluate(async () => {
           const attesa = (ms) => new Promise((r) => setTimeout(r, ms));
-          const pane = () => document.querySelector('#org-body .org-pane');
+          const pane = () => document.getElementById('ms-detail');
           const scorribile = pane().scrollHeight - pane().clientHeight;
           pane().scrollTop = 300;
           await attesa(80);
           const prima = Math.round(pane().scrollTop);
-          const paneVecchio = pane();
-          const sel = document.querySelector('#org-body .org-row select');
+          const rigaVecchia = pane().querySelector('.org-row');
+          const sel = pane().querySelector('.org-row select');
           sel.selectedIndex = (sel.selectedIndex + 1) % sel.options.length;
           sel.dispatchEvent(new Event('change', { bubbles: true }));
           await attesa(400);
-          return { scorribile, prima, dopo: Math.round(pane().scrollTop), ridisegnato: !paneVecchio.isConnected };
+          return { scorribile, prima, dopo: Math.round(pane().scrollTop), ridisegnato: !rigaVecchia.isConnected };
         });
-        assert.ok(scorrimento.scorribile > 200, 'il pannello deve avere qualcosa da scorrere, o la prova è vuota (scorribile=' + scorrimento.scorribile + ')');
+        assert.ok(scorrimento.scorribile > 200, 'la scheda deve avere qualcosa da scorrere, o la prova è vuota (scorribile=' + scorrimento.scorribile + ')');
         assert.ok(scorrimento.prima >= 250, 'e lo scorrimento deve aver fatto effetto prima di misurare (prima=' + scorrimento.prima + ')');
         // ⚠️ Questa asserzione è la metà che conta: senza, «lo scorrimento è
-        // rimasto» sarebbe vero anche se il pannello non si fosse ridisegnato
+        // rimasto» sarebbe vero anche se la scheda non si fosse ridisegnata
         // affatto — cioè per il motivo sbagliato.
-        assert.ok(scorrimento.ridisegnato, 'il cambio di valore RIDISEGNA il pannello (il vecchio riquadro è staccato dal documento)');
+        assert.ok(scorrimento.ridisegnato, 'il cambio di valore RIDISEGNA la scheda (la vecchia riga è staccata dal documento)');
         assert.ok(Math.abs(scorrimento.dopo - scorrimento.prima) <= 2,
           'e dopo il ridisegno si resta dov’eri: ' + scorrimento.prima + ' → ' + scorrimento.dopo);
 
-        // ③ Aggiungendo dalla barra, la riga nuova — che nasce in FONDO — si vede.
+        // ③ Aggiungendo dal bottone in testa, la riga nuova — che nasce in FONDO — si vede, è scelta,
+        // e la sua scheda è quella aperta a destra.
         const aggiunta = await orgPage.evaluate(async () => {
           const attesa = (ms) => new Promise((r) => setTimeout(r, ms));
-          const pane = () => document.querySelector('#org-body .org-pane');
-          document.querySelector('#org-body .org-tabs .org-tab-add').click();
+          const master = document.getElementById('ms-master');
+          document.querySelector('#ms-actions [data-act="org-add-link"]').click();
           await attesa(500);
-          const righe = [...document.querySelectorAll('#org-body .org-row')];
+          const righe = [...master.querySelectorAll('tbody tr')];
           const n = righe[righe.length - 1];
-          const rb = n.getBoundingClientRect(), pb = pane().getBoundingClientRect();
+          const rb = n.getBoundingClientRect(), pb = master.getBoundingClientRect();
           return {
             righe: righe.length, altezza: rb.height, vista: pb.height,
             fetta: Math.min(rb.bottom, pb.bottom) - Math.max(rb.top, pb.top),
-            evidenziata: n.classList.contains('org-row-target'),
+            scelta: n.classList.contains('is-sel'),
+            schedaAperta: document.querySelector('#ms-detail .org-row')?.dataset.row === n.dataset.row,
           };
         });
-        assert.equal(aggiunta.righe, 9, 'il bottone in barra aggiunge davvero una riga');
+        assert.equal(aggiunta.righe, 8, 'il bottone aggiunge davvero una riga');
         assert.ok(aggiunta.fetta >= Math.min(aggiunta.altezza, aggiunta.vista) - 2,
           'e la riga nuova è sotto gli occhi: se ne vede tutto quello che ci sta (' + Math.round(aggiunta.fetta) + ' di ' + Math.round(aggiunta.altezza) + 'px)');
-        assert.ok(aggiunta.evidenziata, 'ed è marcata come la riga appena creata');
+        assert.ok(aggiunta.scelta, 'ed è la riga scelta');
+        assert.ok(aggiunta.schedaAperta, 'e la scheda a destra è la sua: si compila subito');
 
+        assert.deepEqual(orgErrors, [], 'nessun errore JS: ' + orgErrors.join(' | '));
+      } finally {
+        await orgPage.close();
+      }
+    });
+
+    // ⭐ Il Multisito non è più una finestra: è una VISTA che prende il posto della planimetria. Questo
+    // flusso prova la vista intera, dal bottone alla carta, e i due modi in cui sbagliare è facile:
+    // lasciare qualcosa della planimetria che si vede (o si muove) sotto la carta, e dimenticare di
+    // restituirle lo spazio quando si spegne.
+    await t.test('«Multisito» come vista: la carta prende il posto della planimetria, il tile filtra i tipi di connessione, e spento restituisce tutto', async () => {
+      const orgPage = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+      const orgErrors = [];
+      // La traccia dell'errore resta nel messaggio: «_leaflet_pos di undefined» senza dire DA DOVE non si ripara.
+      orgPage.on('pageerror', (e) => orgErrors.push(String(e) + (e && e.stack ? ' @ ' + e.stack.split('\n').slice(1, 7).join(' << ') : '')));
+      try {
+        await orgPage.goto(srv.baseURL, { waitUntil: 'load' });
+        await orgPage.waitForFunction(() => typeof renderAll === 'function' && Array.isArray(state.nodes), null, { timeout: 15000 });
+
+        // ⚠️ Tre sedi LONTANE sulla carta: due cerchi a meno di 46 px diventano UNO col numero (è giusto così), e con il
+        // cassetto aperto alla misura della scheda la carta è bassa — Roma e Napoli, a un grado, si fonderebbero.
+        const seed = await orgPage.evaluate(async () => {
+          const r = await fetch('/api/organization', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: 'e2e-vista', name: 'E2E Vista',
+              sites: [
+                { id: 'mi', name: 'Milano', role: 'hub', geo: { lat: 45.46, lng: 9.19, source: 'manual' } },
+                { id: 'rm', name: 'Roma', role: 'spoke', geo: { lat: 41.9, lng: 12.5, source: 'manual' } },
+                { id: 'pa', name: 'Palermo', role: 'spoke', geo: { lat: 38.11, lng: 13.36, source: 'manual' } },
+              ],
+              uplinks: [
+                { id: 'u1', siteId: 'mi', provider: 'Alfa', serviceType: 'FTTH' },
+                { id: 'u2', siteId: 'pa', provider: 'Beta', serviceType: 'FWA' },
+              ],
+              links: [
+                { id: 'l1', aSiteId: 'mi', bSiteId: 'rm', transport: 'mpls', state: { origin: 'declared', value: 'up' } },
+                { id: 'l2', aSiteId: 'rm', bSiteId: 'pa', transport: 'internet', tunnel: 'ipsec', state: { origin: 'declared', value: 'down' } },
+              ],
+            }),
+          });
+          return r.status;
+        });
+        assert.equal(seed, 200, "l'organizzazione di partenza viene scritta");
+
+        // Prima: la planimetria c'è, con le sue colonne.
+        const prima = await orgPage.evaluate(() => ({
+          vista: document.body.classList.contains('view-multisite'),
+          premuto: document.getElementById('btn-org').getAttribute('aria-pressed'),
+          pavimento: getComputedStyle(document.getElementById('floor-canvas')).display,
+          libreria: getComputedStyle(document.getElementById('sidebar-left')).display,
+          rack: getComputedStyle(document.getElementById('rack-view')).display,
+        }));
+        assert.equal(prima.vista, false);
+        assert.equal(prima.premuto, 'false', 'il bottone è un interruttore, e parte spento');
+        assert.notEqual(prima.pavimento, 'none');
+        assert.notEqual(prima.libreria, 'none');
+        assert.notEqual(prima.rack, 'none');
+
+        // Acceso: la carta al posto della planimetria, il cassetto al posto delle colonne.
+        await orgPage.click('#btn-org');
+        await orgPage.waitForSelector('body.view-multisite #ms-master tbody tr', { timeout: 5000 });
+        await orgPage.waitForSelector('#org-geo-map .leaflet-pane', { state: 'attached', timeout: 15000 });
+        await orgPage.waitForFunction(() => document.querySelectorAll('#org-geo-map .org-geo-pin').length === 3, null, { timeout: 10000 });
+        const acceso = await orgPage.evaluate(() => ({
+          premuto: document.getElementById('btn-org').getAttribute('aria-pressed'),
+          pavimento: getComputedStyle(document.getElementById('floor-canvas')).display,
+          libreria: getComputedStyle(document.getElementById('sidebar-left')).display,
+          rack: getComputedStyle(document.getElementById('rack-view')).display,
+          vlan: getComputedStyle(document.getElementById('btn-topology')).display,
+          cassetto: Math.round(document.getElementById('ms-dock').getBoundingClientRect().height),
+          carta: Math.round(document.getElementById('org-geo-map').getBoundingClientRect().height),
+          briciola: document.getElementById('modern-subbar').textContent,
+        }));
+        assert.equal(acceso.premuto, 'true');
+        assert.equal(acceso.pavimento, 'none', 'la planimetria non si vede sotto la carta');
+        assert.equal(acceso.libreria, 'none', 'la libreria degli elementi non serve');
+        assert.equal(acceso.rack, 'none', 'e nemmeno il rack');
+        assert.equal(acceso.vlan, 'none', 'i selettori delle VLAN lasciano il posto al tile dei tipi di connessione');
+        assert.ok(acceso.cassetto > 150 && acceso.carta > 200, 'la carta e il cassetto si dividono lo spazio (cassetto ' + acceso.cassetto + 'px, carta ' + acceso.carta + 'px)');
+        assert.match(acceso.briciola, /Multisito/, 'la sotto-header dice dove si è');
+
+        // ⭐ Il nome dell'ORGANIZZAZIONE sta in testa al cassetto: nella finestra vecchia aveva il suo campo, e
+        // nel cassetto era sparito senza che nessuno se ne accorgesse — se ne è accorto chi lo usa.
+        const nome = await orgPage.evaluate(() => ({ v: document.getElementById('ms-org-name').value, d: document.getElementById('ms-org-name').disabled }));
+        assert.equal(nome.v, 'E2E Vista', "il campo mostra il nome dell'organizzazione scritto sul server");
+        assert.equal(nome.d, false);
+        await orgPage.fill('#ms-org-name', 'E2E Vista Rinominata');
+        await orgPage.waitForSelector('#ms-actions button[data-act="org-save"]:not([disabled])', { timeout: 5000 });
+        await orgPage.click('#ms-actions button[data-act="org-save"]');
+        await orgPage.waitForSelector('#ms-actions button[data-act="org-save"][disabled]', { timeout: 10000 });
+        const scritto = await orgPage.evaluate(async () => (await (await fetch('/api/organization')).json()).organization.name);
+        assert.equal(scritto, 'E2E Vista Rinominata', 'il nome scritto nel campo arriva sul server');
+
+        // Il tile elenca i tipi che CI SONO, e filtra la carta senza sporcare il documento.
+        const tile = await orgPage.evaluate(() => ({
+          tipi: [...document.querySelectorAll('#ms-tile [data-kind]')].map(b => b.dataset.kind).sort(),
+          accessi: [...document.querySelectorAll('#ms-tile [data-access]')].map(b => b.dataset.access).sort(),
+          linee: document.querySelectorAll('#org-geo-map path.leaflet-interactive').length,
+          giu: document.querySelectorAll('#org-geo-map .ms-down').length,
+        }));
+        assert.deepEqual(tile.tipi, ['ipsec', 'mpls'], 'una pastiglia per ogni tipo presente, e nessun altro');
+        assert.deepEqual(tile.accessi, ['ftth', 'fwa']);
+        assert.equal(tile.linee, 2);
+        assert.equal(tile.giu, 1, 'il collegamento giù porta il bollino con la parola');
+
+        await orgPage.click('#ms-tile [data-kind="ipsec"]');
+        const spento = await orgPage.evaluate(() => ({
+          premuto: document.querySelector('#ms-tile [data-kind="ipsec"]').getAttribute('aria-pressed'),
+          linee: document.querySelectorAll('#org-geo-map path.leaflet-interactive').length,
+          giu: document.querySelectorAll('#org-geo-map .ms-down').length,
+          nascosti: (document.querySelector('#ms-tile .ms-hid') || {}).textContent || '',
+          salva: document.querySelector('#ms-actions button[data-act="org-save"]').disabled,
+        }));
+        assert.equal(spento.premuto, 'false');
+        assert.equal(spento.linee, 1, 'spento un tipo, i suoi collegamenti spariscono dalla carta');
+        assert.equal(spento.giu, 0, 'e con loro il bollino');
+        assert.match(spento.nascosti, /1/, 'il tile dice quanti ne nasconde');
+        assert.equal(spento.salva, true, 'guardare con un filtro non è documentare: niente «da salvare»');
+        await orgPage.click('#ms-tile [data-act="ms-kind-reset"]');
+        assert.equal(await orgPage.evaluate(() => document.querySelectorAll('#org-geo-map path.leaflet-interactive').length), 2, '«Mostra tutti» riporta le linee');
+
+        // Un accesso scelto: le sedi che non ce l'hanno si abbassano, e il tile dice quante sono quelle che ce l'hanno.
+        await orgPage.click('#ms-tile [data-access="fwa"]');
+        const accesso = await orgPage.evaluate(() => ({
+          spente: document.querySelectorAll('#org-geo-map .org-geo-pin.is-dim').length,
+          nota: (document.querySelector('#ms-tile .ms-note') || {}).textContent || '',
+        }));
+        assert.equal(accesso.spente, 2, 'Milano e Roma non hanno una FWA: si abbassano');
+        assert.match(accesso.nota, /1 sede con FWA/);
+        await orgPage.click('#ms-tile [data-access="fwa"]');
+        assert.equal(await orgPage.evaluate(() => document.querySelectorAll('#org-geo-map .org-geo-pin.is-dim').length), 0, 'un secondo clic toglie la scelta');
+
+        // La sede si sceglie dalla tabella E dalla carta, e le due viste dicono la stessa cosa.
+        await orgPage.click('#ms-master tbody tr[data-id="rm"]');
+        const dallaTabella = await orgPage.evaluate(() => ({
+          riga: document.querySelector('#ms-master tr.is-sel')?.dataset.id,
+          cerchi: document.querySelectorAll('#org-geo-map .org-geo-pin.is-sel').length,
+          scheda: document.querySelector('#ms-detail .org-row-title')?.value,
+        }));
+        assert.equal(dallaTabella.riga, 'rm');
+        assert.equal(dallaTabella.cerchi, 1, 'il cerchio della sede scelta si evidenzia');
+        assert.equal(dallaTabella.scheda, 'Roma', 'e la scheda a destra è la sua');
+        await orgPage.locator('#org-geo-map .leaflet-marker-icon .org-geo-pin').nth(2).click({ force: true });
+        await orgPage.waitForFunction(() => document.querySelector('#ms-master tr.is-sel')?.dataset.id === 'pa', null, { timeout: 5000 });
+        assert.equal(await orgPage.evaluate(() => document.querySelector('#ms-detail .org-row-title')?.value), 'Palermo', 'il clic su un cerchio sceglie la sede e ne apre la scheda');
+
+        // Le altre schede del cassetto.
+        await orgPage.click('#ms-tabs [data-tab="links"]');
+        assert.equal(await orgPage.evaluate(() => document.querySelectorAll('#ms-master tbody tr').length), 2);
+        await orgPage.click('#ms-master tbody tr[data-id="l2"]');
+        assert.equal(await orgPage.evaluate(() => document.querySelectorAll('#org-geo-map path.leaflet-interactive').length), 2, 'scegliere un collegamento non ne toglie nessuno dalla carta');
+        await orgPage.click('#ms-tabs [data-tab="audit"]');
+        await orgPage.waitForSelector('#ms-master .org-audit-group', { timeout: 5000 });
+        assert.equal(await orgPage.evaluate(() => getComputedStyle(document.getElementById('ms-detail')).display), 'none', 'il referto non ha una scheda a destra');
+
+        // Il cassetto si riduce alla barra e la carta si riprende lo spazio.
+        const altezze = await orgPage.evaluate(async () => {
+          const attesa = (ms) => new Promise((r) => setTimeout(r, ms));
+          const carta = () => Math.round(document.getElementById('org-geo-map').getBoundingClientRect().height);
+          const aperto = carta();
+          document.getElementById('ms-dock-toggle').click();
+          await attesa(300);
+          const chiuso = carta();
+          document.getElementById('ms-dock-toggle').click();
+          await attesa(300);
+          return { aperto, chiuso, riaperto: carta() };
+        });
+        assert.ok(altezze.chiuso > altezze.aperto + 100, 'ridotto il cassetto la carta cresce (' + altezze.aperto + ' → ' + altezze.chiuso + ')');
+        assert.equal(altezze.riaperto, altezze.aperto, 'e riaperto torna com\'era');
+
+        // La rotella sulla carta non deve ingrandire un pavimento che non si vede.
+        const rotella = await orgPage.evaluate(() => {
+          const prima = JSON.stringify(state.floorView);
+          const m = document.getElementById('org-geo-map');
+          const r = m.getBoundingClientRect();
+          for (let i = 0; i < 3; i++) m.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, clientX: r.left + 200, clientY: r.top + 100, bubbles: true, cancelable: true }));
+          return prima === JSON.stringify(state.floorView);
+        });
+        assert.equal(rotella, true, 'la rotella sulla carta non cambia lo zoom della planimetria nascosta');
+        // ⚠️ Lo zoom a rotella di Leaflet parte dopo ~40 ms e anima per 250: si lascia partire e POI si spegne la vista, con
+        // l'animazione ancora in volo. È la corsa che, senza la chiusura fatta in `_destroyGeoMap`, lasciava un errore
+        // («_leaflet_pos») a intermittenza: la prova non può dipendere dalla fortuna.
+        await orgPage.waitForTimeout(90);
+
+        // Una vista alla volta: la Panoramica cede il posto, e il Multisito spento non lascia niente.
+        await orgPage.click('#btn-overview');
+        const panoramica = await orgPage.evaluate(() => ({
+          multisito: document.body.classList.contains('view-multisite'),
+          panoramica: document.body.classList.contains('view-overview'),
+          premuto: document.getElementById('btn-org').getAttribute('aria-pressed'),
+        }));
+        assert.equal(panoramica.panoramica, true);
+        assert.equal(panoramica.multisito, false, 'accendere la Panoramica spegne il Multisito');
+        assert.equal(panoramica.premuto, 'false');
+        await orgPage.click('#btn-overview');                    // fuori dalla Panoramica
+        await orgPage.click('#btn-org');
+        await orgPage.waitForSelector('body.view-multisite #org-geo-map .leaflet-pane', { state: 'attached', timeout: 15000 });
+        // Con una modifica non salvata NON si spegne senza chiedere.
+        await orgPage.click('#ms-tabs [data-tab="sites"]');
+        await orgPage.click('#ms-actions [data-act="org-add-site"]');
+        await orgPage.click('#btn-org');
+        assert.equal(await orgPage.evaluate(() => document.body.classList.contains('view-multisite')), true, 'con una sede appena aggiunta e non salvata, il Multisito non si spegne di nascosto');
+        assert.deepEqual(orgErrors, [], 'nessun errore JS: ' + orgErrors.join(' | '));
+      } finally {
+        await orgPage.close();
+      }
+    });
+
+    await t.test('«Multisito» spento restituisce la planimetria con le sue colonne, e la carta non resta in memoria', async () => {
+      const orgPage = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+      const orgErrors = [];
+      orgPage.on('pageerror', (e) => orgErrors.push(String(e)));
+      try {
+        await orgPage.goto(srv.baseURL, { waitUntil: 'load' });
+        await orgPage.waitForFunction(() => typeof renderAll === 'function' && Array.isArray(state.nodes), null, { timeout: 15000 });
+        await orgPage.evaluate(async () => {
+          await fetch('/api/organization', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: 'e2e-vista2', name: 'E2E Vista 2', sites: [{ id: 'mi', name: 'Milano', geo: { lat: 45.46, lng: 9.19, source: 'manual' } }], uplinks: [], links: [] }),
+          });
+        });
+        await orgPage.click('#btn-org');
+        await orgPage.waitForSelector('body.view-multisite #org-geo-map .leaflet-pane', { state: 'attached', timeout: 15000 });
+        await orgPage.click('#btn-org');
+        await orgPage.waitForFunction(() => !document.body.classList.contains('view-multisite'), null, { timeout: 5000 });
+        const dopo = await orgPage.evaluate(() => ({
+          pavimento: getComputedStyle(document.getElementById('floor-canvas')).display,
+          libreria: getComputedStyle(document.getElementById('sidebar-left')).display,
+          rack: getComputedStyle(document.getElementById('rack-view')).display,
+          vlan: getComputedStyle(document.getElementById('btn-topology')).display,
+          cassetto: getComputedStyle(document.getElementById('ms-dock')).display,
+          carta: getComputedStyle(document.getElementById('ms-stage')).display,
+          riquadri: document.querySelectorAll('#org-geo-map .leaflet-pane').length,
+          altezza: getComputedStyle(document.getElementById('floorplan')).getPropertyValue('--ms-dock-h').trim(),
+          premuto: document.getElementById('btn-org').getAttribute('aria-pressed'),
+        }));
+        assert.notEqual(dopo.pavimento, 'none', 'la planimetria torna');
+        assert.notEqual(dopo.libreria, 'none');
+        assert.notEqual(dopo.rack, 'none');
+        assert.notEqual(dopo.vlan, 'none', 'i selettori delle VLAN tornano al loro posto');
+        assert.equal(dopo.cassetto, 'none');
+        assert.equal(dopo.carta, 'none');
+        assert.equal(dopo.riquadri, 0, 'la carta viene buttata: Leaflet lasciata attaccata a un contenitore nascosto perde memoria');
+        assert.equal(dopo.altezza, '0px', 'e il cassetto non tiene più spazio');
+        assert.equal(dopo.premuto, 'false');
         assert.deepEqual(orgErrors, [], 'nessun errore JS: ' + orgErrors.join(' | '));
       } finally {
         await orgPage.close();

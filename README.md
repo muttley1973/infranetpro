@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="5,253 tests, 0 failing" src="https://img.shields.io/badge/tests-5%2C253%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="5,263 tests, 0 failing" src="https://img.shields.io/badge/tests-5%2C263%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="163 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-163%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#discovery--classification-engines"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -127,7 +127,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 
 <p align="center">
   <img src="GitHub%20Images/Multisito.png" alt="InfraNet Pro — Sites and links: the multi-site map, with each site's WAN lines, the tunnels between them and the coherence counters" width="900"><br>
-  <em>Sites and links — each site with its WAN lines, the tunnels between them and the counters of what does not add up. Click a site to walk down into its project.</em>
+  <em>Sites and links — each site with its WAN lines, the tunnels between them and the counters of what does not add up. Double-click a site to walk down into its project.</em>
 </p>
 
 <p align="center">
@@ -137,7 +137,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 
 <p align="center">
   <img src="GitHub%20Images/Multisito%20mappa%20dettaglio.jpg" alt="InfraNet Pro — the Geographic view zoomed in on Milan and Turin, with the roads and towns between them" width="900"><br>
-  <em>Zoom in and the streets are there — click a circle to open the site's project, a line to edit the link.</em>
+  <em>Zoom in and the streets are there — click a circle to pick the site (double-click it to open the project), a line to edit the link.</em>
 </p>
 
 <p align="center">
@@ -195,7 +195,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 **🏢 Multi-site**
 - The floor above a project: an organisation with its sites (each a *reference* to its project), the WAN uplinks each one buys and the links between sites.
 - A link answers two questions on two fields — **transport** (internet, MPLS, VPLS, VXLAN…) and **tunnel** (IPsec, GRE, WireGuard…) — and says which WAN lines carry it.
-- A deterministic inter-site map and a form in the same panel; a coherence audit that keeps incoherences and gaps apart and names every check it could not run.
+- The map takes the place of the floor plan, with a drawer of tables under it (sites, links, WAN lines, coherence) and a tile that filters the link types; a coherence audit that keeps incoherences and gaps apart and names every check it could not run.
 - **A geographic view of the same map, on real streets:** give each site a position (typed, proposed from its address, or read from the DCIM — always chosen by you) and the sites appear as circles on an OpenStreetMap map, with their links, as a page of the dossier too. The tiles are fetched and cached by your own server, so the browser still talks to nobody; the one thing sent out is the address you press **Find** on.
 - Fills itself from NetBox circuits and VPN services; prints a WAN chapter in the dossier with a recovery card per line and per link.
 
@@ -525,8 +525,8 @@ RUN_E2E=1 npm run e2e # headless end-to-end in a real Chrome — off by default
 - Coverage focuses on the pure logic that has historically broken: SNMP parsing, discovery and classification, the three engines, cable validation, IPAM and LAG audits — plus an app-wide smoke test that loads every script into a DOM stub and asserts rendering never throws.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **658** of them.
-- `npm test` runs the full regression suite (currently **5,253 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **163 flows**).
+- `npm run check` parses every JS source of the product — **660** of them.
+- `npm test` runs the full regression suite (currently **5,263 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **165 flows**).
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that lists something, and the test count measured against what the suite really prints.
 
 **CI** ([GitHub Actions](.github/workflows/ci.yml)) runs `npm run check`, `npm run lint`, `npm run typecheck`, `npm test` and the browser end-to-end suite (`npm run e2e`) on every push and pull request to `main`, on Node 18, 20, 22 and 24.

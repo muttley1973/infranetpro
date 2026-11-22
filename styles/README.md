@@ -23,6 +23,7 @@ E2E screenshots).
 | 10 | `10-modern.css` | sub-header (`#modern-subbar`), breadcrumbs, status chips, reskin |
 | 11 | `11-overview.css` | Overview/Dashboard: columns, key→value rows, verdicts, lenses |
 | 12 | `12-touch.css` | touch use (tablet): `touch-action` on the canvases, finger-sized targets behind `(pointer: coarse)` |
+| 13 | `13-multisite.css` | Multi-site as a VIEW (`body.view-multisite`): map in place of the floor plan, site list in place of the palette, three tabs in place of the rack, connection-type tile in place of the VLAN filters |
 
 **Adding CSS**: put it in the module its component belongs to. A component that is
 new *and* cross-cutting → a new `NN-name.css` file + a new `<link>` at the right

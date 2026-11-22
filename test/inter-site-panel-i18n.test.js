@@ -182,7 +182,7 @@ test('la sonda regge: una chiave inventata verrebbe vista', () => {
   // Se l'estrattore smettesse di trovare le chiamate (una virgoletta diversa,
   // un refactor), i tre test sopra passerebbero sempre e non guarderebbero più
   // niente. Questo è il loro controllo di vita.
-  assert.ok(chiaviNominate().has('org.title'), 'l\'estrattore non vede più le chiavi del sorgente');
+  assert.ok(chiaviNominate().has('org.tabWan'), 'l\'estrattore non vede più le chiavi del sorgente');
   assert.ok(chiaviAttese().has('org.tunnel.ipsec'), 'i prefissi non si espandono più sul vocabolario');
   assert.ok(chiaviAttese().size > 60, 'trovate troppe poche chiavi: l\'estrattore è cieco');
   // Una chiave con una CIFRA è il caso che l'estrattore aveva davvero perso.

@@ -1,10 +1,16 @@
 // ============================================================
 // SEDI E COLLEGAMENTI — il layer multi-sede visto dall'utente (Fase 1).
 // ------------------------------------------------------------
-// Un progetto InfraNet documenta UN edificio. Questo pannello è il piano di
+// Un progetto InfraNet documenta UN edificio. Questa vista è il piano di
 // sopra: l'organizzazione, le sue sedi (ognuna un RIFERIMENTO a un progetto, mai
 // una copia), gli uplink WAN e i collegamenti che le legano — su una mappa, e
 // scrivibili a mano.
+//
+// ⭐ È una VISTA dello spazio di lavoro, non un dialogo: acceso dal bottone «Multisito»,
+// prende il posto della planimetria (al centro la carta), della libreria degli elementi
+// (a sinistra l'elenco delle sedi) e del rack (a destra Proprietà · Collegamenti ·
+// Coerenza). Il tile in alto a destra, che sulla planimetria filtra le VLAN, qui filtra i
+// tipi di connessione (`lib/multisite-view.js`). Vedi «La vista» più in basso.
 //
 // ── Le scelte, e perché ───────────────────────────────────────────────────
 //
@@ -33,7 +39,9 @@
 //
 // NB ratchet: nessun `win.*` (fetch diretta sui route) e nessun `on*=` inline
 // (tutto via `data-act`/`data-change`/`data-input`) → non fa crescere l'ASSE B.
-// L'a11y (focus-trap + Esc) è automatica: è un `.tool-modal-overlay`.
+// ⚠️ Non è più un `.tool-modal-overlay`: l'a11y non è automatica. L'elenco è fatto di bottoni, le
+// schede hanno `role="tab"`, i bottoni a icona hanno un nome, e la carta si governa anche
+// dall'elenco — la tastiera non deve passare da Leaflet.
 // ============================================================
 import { t } from './_bridge.js';
 import { escapeHTML, uid } from './app-util.js';
@@ -67,6 +75,8 @@ import { prefixesOf, migrateIpam } from '../lib/ipam-model.js';   // l'autorità
 import { nodeLabelParts } from '../lib/node-label.js';
 import { orgContextInvalidate } from './app-org-context.js';
 import { TYPES } from './app-types.js';
+import { expose } from './_bridge.js';
+import { buildTile, kindAxis, kindStyle, connectionKind, ACCESS_NONE } from '../lib/multisite-view.js';
 
 const API = '/api/organization';
 
@@ -126,16 +136,38 @@ const _st = {
    *  @type {{siteId:string, tok:number, busy:boolean, candidates:{lat:number,lng:number,label:string}[],
    *          error:string, host:string|null}|null} */
   geoFind: null,
-  /** Come si disegnano le sedi nella scheda Mappa: `schema` (come sono legate) o `geo` (dove sono).
-   *  Parte sempre da `schema`: la carta vuole dei punti, e chi non li ha scritti non deve
-   *  trovarsi davanti una pagina bianca.
+  /** Come si disegnano le sedi al centro: `geo` (dove sono) o `schema` (come sono legate).
+   *  Parte da `geo`: la carta prende il posto della planimetria. Chi non ha scritto nessun
+   *  punto non trova una pagina bianca — la mappa dice quali sedi le mancano e come darle un punto.
    *  @type {'schema'|'geo'} */
-  mapMode: 'schema',
+  mapMode: 'geo',
+  /** ⭐ Il Multisito è acceso? Non è un dialogo: è una VISTA dello spazio di lavoro, come la
+   *  Panoramica. Acceso, la mappa prende il posto della planimetria, l'elenco delle sedi quello
+   *  della libreria e le schede quello del rack. Non si salva: è come stai guardando. */
+  view: false,
+  /** La sede scelta (elenco o mappa): è quella che la scheda «Proprietà» mostra. '' = nessuna. */
+  selSite: '',
+  /** I tipi di collegamento SPENTI dal tile (`{ipsec:true}`): si guardano, non si documentano. */
+  hiddenKinds: {},
+  /** L'accesso scelto nel tile ('' = nessuno): evidenzia le sedi che lo hanno. */
+  accessSel: '',
+  /** Cosa si sta cercando nella tabella aperta. */
+  filter: '',
+  /** Il collegamento e la linea WAN scelti (la sede scelta è `selSite`): la scheda a destra mostra la riga della scheda aperta. */
+  selLink: '',
+  selUp: '',
+  /** Il cassetto: aperto o ridotto alla sola barra, e quanto è alto da aperto (px). */
+  dockOpen: true,
+  dockH: 320,
+  /** Finché nessuno ha mosso la maniglia il cassetto si adatta alla scheda della riga (vedi `_fitDock`). */
+  dockAuto: true,
   /** Se la ricerca per indirizzo c'è su questo server, e dove va l'indirizzo.
    *  `null` = non l'ho ancora chiesto (il bottone resta attivo: si scopre cliccando).
    *  @type {{enabled:boolean, host:string|null, reason:string|null}|null} */
   geocoder: null,
-  tab: 'map',
+  /** La scheda del cassetto: `sites` · `links` · `wan` (tabelle) · `audit` (il referto).
+   *  @type {'sites'|'links'|'wan'|'audit'} */
+  tab: 'sites',
   dirty: false,
   saving: false,
   loading: false,
@@ -186,10 +218,10 @@ function _mapPoint(svg, ev) {
   return p.matrixTransform(ctm.inverse());
 }
 
-/** L'SVG della mappa, se la scheda aperta è quella. */
+/** L'SVG dello schema, se il centro lo sta mostrando. */
 function _mapSvg() {
-  const body = _el('org-body');
-  return body ? body.querySelector('svg.org-map') : null;
+  const host = _el('ms-schema');
+  return host ? host.querySelector('svg.org-map') : null;
 }
 
 /** Scrive la vista sul gruppo, senza ridisegnare niente: il trascinamento deve
@@ -836,7 +868,7 @@ async function _loadGeocoderStatus() {
     if (!r.ok) return;
     const j = await r.json();
     _st.geocoder = { enabled: !!j.enabled, host: j.host || null, reason: j.reason || null };
-    if (_st.tab === 'sites') _render();
+    if (_st.view) _renderDetail();
   } catch (_) { /* nessun servizio di stato: il bottone resta com'è */ }
 }
 
@@ -845,13 +877,16 @@ async function _loadGeocoderStatus() {
 function _addSite() {
   const id = uid('site');
   _sites().push({ id, name: t('org.newSiteName'), role: 'standalone', projectRef: null, address: null, geo: null, subnets: [] });
-  _st.dirty = true; _st.tab = 'sites'; _st.focusNew = id; _render();
+  _st.dirty = true; _st.tab = 'sites'; _st.selSite = id; _st.focusNew = id; _render();
 }
 function _addUplink() {
-  const s = _sites()[0];
+  // La linea nasce sulla sede SCELTA: l'«aggiungi» sta dentro la sua scheda, e una linea che
+  // finisse su un'altra sede (la prima dell'elenco) sparirebbe da sotto gli occhi di chi l'ha chiesta.
+  const s = _sites().find(x => x.id === _st.selSite) || _sites()[0];
   if (!s) { showAlert(t('org.needSiteFirst')); return; }
+  const nuovo = uid('wan');
   _uplinks().push({
-    id: uid('wan'), siteId: s.id, provider: '', serviceType: '', circuitId: '', cirMbps: null,
+    id: nuovo, siteId: s.id, provider: '', serviceType: '', circuitId: '', cirMbps: null,
     // ㉑ Tutti a «non dichiarato», nessuno con un valore di comodo: un campo
     // pre-compilato è un'AFFERMAZIONE, e su una scheda di ripristino sarebbe
     // un'affermazione che nessuno ha fatto.
@@ -859,22 +894,26 @@ function _addUplink() {
     supportRef: '',
     publicIps: null, wanIfRef: null,
   });
-  _st.dirty = true; _st.tab = 'wan'; _st.focusNew = _uplinks()[_uplinks().length - 1].id; _render();
+  _st.dirty = true; _st.tab = 'wan'; _st.selSite = s.id; _st.selUp = nuovo; _st.focusNew = nuovo; _render();
 }
 function _addLink() {
   const ss = _sites();
   if (ss.length < 2) { showAlert(t('org.needTwoSites')); return; }
+  // Il primo capo è la sede scelta, se c'è: si aggiunge un collegamento «da qui».
+  const a = ss.find(x => x.id === _st.selSite) || ss[0];
+  const b = ss.find(x => x.id !== a.id);
   _links().push({
     // ㉔ Nessuna natura pre-scelta: un campo pre-compilato è un'AFFERMAZIONE, e
     // «IPsec» messo lì dal software è una frase che non ha detto nessuno.
-    id: uid('isl'), aSiteId: ss[0].id, bSiteId: ss[1].id, transport: null, tunnel: null,
+    id: uid('isl'), aSiteId: a.id, bSiteId: b.id, transport: null, tunnel: null,
     state: null, reach: null, provider: null, circuitId: null, name: null,
     underlayUplinkIds: [],
     endpointA: { deviceRef: null, peerIp: null }, endpointB: { deviceRef: null, peerIp: null },
     phase1Name: null, ikeVersion: null,
     phase1Proposal: null, phase2Proposal: null, pskRef: null,
   });
-  _st.dirty = true; _st.tab = 'links'; _st.focusNew = _links()[_links().length - 1].id; _render();
+  const nuovoLink = _links()[_links().length - 1].id;
+  _st.dirty = true; _st.tab = 'links'; _st.selLink = nuovoLink; _st.focusNew = nuovoLink; _render();
 }
 
 /**
@@ -985,7 +1024,8 @@ async function _wanFromDcim(i) {
   // prima avrebbe pagato dei progetti anche quando la lettura fallisce.
   await _warmProjects(_sites().map(x => x.projectRef));
   _mergeWan(s, esito);
-  _st.tab = 'wan';
+  // L'esito si legge nella scheda della sede da cui si è partiti: è lì che stanno le sue linee.
+  _st.tab = 'wan'; _st.selSite = s.id;
   _render();
 }
 
@@ -1126,6 +1166,7 @@ function _removeSite(i) {
     _st.org.sites = _sites().filter((_, k) => k !== i);
     _st.org.uplinks = _uplinks().filter(u => u.siteId !== s.id);
     _st.org.links = _links().filter(l => l.aSiteId !== s.id && l.bSiteId !== s.id);
+    if (_st.selSite === s.id) _st.selSite = '';      // la scheda di una sede che non c'è più non si mostra
     _st.dirty = true; _render();
   });
 }
@@ -1337,7 +1378,6 @@ const BADGE = { padX: 9, h: 20, r: 10, margin: 30 };
 const _n = (v) => Math.round(Number(v) * 100) / 100;
 
 function _renderMap(m) {
-  if (_st.mapMode === 'geo') return _renderGeoMap();
   const opts = m ? { boxOf: (id) => m.box[id] || null } : null;
   // Lo spazio non si RESTRINGE mai sotto il default: è il modulo puro a tenere
   // il minimo, qui si dice solo quanto serve IN PIÙ per la pastiglia.
@@ -1439,7 +1479,6 @@ function _renderMap(m) {
   // ingrandisce: il `viewBox` resta l'inquadratura «tutto dentro» calcolata da
   // `_fitMapViewBox`, e le due cose non si contendono lo stesso numero.
   return `<div class="org-map-wrap">
-    ${_mapModeBar()}
     <div class="org-map-frame">
     <svg class="org-map" viewBox="0 0 ${Number(L.width)} ${Number(L.height)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${escapeHTML(t('org.mapAria'))}">
       <g class="org-map-zoom">${edges}${nodes}</g>
@@ -1468,12 +1507,14 @@ function _renderMap(m) {
 // un terzo: arrivano da `/api/tiles/{z}/{x}/{y}.png`, cioè dal nostro server (CSP
 // `img-src 'self'`, e il README promette «nessun cloud»).
 
-/** Il selettore schema/mappa, in testa alla scheda. */
+/** Il selettore carta/schema, sul bordo sinistro del centro: due bottoni a icona, come i comandi
+ *  dello zoom, e il nome per esteso nel titolo e nell'etichetta (un'icona sola non è un nome). */
 function _mapModeBar() {
-  const b = (mode, key) => `<button type="button" class="org-map-mode${_st.mapMode === mode ? ' active' : ''}"
-      data-act="org-map-mode" data-mode="${escapeHTML(mode)}" aria-pressed="${_st.mapMode === mode ? 'true' : 'false'}">${escapeHTML(t(key))}</button>`;
-  return `<div class="org-map-modes" role="group" aria-label="${escapeHTML(t('org.mapModeAria'))}">
-    ${b('schema', 'org.mapModeSchema')}${b('geo', 'org.mapModeGeo')}</div>`;
+  const b = (mode, icon, key) => `<button type="button" class="ms-mode${_st.mapMode === mode ? ' active' : ''}"
+      data-act="org-map-mode" data-mode="${escapeHTML(mode)}" aria-pressed="${_st.mapMode === mode ? 'true' : 'false'}"
+      title="${escapeHTML(t(key))}" aria-label="${escapeHTML(t(key))}"><i class="fas ${escapeHTML(icon)}"></i></button>`;
+  return `<div class="ms-modes" role="group" aria-label="${escapeHTML(t('org.mapModeAria'))}">
+    ${b('geo', 'fa-map', 'org.mapModeGeo')}${b('schema', 'fa-sitemap', 'org.mapModeSchema')}</div>`;
 }
 
 /** Il pannello senza nemmeno una sede: l'invito ad aggiungerne una. */
@@ -1500,26 +1541,20 @@ function _geoMapWarn(model) {
   return righe.map(r => `<p class="org-warn"><i class="fas fa-triangle-exclamation"></i> ${escapeHTML(r)}</p>`).join('');
 }
 
-/** La scheda in modo «mappa»: un contenitore vuoto che `_mountGeoMap` riempie con
- *  Leaflet dopo che il pannello è nel documento. */
-function _renderGeoMap() {
-  if (!_sites().length) return _mapEmptyHtml();
+/** Ciò che la carta NON mostra, sul bordo in basso a sinistra: le sedi senza punto (con il
+ *  bottone che porta a darglielo) e i collegamenti che ne dipendono. Se nessuna sede ha un
+ *  punto la carta resta com'è — l'Italia senza cerchi — e questo riquadro dice perché. */
+function _renderUnplaced() {
+  const host = _el('ms-unplaced');
+  if (!host) return;
+  if (_st.mapMode !== 'geo' || !_sites().length) { host.innerHTML = ''; return; }
   const model = buildGeoMapModel(_st.org);
-  if (!model.markers.length) {
-    return `<div class="org-map-wrap">${_mapModeBar()}<div class="org-empty">
-      <i class="fas fa-location-dot org-empty-icon"></i>
-      <p class="org-empty-title">${escapeHTML(t('org.geoNoneTitle'))}</p>
-      <p class="org-empty-sub">${escapeHTML(t('org.geoNoneSub'))}</p>
-      <button class="um-btn primary" data-act="org-tab" data-tab="sites"><i class="fas fa-building"></i> ${escapeHTML(t('org.geoNoneGo'))}</button>
-    </div></div>`;
-  }
-  return `<div class="org-map-wrap">
-    ${_mapModeBar()}
-    <div class="org-geo-map-frame"><div id="org-geo-map" class="org-geo-map" role="application" aria-label="${escapeHTML(t('org.geoMapAria'))}"></div>
-      <p class="org-geo-map-note" id="org-geo-map-note" hidden></p></div>
-    <p class="org-map-hint">${escapeHTML(t('org.geoMapHint'))}${model.lines.length ? ' · ' + escapeHTML(t('org.geoClickLine')) : ''}</p>
-    ${_geoMapWarn(model)}
-  </div>`;
+  const warn = _geoMapWarn(model);
+  if (!warn) { host.innerHTML = ''; return; }
+  const prima = model.unplaced[0];
+  host.innerHTML = `${warn}${prima && _isAdmin()
+    ? `<button type="button" class="um-btn ms-place" data-act="ms-pick-site" data-site="${escapeHTML(prima.siteId)}"><i class="fas fa-location-crosshairs"></i> ${escapeHTML(t('ms.place'))}</button>`
+    : ''}`;
 }
 
 /** Leaflet, caricato quando serve: la libreria sta in `vendor/leaflet` (self-hosted,
@@ -1556,8 +1591,30 @@ function _loadTilesStatus() {
 /** La mappa viva, se c'è. Si butta a ogni ridisegno del pannello e alla chiusura:
  *  una Leaflet lasciata attaccata a un contenitore che non esiste più perde memoria. */
 let _geoMap = null;
+/** I due livelli della mappa viva: i collegamenti (sotto) e i cerchi (sopra, si rifanno a ogni zoom). */
+let _geoLines = null;
+let _geoPins = null;
+/** Un numero che cresce a ogni sincronizzazione e a ogni distruzione: una sincronizzazione in
+ *  volo (la libreria sta arrivando) che trova un numero diverso dal suo non disegna più. */
+let _geoTok = 0;
 function _destroyGeoMap() {
-  if (_geoMap) { try { _geoMap.remove(); } catch (_) { /* contenitore già tolto */ } _geoMap = null; }
+  _geoTok++;
+  if (_geoMap) {
+    // ⚠️ Leaflet RIMANDA lo zoom della rotella di ~40 ms (somma gli scatti) e `remove()` non cancella quel
+    // timer: girare la rotella e spegnere il Multisito nello stesso istante lasciava partire lo zoom su una
+    // mappa che non c'è più («Cannot read properties of undefined (reading '_leaflet_pos')»). Lo si cancella
+    // prima, e si fermano le animazioni in corso (un panTo che finisce dopo la fine ha lo stesso difetto).
+    // E l'animazione di ZOOM in corso (dura 250 ms) non si ferma con `stop()`: il suo timer di chiusura resta in coda e,
+    // a mappa tolta, finisce su niente. Si chiude adesso, a mano — `_onZoomTransitionEnd` esce subito se non c'è nulla
+    // da chiudere. (Leaflet sta in `vendor/` ed è fissato a una versione: il nome interno non cambia sotto i piedi.)
+    try {
+      clearTimeout(_geoMap.scrollWheelZoom && _geoMap.scrollWheelZoom._timer);
+      _geoMap.stop();
+      if (_geoMap._animatingZoom && typeof _geoMap._onZoomTransitionEnd === 'function') _geoMap._onZoomTransitionEnd();
+    } catch (_) { /* nessun timer da cancellare */ }
+    try { _geoMap.remove(); } catch (_) { /* contenitore già tolto */ }
+  }
+  _geoMap = null; _geoLines = null; _geoPins = null;
 }
 
 /** Un colore dal tema (`--fault-color`…), con un ripiego: Leaflet vuole un colore
@@ -1584,44 +1641,67 @@ function _siteTone(siteId, projectRef) {
 const _TONE_RANK = { problem: 3, gap: 2, ok: 1, none: 0 };
 const _worseTone = (a, b) => (_TONE_RANK[b] > _TONE_RANK[a] ? b : a);
 
-/** Il colore di uno stato, dal tema (Leaflet vuole un colore vero in mano, non un `var()`). */
-function _toneColor(tone) {
-  if (tone === 'problem') return _themeColor('--fault-color', '#f85149');
-  if (tone === 'gap') return _themeColor('--idle-color', '#d29922');
-  if (tone === 'ok') return _themeColor('--active-color', '#39d353');
-  return _themeColor('--text-muted', '#8b949e');
-}
-
-/** Il segno di un collegamento: colore e tratto dallo stato dichiarato/misurato,
- *  come sullo schema (su = pieno, giù = tratteggiato rosso, non pronunciato = puntinato). */
+/**
+ * Il segno di un collegamento sulla carta: **il colore dice lo stato, il tratto dice il tipo.**
+ * Due domande, due canali. Prima il tratto diceva lo stato (giù = tratteggiato) e il tipo
+ * non lo diceva nessuno; adesso il verde è «su», il rosso è «giù», il grigio è «non
+ * pronunciato», e continuo / lungo / corto / puntinato dicono se è un MPLS, una fibra o un tunnel
+ * (`lib/multisite-view.js`). Lo stato «giù» ha in più un bollino con la parola, perché il rosso
+ * da solo non lo legge chi non distingue i colori.
+ */
 function _lineStyle(link) {
   const st = _edgeStateAttrs(link);
-  if (st.cls.indexOf('is-up') >= 0) return { color: _themeColor('--active-color', '#39d353'), dashArray: null, title: st.title };
-  if (st.cls.indexOf('is-down') >= 0) return { color: _themeColor('--fault-color', '#f85149'), dashArray: '9 7', title: st.title };
-  return { color: _themeColor('--text-muted', '#8b949e'), dashArray: '2 7', title: st.title };
+  const k = kindStyle(connectionKind(link));
+  const base = { weight: k.width, dashArray: k.dash, lineCap: k.cap, title: st.title };
+  if (st.cls.indexOf('is-up') >= 0) return Object.assign(base, { color: _themeColor('--active-color', '#39d353'), state: 'up' });
+  if (st.cls.indexOf('is-down') >= 0) return Object.assign(base, { color: _themeColor('--fault-color', '#f85149'), state: 'down' });
+  return Object.assign(base, { color: _themeColor('--text-muted', '#8b949e'), state: 'none' });
 }
 
-/** Disegna la mappa nel suo contenitore. È asincrona perché la libreria arriva
- *  quando serve; se nel frattempo il pannello è stato ridisegnato, si lascia perdere. */
-async function _mountGeoMap() {
+/** Il punto di mezzo di una linea (per il bollino «giù»): l'elemento centrale, o la media dei due centrali. */
+function _midOf(coords) {
+  const n = coords.length;
+  if (n % 2 === 1) return coords[(n - 1) / 2];
+  const a = coords[n / 2 - 1], b = coords[n / 2];
+  return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+}
+
+/** Il segno dentro il cerchio di una sede: lo stato si legge anche senza colore. */
+const _TONE_GLYPH = { problem: '▲', gap: '◐', ok: '✓', none: '–' };
+
+/**
+ * ⭐ Sincronizza la carta con ciò che c'è scritto. A differenza della vecchia scheda NON la
+ * rifà da capo a ogni disegno: la mappa (e con lei le tessere, lo zoom, dove si stava
+ * guardando) nasce una volta e vive finché il Multisito è acceso; qui si ridisegnano solo i
+ * LIVELLI — i collegamenti e i cerchi — che costano poco. Rifarla da capo a ogni campo
+ * cambiato voleva dire perdere il punto in cui si guardava a ogni tasto toccato.
+ *
+ * È asincrona perché la libreria arriva quando serve; se nel frattempo il centro è cambiato
+ * (un'altra sincronizzazione, un'altra modalità, il Multisito spento), si lascia perdere.
+ */
+async function _syncGeoMap() {
   const el = _el('org-geo-map');
   if (!el) return;
+  const tok = ++_geoTok;
   const note = _el('org-geo-map-note');
   const dillo = (testo) => { if (note) { note.textContent = testo; note.hidden = !testo; } };
-  dillo(t('org.geoMapLoading'));
+  if (!_geoMap) dillo(t('org.geoMapLoading'));
   let L;
   try { L = await _loadLeaflet(); } catch (_) { dillo(t('org.geoMapLoadFailed')); return; }
-  const status = await _loadTilesStatus();
-  // Il pannello può essere stato ridisegnato mentre si aspettava: il contenitore è un altro.
-  if (_el('org-geo-map') !== el || !el.isConnected || _st.mapMode !== 'geo' || _st.tab !== 'map') return;
-  _destroyGeoMap();
-  dillo('');
+  const status = _geoMap ? null : await _loadTilesStatus();
+  if (tok !== _geoTok || !_st.view || _st.mapMode !== 'geo' || _el('org-geo-map') !== el || !el.isConnected) return;
+  if (!_geoMap) { _createGeoMap(L, el, status, dillo); dillo(''); }
+  _drawGeoLayers(L);
+}
 
-  const model = buildGeoMapModel(_st.org);
-  const map = L.map(el, { zoomControl: false, worldCopyJump: true, attributionControl: true });
+/** La mappa vera, una volta: sfondo, controlli, inquadratura. */
+function _createGeoMap(L, el, status, dillo) {
+  // Il doppio clic è di chi lo sa usare (apre la planimetria di una sede): con lo zoom
+  // del doppio clic attivo, un doppio clic su un cerchio ingrandirebbe invece di aprire.
+  const map = L.map(el, { zoomControl: false, worldCopyJump: true, attributionControl: true, doubleClickZoom: false });
   _geoMap = map;
   map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>');
-  L.control.zoom({ position: 'bottomright', zoomInTitle: t('org.zoomIn'), zoomOutTitle: t('org.zoomOut') }).addTo(map);
+  L.control.zoom({ position: 'topleft', zoomInTitle: t('org.zoomIn'), zoomOutTitle: t('org.zoomOut') }).addTo(map);
   L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
 
   // Lo sfondo: le tessere dal NOSTRO server. Senza (spento o non raggiungibile) la
@@ -1642,49 +1722,127 @@ async function _mountGeoMap() {
   }
 
   // I collegamenti sotto, i cerchi sopra: il cerchio è ciò che si clicca.
-  const sitoDi = Object.create(null);
-  for (const s of _sites()) sitoDi[s.id] = s;
+  _geoLines = L.layerGroup().addTo(map);
+  _geoPins = L.layerGroup().addTo(map);
+  // I cerchi si RIFANNO a ogni zoom: due sedi vicine sullo schermo diventano un cerchio solo
+  // col numero (come in Prospix), e si separano ingrandendo. La distanza che conta è quella in pixel.
+  map.on('zoomend', () => { if (_geoMap === map) _drawPins(L); });
+
+  // L'inquadratura: tutte le sedi, o la città di quella sola. Solo alla nascita della mappa:
+  // dopo, dove si guarda lo decide chi la usa.
+  const model = buildGeoMapModel(_st.org);
+  if (model.fit && model.fit.bounds) {
+    const b = model.fit.bounds;
+    map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [70, 70], maxZoom: model.fit.maxZoom });
+  } else if (model.fit) {
+    map.setView(model.fit.center, model.fit.maxZoom);
+  } else {
+    map.setView([42.5, 12.5], 5);      // nessuna sede ha un punto: l'Italia, non il mare
+  }
+  // Il contenitore ha la sua misura solo dopo che la vista è impaginata: a quel punto anche
+  // la distanza in pixel fra le sedi è quella vera, e i gruppi si rifanno.
+  setTimeout(() => { if (_geoMap === map) { map.invalidateSize(); _drawPins(L); } }, 0);
+}
+
+/**
+ * ⭐ Il cassetto si apre alla misura che serve: la scheda di un collegamento ha una ventina di campi, e a
+ * un'altezza fissa se ne vedeva metà — chi apriva il Multisito doveva scorrere o trascinare la maniglia
+ * per vedere ciò che era venuto a guardare.
+ * Si ADATTA solo finché nessuno ha mosso la maniglia (`dockAuto`), e solo per CRESCERE: spostandosi da una
+ * scheda a un'altra il cassetto non rimbalza su e giù, e la carta non si ridimensiona a ogni clic. C'è un
+ * tetto (`DOCK.maxFrac`): la carta non sparisce, e se la scheda non ci sta si scorre.
+ * La misura della scheda si prende dal suo ultimo elemento, non da `scrollHeight`: quest'ultimo non scende
+ * mai sotto l'altezza del riquadro, e con un cassetto già alto non direbbe più quanto serve.
+ */
+function _fitDock() {
+  if (!_st.dockAuto || !_st.dockOpen) return;
+  const detail = _el('ms-detail');
+  if (!detail || !detail.clientHeight || _st.tab === 'audit') return;
+  const ultimo = detail.lastElementChild;
+  if (!ultimo) return;
+  const naturale = ultimo.getBoundingClientRect().bottom - detail.getBoundingClientRect().top + detail.scrollTop + 14;
+  const serve = Math.ceil(DOCK.bar + naturale + 2);
+  if (serve > _st.dockH) { _st.dockH = serve; _applyDock(); }
+}
+
+/** Il modello disegnato adesso, e i dati del tile con cui è stato filtrato. */
+let _geoModel = null;
+let _geoTile = null;
+
+/** I collegamenti e i cerchi, dal documento e dal tile. */
+function _drawGeoLayers(L) {
+  if (!_geoMap || !_geoLines || !_geoPins) return;
+  const model = buildGeoMapModel(_st.org);
+  const tile = buildTile(_st.org, { hidden: _st.hiddenKinds, access: _st.accessSel });
+  _geoModel = model; _geoTile = tile;
+  _geoLines.clearLayers();
+  const visibili = new Set(tile.visibleLinkIds);
   const linkDi = Object.create(null);
   for (const l of _links()) linkDi[l.id] = l;
   for (const ln of model.lines) {
+    if (!visibili.has(ln.linkId)) continue;
     const l = linkDi[ln.linkId];
     const stile = _lineStyle(l);
-    const pl = L.polyline(ln.coords, { color: stile.color, weight: 3, opacity: 0.9, dashArray: stile.dashArray, lineCap: 'round' }).addTo(map);
+    // Un bordo scuro sotto: il tratto tratteggiato e colorato si legge sulla carta chiara
+    // come sullo sfondo scuro, che è la ragione per cui le carte stradali fanno lo stesso.
+    // Il collegamento scelto nella tabella ha un alone ciano sotto: si trova a colpo d'occhio fra gli altri.
+    if (ln.linkId === _st.selLink) L.polyline(ln.coords, { color: '#00d4ff', weight: stile.weight + 9, opacity: 0.45, lineCap: 'round', interactive: false }).addTo(_geoLines);
+    L.polyline(ln.coords, { color: '#0a0e14', weight: stile.weight + 3.4, opacity: 0.55, lineCap: 'round', interactive: false }).addTo(_geoLines);
+    const pl = L.polyline(ln.coords, { color: stile.color, weight: stile.weight, opacity: 0.95, dashArray: stile.dashArray, lineCap: stile.lineCap }).addTo(_geoLines);
     const nome = _siteName(ln.aSiteId) + ' ↔ ' + _siteName(ln.bSiteId);
     const etichetta = [l && l.provider, l && _natureText(l)].filter(Boolean).join(' · ');
     pl.bindTooltip(`<b>${escapeHTML(nome)}</b>${etichetta ? '<br>' + escapeHTML(etichetta) : ''}<br>${escapeHTML(stile.title)}`, { sticky: true });
     pl.on('click', () => _goToLink(ln.linkId));
+    // Giù si legge anche senza il rosso: un bollino a metà tratto, con la parola.
+    if (stile.state === 'down') {
+      L.marker(_midOf(ln.coords), {
+        icon: L.divIcon({ className: 'ms-down-wrap', html: `<span class="ms-down">${escapeHTML(t('ms.down'))}</span>`, iconSize: [44, 20], iconAnchor: [22, 10] }),
+        interactive: false, keyboard: false,
+      }).addTo(_geoLines);
+    }
   }
-  // I cerchi vivono in un livello a parte e si RIFANNO a ogni zoom: due sedi vicine sullo schermo
-  // diventano un cerchio solo con il numero (come in Prospix), e si separano ingrandendo. La
-  // distanza che conta è quella in pixel, quindi dipende dallo zoom — `clusterMarkers` è puro.
-  const strato = L.layerGroup().addTo(map);
+  _drawPins(L);
+}
+
+/** I cerchi delle sedi (o dei gruppi). Si rifanno a ogni zoom: il raggruppamento è in pixel. */
+function _drawPins(L) {
+  const map = _geoMap, model = _geoModel, tile = _geoTile;
+  if (!map || !model || !_geoPins) return;
+  _geoPins.clearLayers();
   const GRUPPO_PX = 46;
+  const sitoDi = Object.create(null);
+  for (const s of _sites()) sitoDi[s.id] = s;
   const marcaDi = Object.create(null);
   for (const mk of model.markers) marcaDi[mk.siteId] = mk;
+  const accesso = tile && tile.accessSiteIds ? new Set(tile.accessSiteIds) : null;
+  let accessoNome = '';
+  if (_st.accessSel === ACCESS_NONE) accessoNome = t('ms.accessNone');
+  else if (_st.accessSel && tile) { const a = tile.accesses.find(x => x.key === _st.accessSel); accessoNome = a ? a.label : ''; }
 
-  /** Un cerchio per una sede sola, col nome accanto e il dettaglio nel titolo. */
+  /** Un cerchio per una sede sola: il segno dello stato dentro, il nome accanto. */
   const cerchioSede = (mk) => {
     const s = sitoDi[mk.siteId] || {};
     const hub = mk.role === 'hub';
-    const cerchio = L.circleMarker([mk.lat, mk.lng], {
-      radius: hub ? 13 : 10, color: '#ffffff', weight: hub ? 3 : 2,
-      fillColor: _toneColor(_siteTone(mk.siteId, s.projectRef)), fillOpacity: 0.92,
-    }).addTo(strato);
-    const linked = s.projectRef && _st.projects.some(p => String(p.id) === String(s.projectRef));
+    const tono = _siteTone(mk.siteId, s.projectRef);
+    const spenta = !!accesso && !accesso.has(mk.siteId);
+    const sel = mk.siteId === _st.selSite;
+    const lato = hub ? 28 : 24;
     const h = _siteHealth(mk.siteId);
-    // Il nome resta scritto accanto al cerchio: su una mappa, un cerchio senza nome non dice di chi è.
-    cerchio.bindTooltip(escapeHTML((hub ? '★ ' : '') + mk.name), { permanent: true, direction: 'right', offset: [12, 0], className: 'org-geo-label' });
-    // Il resto (ruolo, progetto, stato) sta nel titolo del cerchio, come sullo schema: un solo
-    // tooltip per livello in Leaflet, e il nome è già quello visibile.
+    const linked = s.projectRef && _st.projects.some(p => String(p.id) === String(s.projectRef));
+    // Il resto (ruolo, progetto, stato) sta nel titolo del cerchio, come sullo schema.
     const dettaglio = [mk.name, t('org.role.' + mk.role), linked ? '' : t('org.noProject'), h ? h.title : ''].filter(Boolean).join(' · ');
-    const tracciato = cerchio.getElement();
-    if (tracciato) {
-      const titolo = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-      titolo.textContent = dettaglio;
-      tracciato.appendChild(titolo);
-    }
-    cerchio.on('click', () => _openSite(mk.siteId));
+    const icona = L.divIcon({
+      className: 'org-geo-pin-wrap', iconSize: [lato, lato], iconAnchor: [lato / 2, lato / 2],
+      html: `<span class="org-geo-pin sm k-${escapeHTML(tono)}${hub ? ' is-hub' : ''}${sel ? ' is-sel' : ''}${spenta ? ' is-dim' : ''}" aria-hidden="true">${escapeHTML(_TONE_GLYPH[tono] || '')}</span>`,
+    });
+    const m = L.marker([mk.lat, mk.lng], { icon: icona, title: dettaglio, keyboard: false, riseOnHover: true }).addTo(_geoPins);
+    // Chi ha l'accesso scelto porta il suo nome accanto al nome: si legge anche senza la differenza di opacità.
+    const tag = accesso && !spenta && accessoNome ? ` <span class="ms-tag">${escapeHTML(accessoNome)}</span>` : '';
+    m.bindTooltip(escapeHTML((hub ? '★ ' : '') + mk.name) + tag, {
+      permanent: true, direction: 'right', offset: [lato / 2 + 2, 0], className: 'org-geo-label' + (spenta ? ' is-dim' : ''),
+    });
+    m.on('click', () => _pickSite(mk.siteId, false));
+    m.on('dblclick', () => _openSite(mk.siteId));
   };
 
   /** Un cerchio per più sedi vicine: il numero, il colore del PEGGIORE, l'elenco al passaggio, e un
@@ -1697,7 +1855,7 @@ async function _mountGeoMap() {
       className: 'org-geo-pin-wrap', iconSize: [38, 38], iconAnchor: [19, 19],
       html: `<span class="org-geo-pin k-${escapeHTML(peggiore)}">${Number(membri.length)}</span>`,
     });
-    const m = L.marker([g.lat, g.lng], { icon: icona, riseOnHover: true, keyboard: false }).addTo(strato);
+    const m = L.marker([g.lat, g.lng], { icon: icona, riseOnHover: true, keyboard: false }).addTo(_geoPins);
     m.bindTooltip(
       `<b>${escapeHTML(t('org.geoCluster').replace('{n}', String(membri.length)))}</b>`
       + membri.map(mk => `<br>${escapeHTML((mk.role === 'hub' ? '★ ' : '') + mk.name)}`).join(''),
@@ -1705,30 +1863,13 @@ async function _mountGeoMap() {
     m.on('click', () => map.fitBounds(membri.map(mk => [mk.lat, mk.lng]), { padding: [100, 100], maxZoom: 15 }));
   };
 
-  function disegnaCerchi() {
-    if (_geoMap !== map) return;
-    strato.clearLayers();
-    const voci = model.markers.map(mk => {
-      const p = map.latLngToContainerPoint([mk.lat, mk.lng]);
-      return { id: mk.siteId, x: p.x, y: p.y, lat: mk.lat, lng: mk.lng };
-    });
-    for (const g of clusterMarkers(voci, GRUPPO_PX)) {
-      if (g.ids.length === 1) cerchioSede(marcaDi[g.ids[0]]); else cerchioGruppo(g);
-    }
+  const voci = model.markers.map(mk => {
+    const p = map.latLngToContainerPoint([mk.lat, mk.lng]);
+    return { id: mk.siteId, x: p.x, y: p.y, lat: mk.lat, lng: mk.lng };
+  });
+  for (const g of clusterMarkers(voci, GRUPPO_PX)) {
+    if (g.ids.length === 1) cerchioSede(marcaDi[g.ids[0]]); else cerchioGruppo(g);
   }
-  map.on('zoomend', disegnaCerchi);
-
-  // L'inquadratura: tutte le sedi, o la città di quella sola.
-  if (model.fit && model.fit.bounds) {
-    const b = model.fit.bounds;
-    map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [70, 70], maxZoom: model.fit.maxZoom });
-  } else if (model.fit) {
-    map.setView(model.fit.center, model.fit.maxZoom);
-  }
-  disegnaCerchi();
-  // Il contenitore ha la sua misura solo dopo che il pannello è impaginato: a quel punto anche la
-  // distanza in pixel fra le sedi è quella vera, e i gruppi si rifanno.
-  setTimeout(() => { if (_geoMap === map) { map.invalidateSize(); disegnaCerchi(); } }, 0);
 }
 
 // ── Form ──────────────────────────────────────────────────────────────────
@@ -1799,7 +1940,7 @@ function _devicesOf(siteId) {
  *
  * ⚠️ Una `<datalist>` SOLA per tutte le righe, come la ㉕: un id ripetuto in
  * pagina e' un id che non identifica. I due pannelli non sono mai disegnati
- * insieme (`_renderBody` ne rende uno per volta), quindi l'id resta unico
+ * insieme (`_detailHtml` ne rende uno per volta), quindi l'id resta unico
  * anche se la emettono in due.
  */
 function _providerDatalist() {
@@ -2009,12 +2150,14 @@ function _fieldsOfNature(l, i) {
   return out;
 }
 
-function _renderSites() {
+/** La scheda di UNA sede: nome, ruolo, progetto, indirizzo, punto, reti. `i` è la posizione nel
+ *  documento: tutti i campi scrivono per indice, e un indice relativo a un elenco filtrato
+ *  scriverebbe sulla sede sbagliata. */
+function _siteRowHtml(s, i) {
   const ro = !_isAdmin();
-  const rows = _sites().map((s, i) => {
-    const bad = _badNets(s.subnets);
-    const unknown = _st.unknownRefs.some(u => u.siteId === s.id);
-    return `<article class="org-row" data-row="${escapeHTML(String(s.id))}">
+  const bad = _badNets(s.subnets);
+  const unknown = _st.unknownRefs.some(u => u.siteId === s.id);
+  return `<article class="org-row" data-row="${escapeHTML(String(s.id))}">
       <header class="org-row-head">
         ${(() => { const h = _siteHealth(s.id); return `<i class="fas ${escapeHTML(ROLE_ICON[s.role] || 'fa-building')} org-site-state${h ? ' ' + h.cls : ''}"${h ? ` title="${escapeHTML(h.title)}"` : ''}></i>`; })()}
         <input class="org-row-title" type="text" value="${escapeHTML(s.name)}" ${ro ? 'disabled' : ''}
@@ -2050,8 +2193,6 @@ function _renderSites() {
           </div>`}</label>
       </div>
     </article>`;
-  }).join('');
-  return rows || `<p class="org-note">${escapeHTML(t('org.emptySites'))}</p>`;
 }
 
 /**
@@ -2280,10 +2421,9 @@ function _renderWanReport() {
   </div>`;
 }
 
-function _renderUplinks() {
-  const ro = !_isAdmin();
-  if (!_sites().length) return _renderWanReport() + `<p class="org-note">${escapeHTML(t('org.needSiteFirst'))}</p>`;
-  const rows = _uplinks().map((u, i) => {
+/** La scheda di UNA linea WAN. `i` è la posizione nel documento (vedi `_siteRowHtml`). */
+function _uplinkRowHtml(u, i) {
+    const ro = !_isAdmin();
     const ips = isFact(u.publicIps) ? (factValue(u.publicIps) || []) : [];
     const badIps = _badAddrs(ips);
     return `<article class="org-row" data-row="${escapeHTML(String(u.id))}">
@@ -2339,22 +2479,22 @@ function _renderUplinks() {
           <small class="org-hint">${escapeHTML(t('org.wanIfHint'))}</small></label>
       </div>
     </article>`;
-  }).join('');
-  // ㉕ Una `<datalist>` SOLA per tutte le righe: è lo stesso elenco, e un id
-  // ripetuto in pagina è un id che non identifica. Il campo resta `type=text`,
-  // quindi la tendina SUGGERISCE e non chiude: quello che l'import ha scritto
-  // dal NetBox di qualcun altro entra lo stesso, e chi ha un accesso che qui
-  // non c'è lo scrive.
-  const suggerimenti = `<datalist id="org-svc-types">${
-    WAN_SERVICE_TYPES.map(k => `<option value="${escapeHTML(t('org.svc.' + k))}"></option>`).join('')}</datalist>`;
-  return _renderWanReport() + suggerimenti + _providerDatalist()
-    + (rows || `<p class="org-note">${escapeHTML(t('org.emptyUplinks'))}</p>`);
 }
 
-function _renderLinks() {
-  const ro = !_isAdmin();
-  if (_sites().length < 2) return `<p class="org-note">${escapeHTML(t('org.needTwoSites'))}</p>`;
-  const rows = _links().map((l, i) => {
+/** ㉕ Una `<datalist>` SOLA per tutte le righe: è lo stesso elenco, e un id
+ *  ripetuto in pagina è un id che non identifica. Il campo resta `type=text`,
+ *  quindi la tendina SUGGERISCE e non chiude: quello che l'import ha scritto
+ *  dal NetBox di qualcun altro entra lo stesso, e chi ha un accesso che qui
+ *  non c'è lo scrive. */
+function _wanSuggestions() {
+  return `<datalist id="org-svc-types">${
+    WAN_SERVICE_TYPES.map(k => `<option value="${escapeHTML(t('org.svc.' + k))}"></option>`).join('')}</datalist>`
+    + _providerDatalist();
+}
+
+/** La scheda di UN collegamento. `i` è la posizione nel documento (vedi `_siteRowHtml`). */
+function _linkRowHtml(l, i) {
+    const ro = !_isAdmin();
     const reach = isFact(l.reach) ? factValue(l.reach) : { a: [], b: [] };
     const a = (reach && reach.a) || [], b = (reach && reach.b) || [];
     const badA = _badNets(a), badB = _badNets(b);
@@ -2422,7 +2562,13 @@ function _renderLinks() {
       </div>
       <p class="org-hint org-reach-hint">${escapeHTML(t('org.reachHint'))}</p>
     </article>`;
-  }).join('');
+}
+
+/** La scheda «Collegamenti»: TUTTI, con i loro campi. Dalla scheda di una sede si arriva
+ *  qui sul collegamento giusto (`_goToLink`); questa è la lista intera. */
+function _renderLinks() {
+  if (_sites().length < 2) return `<p class="org-note">${escapeHTML(t('org.needTwoSites'))}</p>`;
+  const rows = _links().map((l, i) => _linkRowHtml(l, i)).join('');
   return _providerDatalist() + (rows || `<p class="org-note">${escapeHTML(t('org.emptyLinks'))}</p>`);
 }
 
@@ -2617,18 +2763,30 @@ function _renderAudit() {
     + _auditGroup(AUDIT_GAPS, t('org.a.gaps'), 'fa-circle-half-stroke', 'is-gap');
 }
 
-// ── Il pannello ───────────────────────────────────────────────────────────
+// ── La vista ──────────────────────────────────────────────────────────────
+//
+// ⭐ Da dialogo a VISTA. Il Multisito non è più una finestra che copre il lavoro: è un
+// modo di guardare lo stesso spazio, come la Panoramica. Acceso, la mappa geografica
+// prende il posto della planimetria, l'elenco delle sedi quello della libreria degli
+// elementi e le tre schede (Proprietà · Collegamenti · Coerenza) quello del rack. Il tile
+// che sulla planimetria filtra le VLAN qui filtra i TIPI DI CONNESSIONE.
+//
+// ⚠️ Le tre zone si ridisegnano da `_render()` e si leggono dallo STESSO stato di prima
+// (`_st.org`, `_st.audit`): niente copie da tenere allineate. Le schede delle sedi, delle
+// linee e dei collegamenti sono le stesse di sempre (`_siteRowHtml`, `_uplinkRowHtml`,
+// `_linkRowHtml`), solo mostrate una per volta invece che tutte in colonna.
 
+// Le quattro schede del cassetto. Le prime tre sono TABELLE (un record per riga, i campi che si
+// confrontano in colonna) con a destra la scheda della riga scelta; la quarta è il referto.
 const TABS = [
-  ['map', 'fa-map', 'org.tabMap'],
   ['sites', 'fa-building', 'org.tabSites'],
-  ['wan', 'fa-cloud-arrow-up', 'org.tabWan'],
   ['links', 'fa-link', 'org.tabLinks'],
+  ['wan', 'fa-cloud-arrow-up', 'org.tabWan'],
   ['audit', 'fa-clipboard-check', 'org.tabAudit'],
 ];
 
 /** Il conteggio dell'audit, come pastiglie. Non si sommano: sono tre domande
- *  diverse, e fonderle in un punteggio unico è esattamente il modo di non
+ *  diverse, e fonderle in un punteggiato unico è esattamente il modo di non
  *  rispondere a nessuna delle tre. */
 function _auditChips() {
   const A = _st.audit;
@@ -2640,55 +2798,251 @@ function _auditChips() {
     ${u ? `<span class="org-chip is-unchecked" title="${escapeHTML(t('org.a.notChecked'))}"><i class="fas fa-circle-question"></i> ${u}</span>` : ''}`;
 }
 
-/**
- * Il bottone «aggiungi» della scheda ATTIVA, in fondo alla barra delle schede.
- *
- * Prima ce n'era uno in coda a ciascun elenco: per aggiungere la dodicesima sede
- * bisognava scorrere oltre le undici, e dopo il disegno il bottone si era
- * spostato più in basso di prima. Qui sta fermo, sempre nello stesso punto.
- *
- * ⚠️ Le schede «Mappa» e «Coerenza» non hanno un'aggiunta e restituiscono la
- * stringa vuota: sono una VISTA e un REFERTO, non un elenco a cui si aggiunge.
- * La mappa vuota tiene il suo invito («aggiungi una sede») dentro il riquadro,
- * perché lì è la sola cosa da fare e un invito è un'altra cosa da una barra.
- */
-function _renderTabAction() {
-  if (!_isAdmin()) return '';
-  const AZIONI = {
-    sites: ['org-add-site', 'org.addSite'],
-    wan: ['org-add-uplink', 'org.addUplink'],
-    links: ['org-add-link', 'org.addLink'],
-  };
-  const a = AZIONI[_st.tab];
-  if (!a) return '';
-  return `<button class="um-btn primary org-tab-add" data-act="${a[0]}"><i class="fas fa-plus"></i> ${escapeHTML(t(a[1]))}</button>`;
+/** Il filtro di testo del cassetto, in minuscolo. */
+const _q = () => String(_st.filter || '').trim().toLowerCase();
+
+/** Cerca `q` nei testi dati (i vuoti si saltano). */
+const _hay = (q, parts) => !q || parts.some(x => x && String(x).toLowerCase().indexOf(q) >= 0);
+
+/** La ricerca fra le sedi: il nome e l'indirizzo, e ciò che identifica le loro linee e i loro
+ *  collegamenti — l'operatore, il tipo, il codice del circuito — perché è così che si cerca «quella di Roma». */
+function _siteMatches(s, q) {
+  if (!q) return true;
+  const hay = [s.name, s.address];
+  for (const u of _uplinks()) if (u.siteId === s.id) hay.push(u.provider, u.serviceType, u.circuitId);
+  for (const l of _links()) if (l.aSiteId === s.id || l.bSiteId === s.id) hay.push(l.name, l.provider, l.circuitId);
+  return _hay(q, hay);
 }
 
-function _renderBody() {
-  switch (_st.tab) {
-    case 'sites': return _renderSites();
-    case 'wan': return _renderUplinks();
-    case 'links': return _renderLinks();
-    case 'audit': return _renderAudit();
-    default: return _renderMap();
+/** Il tratto di un tipo di collegamento, come campione: lo stesso che ha sulla carta. */
+function _swatch(key, width) {
+  const k = kindStyle(key);
+  const w = Number(width) || 26;
+  const fine = w - 1;
+  return `<svg class="ms-swatch" width="${Number(w)}" height="8" viewBox="0 0 ${Number(w)} 8" aria-hidden="true"><path d="M1 4H${Number(fine)}" fill="none" stroke="currentColor" stroke-width="${Number(k.width)}"${k.dash ? ` stroke-dasharray="${escapeHTML(k.dash)}"` : ''} stroke-linecap="${escapeHTML(k.cap)}"/></svg>`;
+}
+
+/** Come si chiama un tipo di collegamento: le parole del modello, non altre. */
+function _kindLabel(key) {
+  if (key === 'undeclared') return t('ms.kindUndeclared');
+  if (key === 'tunnelOther') return t('org.tunnel.other');
+  if (key === 'transportOther') return t('org.transport.other');
+  return t((kindAxis(key) === 'tunnel' ? 'org.tunnel.' : 'org.transport.') + key);
+}
+
+// ── Il cassetto: una tabella per scheda, la scheda della riga a destra ────
+
+/** Cosa si può aggiungere da ogni scheda: l'azione e la sua parola. La Coerenza è un referto e non ha niente. */
+const _TAB_ADD = {
+  sites: ['org-add-site', 'org.addSite'],
+  links: ['org-add-link', 'org.addLink'],
+  wan: ['org-add-uplink', 'org.addUplink'],
+};
+
+/** Le selezioni devono puntare a qualcosa che esiste, e la scheda aperta non resta a mani vuote se c'è
+ *  qualcosa da mostrare: scegliere la prima riga costa un clic in meno a chi apre il cassetto. */
+function _ensureSel() {
+  const ss = _sites(), ls = _links(), us = _uplinks();
+  if (!ss.some(x => x.id === _st.selSite)) _st.selSite = '';
+  if (!ls.some(x => x.id === _st.selLink)) _st.selLink = '';
+  if (!us.some(x => x.id === _st.selUp)) _st.selUp = '';
+  if (_st.tab === 'sites' && !_st.selSite && ss.length) _st.selSite = ss[0].id;
+  if (_st.tab === 'links' && !_st.selLink && ls.length) _st.selLink = ls[0].id;
+  if (_st.tab === 'wan' && !_st.selUp && us.length) _st.selUp = us[0].id;
+}
+
+/** Il segno e la parola dello stato di un collegamento. */
+function _linkStateOf(l) {
+  const st = _edgeStateAttrs(l);
+  const up = st.cls.indexOf('is-up') >= 0, down = st.cls.indexOf('is-down') >= 0;
+  return { cls: up ? 'is-up' : down ? 'is-down' : 'is-unspoken', word: up ? t('ms.keyUp') : down ? t('ms.keyDown') : t('ms.keyNone'), title: st.title };
+}
+
+function _linkTitle(l) {
+  return (_siteName(l.aSiteId) || '?') + ' ↔ ' + (_siteName(l.bSiteId) || '?') + (l.name ? ' · ' + l.name : '');
+}
+
+function _sitesTable() {
+  const q = _q();
+  const righe = _sites().filter(s => _siteMatches(s, q)).map(s => {
+    const tono = _siteTone(s.id, s.projectRef);
+    const h = _siteHealth(s.id);
+    const sel = s.id === _st.selSite;
+    const nl = _links().filter(l => l.aSiteId === s.id || l.bSiteId === s.id).length;
+    const nu = _uplinks().filter(u => u.siteId === s.id).length;
+    const nome = s.name || t('org.newSiteName');
+    const pos = s.geo ? Number(s.geo.lat).toFixed(3) + ', ' + Number(s.geo.lng).toFixed(3) : t('ms.noPos');
+    return `<tr class="ms-tr${sel ? ' is-sel' : ''}" data-act="ms-pick-row" data-kind="site" data-id="${escapeHTML(String(s.id))}" data-row="${escapeHTML(String(s.id))}">
+      <td class="ms-c-glyph"><span class="ms-glyph is-${escapeHTML(tono)}" aria-hidden="true">${escapeHTML(_TONE_GLYPH[tono] || '')}</span></td>
+      <th scope="row" class="ms-c-name"><button type="button" class="ms-cell-btn" data-act="ms-pick-row" data-kind="site" data-id="${escapeHTML(String(s.id))}"
+          aria-current="${sel ? 'true' : 'false'}" aria-label="${escapeHTML(nome + (h ? ' — ' + h.title : ''))}">${escapeHTML(nome)}</button></th>
+      <td>${escapeHTML(t('org.role.' + s.role))}</td>
+      <td class="ms-dim ms-opt">${escapeHTML(s.projectRef ? _projectName(s.projectRef) : '—')}</td>
+      <td class="ms-num">${Number(nl)}</td>
+      <td class="ms-num">${Number(nu)}</td>
+      <td class="${s.geo ? 'ms-dim' : 'ms-warn'} ms-opt">${escapeHTML(pos)}</td></tr>`;
+  }).join('');
+  return `<table class="ms-table"><thead><tr>
+      <th scope="col" class="ms-c-glyph"><span class="ms-sr">${escapeHTML(t('ms.colState'))}</span></th>
+      <th scope="col">${escapeHTML(t('ms.colSite'))}</th><th scope="col">${escapeHTML(t('ms.colRole'))}</th>
+      <th scope="col" class="ms-opt">${escapeHTML(t('ms.colProject'))}</th><th scope="col">${escapeHTML(t('org.tabLinks'))}</th>
+      <th scope="col">${escapeHTML(t('org.tabWan'))}</th><th scope="col" class="ms-opt">${escapeHTML(t('ms.colPos'))}</th></tr></thead>
+    <tbody>${righe}</tbody></table>${righe ? '' : `<p class="org-note ms-pad">${escapeHTML(_sites().length ? t('ms.noMatch') : t('org.emptySites'))}</p>`}`;
+}
+
+function _linksTable() {
+  if (_sites().length < 2) return `<p class="org-note ms-pad">${escapeHTML(t('org.needTwoSites'))}</p>`;
+  const q = _q();
+  const righe = _links().filter(l => _hay(q, [_linkTitle(l), l.provider, l.circuitId, _natureText(l)])).map(l => {
+    const st = _linkStateOf(l);
+    const sel = l.id === _st.selLink;
+    const reach = isFact(l.reach) ? factValue(l.reach) : null;
+    const carried = reach ? (((reach && reach.a) || []).length + ((reach && reach.b) || []).length) : 0;
+    return `<tr class="ms-tr${sel ? ' is-sel' : ''}" data-act="ms-pick-row" data-kind="link" data-id="${escapeHTML(String(l.id))}" data-row="${escapeHTML(String(l.id))}">
+      <td class="ms-c-state" title="${escapeHTML(st.title)}"><span class="ms-line ${escapeHTML(st.cls)}">${_swatch(connectionKind(l), 30)}<span>${escapeHTML(st.word)}</span></span></td>
+      <th scope="row" class="ms-c-name"><button type="button" class="ms-cell-btn" data-act="ms-pick-row" data-kind="link" data-id="${escapeHTML(String(l.id))}"
+          aria-current="${sel ? 'true' : 'false'}">${escapeHTML(_linkTitle(l))}</button></th>
+      <td>${escapeHTML(_natureText(l))}</td>
+      <td class="ms-opt${l.provider ? '' : ' ms-dim'}">${escapeHTML(l.provider || '—')}</td>
+      <td class="ms-opt ms-mono${l.circuitId ? '' : ' ms-dim'}">${escapeHTML(l.circuitId || '—')}</td>
+      <td class="ms-dim ms-opt">${carried ? escapeHTML(_netsLabel(carried)) : '—'}</td></tr>`;
+  }).join('');
+  return `<table class="ms-table"><thead><tr>
+      <th scope="col">${escapeHTML(t('ms.colState'))}</th><th scope="col">${escapeHTML(t('ms.colLink'))}</th>
+      <th scope="col">${escapeHTML(t('ms.colNature'))}</th><th scope="col" class="ms-opt">${escapeHTML(t('org.provider'))}</th>
+      <th scope="col" class="ms-opt">${escapeHTML(t('org.circuitId'))}</th><th scope="col" class="ms-opt">${escapeHTML(t('ms.colNets'))}</th></tr></thead>
+    <tbody>${righe}</tbody></table>${righe ? '' : `<p class="org-note ms-pad">${escapeHTML(_links().length ? t('ms.noMatch') : t('org.emptyLinks'))}</p>`}`;
+}
+
+function _wanTable() {
+  if (!_sites().length) return `<p class="org-note ms-pad">${escapeHTML(t('org.needSiteFirst'))}</p>`;
+  const q = _q();
+  const righe = _uplinks().filter(u => _hay(q, [_siteName(u.siteId), u.provider, u.serviceType, u.circuitId])).map(u => {
+    const sel = u.id === _st.selUp;
+    const nome = _siteName(u.siteId) || '?';
+    return `<tr class="ms-tr${sel ? ' is-sel' : ''}" data-act="ms-pick-row" data-kind="wan" data-id="${escapeHTML(String(u.id))}" data-row="${escapeHTML(String(u.id))}">
+      <th scope="row" class="ms-c-name"><button type="button" class="ms-cell-btn" data-act="ms-pick-row" data-kind="wan" data-id="${escapeHTML(String(u.id))}"
+          aria-current="${sel ? 'true' : 'false'}">${escapeHTML(nome)}</button></th>
+      <td>${u.serviceType ? `<span class="ms-pill">${escapeHTML(u.serviceType)}</span>` : '<span class="ms-dim">—</span>'}</td>
+      <td class="${u.provider ? '' : 'ms-dim'}">${escapeHTML(u.provider || t('org.uplinkNoProvider'))}</td>
+      <td class="ms-opt ms-mono${u.circuitId ? '' : ' ms-dim'}">${escapeHTML(u.circuitId || '—')}</td>
+      <td class="ms-dim ms-opt">${u.cirMbps ? escapeHTML(String(u.cirMbps)) + ' ' + escapeHTML(t('ms.mbps')) : '—'}</td>
+      <td class="ms-dim ms-opt">${u.addressing ? escapeHTML(t('org.addr.' + u.addressing)) : '—'}</td></tr>`;
+  }).join('');
+  return `<table class="ms-table"><thead><tr>
+      <th scope="col">${escapeHTML(t('ms.colSite'))}</th><th scope="col">${escapeHTML(t('org.serviceType'))}</th>
+      <th scope="col">${escapeHTML(t('org.provider'))}</th><th scope="col" class="ms-opt">${escapeHTML(t('org.circuitId'))}</th>
+      <th scope="col" class="ms-opt">${escapeHTML(t('ms.colCir'))}</th><th scope="col" class="ms-opt">${escapeHTML(t('org.addressing'))}</th></tr></thead>
+    <tbody>${righe}</tbody></table>${righe ? '' : `<p class="org-note ms-pad">${escapeHTML(_uplinks().length ? t('ms.noMatch') : t('org.emptyUplinks'))}</p>`}`;
+}
+
+/** La scheda a destra quando non c'è niente di scelto (o niente da scegliere). */
+function _detailEmpty() {
+  return `<div class="org-empty"><i class="fas fa-hand-pointer org-empty-icon"></i>
+    <p class="org-empty-title">${escapeHTML(t('ms.pickTitle'))}</p>
+    <p class="org-empty-sub">${escapeHTML(t('ms.pickSub'))}</p></div>`;
+}
+
+/** Il bottone che porta nella planimetria della sede: l'unica strada per «entrare» ora che il clic
+ *  sulla sede la sceglie soltanto. Senza un progetto agganciato non si indovina — si dice che manca. */
+function _openSiteBar(s) {
+  const linked = s.projectRef && _st.projects.some(p => String(p.id) === String(s.projectRef));
+  return `<div class="ms-open"><button type="button" class="um-btn primary" data-act="ms-open-site" data-site="${escapeHTML(String(s.id))}"${linked ? '' : ' disabled'}
+      title="${escapeHTML(linked ? t('ms.openPlanTip') : t('org.noProject'))}"><i class="fas fa-diagram-project"></i> ${escapeHTML(t('ms.openPlan'))}</button></div>`;
+}
+
+/** La scheda della riga scelta: gli stessi campi di sempre, uno record per volta. */
+function _detailHtml() {
+  if (_st.tab === 'sites') {
+    const i = _sites().findIndex(x => x.id === _st.selSite);
+    return i < 0 ? _detailEmpty() : _openSiteBar(_sites()[i]) + _siteRowHtml(_sites()[i], i);
+  }
+  if (_st.tab === 'links') {
+    const i = _links().findIndex(x => x.id === _st.selLink);
+    return i < 0 ? _detailEmpty() : _providerDatalist() + _linkRowHtml(_links()[i], i);
+  }
+  if (_st.tab === 'wan') {
+    const i = _uplinks().findIndex(x => x.id === _st.selUp);
+    return _renderWanReport() + _wanSuggestions() + (i < 0 ? _detailEmpty() : _uplinkRowHtml(_uplinks()[i], i));
+  }
+  return '';
+}
+
+/** Lo scorrimento si salva per scheda (l'elenco) e per scheda+riga (la scheda della riga): cambiando
+ *  scheda o riga si riparte dall'alto, che è giusto — il contenuto è un altro. */
+let _scrollKeys = { master: null, detail: null };
+/** L'ultima riga che si è portata sotto gli occhi: la si porta UNA volta per scelta, non a ogni ridisegno. */
+let _revealDone = '';
+
+/** Il nome dell'organizzazione nel campo di testa. Se ci si sta scrivendo dentro NON lo si tocca: rimetterci il
+ *  valore del documento a metà frase farebbe saltare il cursore. */
+function _renderOrgName() {
+  const el = _el('ms-org-name');
+  if (!el) return;
+  el.disabled = !_isAdmin();
+  if (document.activeElement !== el) el.value = _st.org.name || '';
+}
+
+function _renderTabs() {
+  const host = _el('ms-tabs');
+  if (!host) return;
+  host.innerHTML = TABS.map(([k, icon, key]) => `<button type="button" role="tab" class="ms-tab${_st.tab === k ? ' active' : ''}" aria-selected="${_st.tab === k ? 'true' : 'false'}"
+      data-act="org-tab" data-tab="${escapeHTML(k)}"><i class="fas ${escapeHTML(icon)}" aria-hidden="true"></i> <span>${escapeHTML(t(key))}</span>${k === 'sites' ? `<span class="ms-count">${Number(_sites().length)}</span>` : ''}${k === 'links' ? `<span class="ms-count">${Number(_links().length)}</span>` : ''}${k === 'wan' ? `<span class="ms-count">${Number(_uplinks().length)}</span>` : ''}${k === 'audit' ? _auditChips() : ''}</button>`).join('');
+}
+
+function _renderMaster() {
+  const host = _el('ms-master');
+  if (!host) return;
+  const vecchio = _scrollKeys.master === _st.tab ? host.scrollTop : 0;
+  if (_st.loading) { host.innerHTML = `<p class="org-note ms-pad">${escapeHTML(t('org.loading'))}</p>`; return; }
+  if (_st.loadErr) {
+    host.innerHTML = `<p class="org-bad ms-pad"><i class="fas fa-plug-circle-xmark"></i> ${escapeHTML(t('org.loadFailed'))} ${escapeHTML(_st.loadErr)}</p>
+      <div class="ms-pad"><button class="um-btn" data-act="org-reload"><i class="fas fa-rotate"></i> ${escapeHTML(t('org.retry'))}</button></div>`;
+    return;
+  }
+  host.innerHTML = _st.tab === 'links' ? _linksTable()
+    : _st.tab === 'wan' ? _wanTable()
+    : _st.tab === 'audit' ? `<div class="ms-audit">${_renderAudit()}</div>`
+    : _sitesTable();
+  host.scrollTop = vecchio;
+  _scrollKeys.master = _st.tab;
+  // La riga scelta, se è fuori vista (scelta dalla carta, o appena creata), si porta sotto gli occhi — una volta.
+  const sceltaId = _st.tab === 'sites' ? _st.selSite : _st.tab === 'links' ? _st.selLink : _st.tab === 'wan' ? _st.selUp : '';
+  const chiave = _st.tab + ':' + sceltaId;
+  if (sceltaId && chiave !== _revealDone) {
+    const riga = host.querySelector('tr.is-sel');
+    if (riga) { riga.scrollIntoView({ block: 'nearest' }); _revealDone = chiave; }
   }
 }
 
+function _renderDetail() {
+  const host = _el('ms-detail');
+  if (!host) return;
+  const dock = _el('ms-dock-body');
+  if (dock) dock.classList.toggle('is-audit', _st.tab === 'audit');
+  const sceltaId = _st.tab === 'sites' ? _st.selSite : _st.tab === 'links' ? _st.selLink : _st.tab === 'wan' ? _st.selUp : '';
+  const chiave = _st.tab + ':' + sceltaId;
+  const vecchio = _scrollKeys.detail === chiave ? host.scrollTop : 0;
+  host.innerHTML = (_st.loading || _st.loadErr) ? '' : _detailHtml();
+  host.scrollTop = vecchio;
+  _scrollKeys.detail = chiave;
+}
+
 /**
- * Il piè di pagina, DA SOLO.
+ * Le azioni del cassetto, in testa a destra: «aggiungi» della scheda aperta e «Salva».
  *
- * ⚠️ Va ridisegnato separatamente dal corpo, ed è il motivo per cui esiste come
- * funzione: mentre si scrive in un campo il corpo NON si ridisegna (rifarne
- * l'HTML butterebbe via il cursore), ma lo stato del bottone «Salva» cambia
- * proprio in quel momento. Con un disegno solo, il bottone restava spento
- * e ciò che si era scritto non si poteva salvare. Qui dentro non c'è nessun
- * campo di testo, quindi ridisegnarlo a ogni tasto non toglie il fuoco a nessuno.
+ * ⚠️ Va ridisegnato separatamente dal resto, ed è il motivo per cui esiste come funzione: mentre si
+ * scrive in un campo la scheda NON si ridisegna (rifarne l'HTML butterebbe via il cursore), ma lo stato
+ * del bottone «Salva» cambia proprio in quel momento. Con un disegno solo, il bottone restava spento e
+ * ciò che si era scritto non si poteva salvare. Qui dentro non c'è nessun campo di testo, quindi
+ * ridisegnarlo a ogni tasto non toglie il fuoco a nessuno.
  */
 function _renderFooter() {
-  const foot = _el('org-footer');
-  if (!foot) return;
-  if (_st.loading || _st.loadErr) { foot.innerHTML = ''; return; }
+  const host = _el('ms-actions');
+  if (!host) return;
+  if (_st.loading || _st.loadErr) { host.innerHTML = ''; return; }
   const ro = !_isAdmin();
+  const a = _TAB_ADD[_st.tab];
   const drop = _st.dropped && (_st.dropped.sites || _st.dropped.uplinks || _st.dropped.links)
     ? `<span class="org-dropped"><i class="fas fa-filter-circle-xmark"></i> ${escapeHTML(
       t('org.dropped')
@@ -2696,11 +3050,11 @@ function _renderFooter() {
         .replace('{u}', String(_st.dropped.uplinks))
         .replace('{l}', String(_st.dropped.links)))}</span>`
     : '';
-  foot.innerHTML = `${drop}
+  host.innerHTML = `${drop}
+    ${(a && !ro) ? `<button type="button" class="um-btn ms-add-btn" data-act="${escapeHTML(a[0])}"><i class="fas fa-plus"></i> ${escapeHTML(t(a[1]))}</button>` : ''}
     ${ro ? `<span class="org-note">${escapeHTML(t('org.readOnly'))}</span>`
     : `<button class="um-btn primary" data-act="org-save"${(_st.saving || !_st.dirty) ? ' disabled' : ''}>
-        <i class="fas ${_st.saving ? 'fa-spinner fa-spin' : 'fa-floppy-disk'}"></i> ${escapeHTML(_st.dirty ? t('org.save') : t('org.saved'))}</button>`}
-    <button class="um-btn ghost" data-act="org-close"><i class="fas fa-times"></i> ${escapeHTML(t('common.close'))}</button>`;
+        <i class="fas ${_st.saving ? 'fa-spinner fa-spin' : 'fa-floppy-disk'}"></i> ${escapeHTML(_st.dirty ? t('org.save') : t('org.saved'))}</button>`}`;
 }
 
 /** Segna una modifica: accende il bottone «Salva» senza toccare il corpo.
@@ -2712,7 +3066,101 @@ function _touch() {
 }
 
 /**
- * Allarga il viewBox della mappa fino a contenere le ETICHETTE.
+ * ⭐ L'altezza del cassetto. La carta sta sopra e prende lo spazio che resta: il cassetto lo dice con una
+ * variabile (`--ms-dock-h`) sul contenitore, e Leaflet va avvisato quando la sua misura cambia o
+ * resta tagliato in basso. Chiuso, restano la maniglia e la barra delle schede.
+ */
+const DOCK = { min: 180, bar: 53, step: 32, maxFrac: 0.76, mapMin: 260 };
+function _applyDock() {
+  const fp = _el('floorplan');
+  const dock = _el('ms-dock');
+  if (!fp || !dock) return;
+  // Il cassetto non supera i tre quarti dello spazio, e la carta non scende sotto `mapMin`: una carta di poche decine di pixel,
+  // con il tile che ne copre metà, non è una carta. Se la scheda non ci sta, si scorre — o si trascina la maniglia.
+  const area = fp.clientHeight || 600;
+  const max = Math.max(DOCK.min + 40, Math.min(Math.round(area * DOCK.maxFrac), area - DOCK.mapMin));
+  _st.dockH = Math.max(DOCK.min, Math.min(max, _st.dockH));
+  fp.style.setProperty('--ms-dock-h', (_st.view ? (_st.dockOpen ? _st.dockH : DOCK.bar) : 0) + 'px');
+  dock.classList.toggle('is-collapsed', !_st.dockOpen);
+  const b = _el('ms-dock-toggle');
+  if (b) {
+    b.setAttribute('aria-expanded', _st.dockOpen ? 'true' : 'false');
+    b.setAttribute('aria-label', t(_st.dockOpen ? 'ms.dockClose' : 'ms.dockOpen'));
+    b.title = t(_st.dockOpen ? 'ms.dockClose' : 'ms.dockOpen');
+  }
+  if (_geoMap) { try { _geoMap.invalidateSize(); } catch (_) { /* carta non pronta */ } }
+}
+
+// ── Il tile: i tipi di connessione (al posto dei selettori VLAN) ──────────
+
+function _renderTile() {
+  const host = _el('ms-tile');
+  if (!host) return;
+  // Senza niente da filtrare la scheda del tile non compare vuota: sparisce con tutto il suo bordo.
+  const bar = host.parentElement;
+  const vuota = () => { host.innerHTML = ''; if (bar) bar.classList.add('ms-empty'); };
+  if (bar) bar.classList.remove('ms-empty');
+  if (_st.loading || _st.loadErr) { vuota(); return; }
+  const T = buildTile(_st.org, { hidden: _st.hiddenKinds, access: _st.accessSel });
+  if (!T.kinds.length && !T.accesses.length && !T.noAccess) { vuota(); return; }
+
+  const kinds = T.kinds.map(k => `<button type="button" class="ms-pill${k.hidden ? ' is-off' : ''}" data-act="ms-kind" data-kind="${escapeHTML(k.key)}"
+      aria-pressed="${k.hidden ? 'false' : 'true'}">${_swatch(k.key, 20)}<span>${escapeHTML(_kindLabel(k.key))}</span><span class="ms-n">${Number(k.n)}</span></button>`).join('');
+
+  const accPill = (key, label, n) => `<button type="button" class="ms-pill ms-pill-acc${_st.accessSel === key ? ' is-on' : ''}" data-act="ms-access" data-access="${escapeHTML(key)}" title="${escapeHTML(t('ms.accessHint'))}"
+      aria-pressed="${_st.accessSel === key ? 'true' : 'false'}"><span>${escapeHTML(label)}</span><span class="ms-n">${Number(n)}</span></button>`;
+  const acc = T.accesses.map(a => accPill(a.key, a.label, a.n)).join('')
+    + (T.noAccess ? accPill(ACCESS_NONE, t('ms.accessNone'), T.noAccess) : '');
+  let nota = '';        // la frase compare solo con un accesso scelto: prima, il suggerimento sta nel tooltip delle pastiglie
+  if (_st.accessSel && T.accessSiteIds) {
+    const a = T.accesses.find(x => x.key === _st.accessSel);
+    const nome = _st.accessSel === ACCESS_NONE ? t('ms.accessNone') : (a ? a.label : _st.accessSel);
+    const n = T.accessSiteIds.length;
+    nota = (n === 1 ? t('ms.accessSelOne') : t('ms.accessSel').replace('{n}', String(n))).replace('{name}', nome);
+  }
+
+  host.innerHTML = `<div class="ms-tile-in" role="group" aria-label="${escapeHTML(t('ms.tileAria'))}">
+    ${kinds ? `<div class="ms-row"><span class="ms-row-ico" role="img" title="${escapeHTML(t('org.tabLinks'))}" aria-label="${escapeHTML(t('org.tabLinks'))}"><i class="fas fa-link" aria-hidden="true"></i></span>${kinds}${T.hiddenLinks ? `<span class="ms-hid">${escapeHTML(T.hiddenLinks === 1 ? t('ms.hiddenOne') : t('ms.hiddenN').replace('{n}', String(T.hiddenLinks)))}
+        <button type="button" class="ms-linkbtn" data-act="ms-kind-reset">${escapeHTML(t('ms.showAll'))}</button></span>` : ''}</div>` : ''}
+    ${acc ? `<div class="ms-row"><span class="ms-row-ico" role="img" title="${escapeHTML(t('ms.tileAccess'))}" aria-label="${escapeHTML(t('ms.tileAccess'))}"><i class="fas fa-cloud-arrow-up" aria-hidden="true"></i></span>${acc}${nota ? `<span class="ms-note">${escapeHTML(nota)}</span>` : ''}</div>` : ''}
+    <div class="ms-row ms-key" role="group" aria-label="${escapeHTML(t('ms.keyState'))}">
+      <span class="ms-line is-up"><svg width="22" height="6" viewBox="0 0 22 6" aria-hidden="true"><path d="M1 3H21" stroke="currentColor" stroke-width="3" fill="none"/></svg>${escapeHTML(t('ms.keyUp'))}</span>
+      <span class="ms-line is-down"><svg width="22" height="6" viewBox="0 0 22 6" aria-hidden="true"><path d="M1 3H21" stroke="currentColor" stroke-width="3" fill="none"/></svg>${escapeHTML(t('ms.keyDown'))}</span>
+      <span class="ms-line is-unspoken"><svg width="22" height="6" viewBox="0 0 22 6" aria-hidden="true"><path d="M1 3H21" stroke="currentColor" stroke-width="3" fill="none"/></svg>${escapeHTML(t('ms.keyNone'))}</span></div>
+  </div>`;
+}
+
+// ── Il centro: la carta (o lo schema) al posto della planimetria ──────────
+
+function _renderStage() {
+  const stage = _el('ms-stage');
+  if (!stage) return;
+  stage.dataset.mode = _st.mapMode;
+  const modi = _el('ms-modes');
+  if (modi) modi.innerHTML = _mapModeBar();
+  const vuoto = !_sites().length;
+  stage.classList.toggle('is-empty', vuoto);
+  const empty = _el('ms-empty');
+  if (empty) empty.innerHTML = (vuoto && !_st.loading && !_st.loadErr) ? _mapEmptyHtml() : '';
+  _renderUnplaced();
+  if (vuoto || _st.loading || _st.loadErr) { _destroyGeoMap(); return; }
+  if (_st.mapMode === 'geo') {
+    _syncGeoMap();
+    return;
+  }
+  // Schema. Prima passata con la misura dichiarata, seconda con le larghezze vere (vedi `_measureBoxes`).
+  _destroyGeoMap();
+  const host = _el('ms-schema');
+  if (!host) return;
+  host.innerHTML = _renderMap(null);
+  const misure = _measureBoxes(host.querySelector('svg.org-map'));
+  if (misure) host.innerHTML = _renderMap(misure);
+  _fitMapViewBox(host.querySelector('svg.org-map'));
+  _applyMapView();
+}
+
+/**
+ * Allarga il viewBox dello schema fino a contenere le ETICHETTE.
  *
  * `lib/inter-site-layout.js` dichiara di non misurare il testo (④): è un modulo
  * puro, e non può sapere quanto è largo «operatore non indicato» con il font di
@@ -2744,98 +3192,27 @@ function _fitMapViewBox(svg) {
     `${r(b.x - m)} ${r(b.y - m)} ${r(b.width + m * 2)} ${r(b.height + m * 2)}`);
 }
 
-/** L'ultima scheda DISEGNATA: serve a sapere se lo scorrimento salvato parla
- *  ancora dello stesso elenco. Cambiando scheda si riparte dall'alto, che è
- *  giusto — il contenuto è un altro. @type {string|null} */
-let _tabDisegnata = null;
-
+/** Ridisegna il cassetto (schede, tabella, scheda della riga), il tile, la carta e le azioni. Non fa niente a Multisito spento. */
 function _render() {
-  const body = _el('org-body');
-  if (!body) return;
-  // Una mappa Leaflet attaccata a un contenitore che sta per sparire va staccata
-  // PRIMA: si ricrea dopo, se la scheda aperta la vuole ancora.
-  _destroyGeoMap();
-
-  // ⚠️ `body.innerHTML = …` rifà TUTTO, e con il contenuto se ne va lo
-  // scorrimento. Ogni cambio di valore che ridisegna riportava quindi in cima: si
-  // cambiava una tendina alla dodicesima sede e ci si ritrovava alla prima. Si
-  // salva prima e si rimette dopo — ma solo se si sta ridisegnando la STESSA
-  // scheda, o si erediterebbe l'offset di un elenco che non c'è più.
-  // ⚠️⚠️ A scorrere è `.org-pane`, **non** `#org-body`: entrambi hanno
-  // `overflow:auto`, ma il corpo è un flex che dà al pane l'altezza residua, e il
-  // pane si tiene il traboccamento. Misurato con la finestra a 560px: corpo 0px
-  // scorribili, pane 1346. Ripristinare `body.scrollTop` è un no-op che sembra
-  // una correzione — se un giorno questa riga «non funziona più», la domanda da
-  // farsi è quale dei due scorre oggi, non se il salvataggio avviene.
-  // Chi vuole spostare la vista di proposito (la messa a fuoco di una riga) gira
-  // DOPO e vince: una richiesta esplicita batte un ripristino.
-  const paneVecchio = body.querySelector('.org-pane');
-  const scorrimento = (_tabDisegnata === _st.tab && paneVecchio) ? paneVecchio.scrollTop : 0;
-
-  if (_st.loading) { body.innerHTML = `<p class="org-note">${escapeHTML(t('org.loading'))}</p>`; _renderFooter(); return; }
-  if (_st.loadErr) {
-    body.innerHTML = `<p class="org-bad"><i class="fas fa-plug-circle-xmark"></i> ${escapeHTML(t('org.loadFailed'))} ${escapeHTML(_st.loadErr)}</p>
-      <button class="um-btn" data-act="org-reload"><i class="fas fa-rotate"></i> ${escapeHTML(t('org.retry'))}</button>`;
-    _renderFooter();
-    return;
-  }
-
-  const ro = !_isAdmin();
-  body.innerHTML = `
-    <div class="org-head">
-      <label class="org-f org-f-name"><span>${escapeHTML(t('org.orgName'))}</span>
-        <input type="text" ${ro ? 'disabled' : ''} value="${escapeHTML(_st.org.name || '')}" placeholder="${escapeHTML(t('org.orgNamePh'))}"
-               data-input="org-name"></label>
-      <div class="org-counts">
-        <span class="org-chip"><i class="fas fa-building"></i> ${_sites().length}</span>
-        <span class="org-chip"><i class="fas fa-cloud-arrow-up"></i> ${_uplinks().length}</span>
-        <span class="org-chip"><i class="fas fa-link"></i> ${_links().length}</span>
-        ${_auditChips()}
-      </div>
-    </div>
-    <div class="um-tabs org-tabs">
-      ${TABS.map(([k, icon, key]) => `<button class="um-tab${_st.tab === k ? ' active' : ''}" data-act="org-tab" data-tab="${k}"><i class="fas ${icon}"></i> <span>${escapeHTML(t(key))}</span></button>`).join('')}
-      ${_renderTabAction()}
-    </div>
-    <div class="org-pane">${_renderBody()}</div>`;
-  // ④ La SECONDA passata della mappa: ora l'SVG è nel documento, quindi le righe
-  // dentro i riquadri si possono misurare per davvero e la geometria si rifà con
-  // le larghezze vere. Si fa una volta sola — con un `boxOf` già in mano non si
-  // rientra — perché due passate bastano e una terza inseguirebbe sé stessa.
-  if (_st.tab === 'map' && _st.mapMode === 'geo') {
-    // La mappa vera non ha passate di misura: Leaflet si monta quando il pannello è nel documento.
-    _mountGeoMap();
-  } else if (_st.tab === 'map') {
-    const svg = body.querySelector('svg.org-map');
-    const misure = _measureBoxes(svg);
-    if (misure) {
-      const pane = body.querySelector('.org-pane');
-      if (pane) pane.innerHTML = _renderMap(misure);
-    }
-  }
-  // Il ritaglio si fa DOPO che l'SVG è nel documento: prima non c'è niente da
-  // misurare, e `getBBox()` risponderebbe zero.
-  _fitMapViewBox(body.querySelector('svg.org-map'));
-  // ㉖ L'SVG è appena stato ricostruito: la vista è nello stato, non nel DOM, e
-  // va riscritta o si tornerebbe al 100% a ogni salvataggio.
-  _applyMapView();
-  // Dopo la seconda passata della mappa: quella rifà l'HTML DENTRO il pane, non il
-  // pane, quindi l'elemento è lo stesso e il valore regge.
-  const paneNuovo = body.querySelector('.org-pane');
-  if (paneNuovo) paneNuovo.scrollTop = scorrimento;
-  _tabDisegnata = _st.tab;
-  _applyFocusLink(body);
-  _applyFocusNew(body);
+  if (!_st.view) return;
+  _ensureSel();
+  _renderOrgName();
+  _renderTabs();
+  _renderMaster();
+  _renderDetail();
+  const cassetto = _el('ms-dock-body');
+  if (cassetto) { _applyFocusLink(cassetto); _applyFocusNew(cassetto); }
+  _renderTile();
+  _fitDock();
+  _renderStage();
   _renderFooter();
 }
 
 /**
  * Porta sotto gli occhi la riga appena creata.
  *
- * Serve da quando il bottone «aggiungi» sta in cima: la riga nasce in fondo
- * all'elenco, cioè fuori dallo schermo, e un'aggiunta che non si vede sembra
- * un'aggiunta che non è avvenuta. Prima il bottone stava in fondo e ci si era
- * già — per un motivo sbagliato, ma ci si era.
+ * La riga nasce in fondo a un elenco, cioè fuori dallo schermo, e un'aggiunta che non si
+ * vede sembra un'aggiunta che non è avvenuta.
  *
  * ⚠️ Nessun selettore costruito con l'id dentro: si confrontano i dataset, come
  * fa `_applyFocusLink` e per la stessa ragione (un id arriva anche da un
@@ -2843,7 +3220,7 @@ function _render() {
  */
 function _applyFocusNew(body) {
   if (!_st.focusNew) return;
-  const row = Array.from(body.querySelectorAll('.org-row')).find(r => r.dataset.row === _st.focusNew);
+  const row = Array.from(body.querySelectorAll('[data-row]')).find(r => r.dataset.row === _st.focusNew);
   if (!row) return;                       // altra scheda, o riga sparita: si riproverà
   row.scrollIntoView({ block: 'center' });
   row.classList.add('org-row-target');
@@ -2868,28 +3245,21 @@ function _applyFocusNew(body) {
  */
 function _applyFocusLink(body) {
   if (!_st.focusLink) return;
-  const row = Array.from(body.querySelectorAll('.org-row')).find(r => r.dataset.row === _st.focusLink);
+  const row = Array.from(body.querySelectorAll('[data-row]')).find(r => r.dataset.row === _st.focusLink);
   if (!row) return;                       // altra scheda, o riga sparita: si riproverà
   row.scrollIntoView({ block: 'center' });
   row.classList.add('org-row-target');    // si spegne da sé: l'animazione finisce
   if (!_st.warming) _st.focusLink = null;
 }
 
-// Chiusura sul backdrop solo se anche la PRESSIONE era sul backdrop: una
-// selezione di testo che parte da un input e finisce fuori dal box non deve
-// chiudere il pannello (stessa trappola già risolta nel modale DCIM).
-let _pressOnBackdrop = false;
+// Lo schema, sul centro: rotella e trascinamento. Un listener SOLO, sul contenitore che non
+// viene mai ricostruito: `_renderStage()` rifà l'SVG a ogni giro, e agganciarsi lì vorrebbe dire
+// riagganciarsi ogni volta — con il rischio, noto in questo codice, di dimenticarsene una.
 let _wired = false;
-function _wireBackdrop() {
+function _wireStage() {
   if (_wired) return;
-  const ov = _el('org-overlay');
+  const ov = _el('ms-stage');
   if (!ov) return;
-  ov.addEventListener('mousedown', (e) => { _pressOnBackdrop = (e.target === ov); });
-
-  // ㉖ Rotella e trascinamento. Un listener SOLO, sul contenitore che non viene
-  // mai ricostruito: `_render()` rifà l'SVG a ogni giro, e agganciarsi lì
-  // vorrebbe dire riagganciarsi ogni volta — con il rischio, noto in questo
-  // codice, di dimenticarsene una.
   // ⚠️ `passive: false`: senza, il browser ignora `preventDefault()` e la rotella
   // fa scorrere il pannello INVECE di ingrandire. È il difetto che si vede solo
   // provandolo, e solo con un pannello più alto dello schermo.
@@ -2898,9 +3268,37 @@ function _wireBackdrop() {
     e.preventDefault();
     _zoomMap(e.deltaY > 0 ? -MAP_ZOOM.step : MAP_ZOOM.step, e);
   }, { passive: false });
+  // ⚠️ La rotella NON deve risalire alla planimetria: `#floorplan` ha un `onwheel` che ingrandisce il
+  // pavimento (nascosto) e chiama `preventDefault()` — cioè farebbe scorrere NIENTE nelle tabelle del
+  // cassetto, e girando la rotella sulla carta cambierebbe lo zoom di un pavimento che non si vede.
+  // Il clic invece non si ferma: i gestori di documento (menu da chiudere) lo vogliono.
+  for (const id of ['ms-stage', 'ms-dock']) {
+    const el = _el(id);
+    if (el) el.addEventListener('wheel', (e) => e.stopPropagation());
+  }
+  // La maniglia: si trascina in su e in giù, e Leaflet viene avvisato a ogni passo.
+  const grip = _el('ms-dock-grip');
+  if (grip) {
+    let da = null;
+    grip.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      da = { y: e.clientY, h: _st.dockOpen ? _st.dockH : DOCK.bar };
+      _st.dockOpen = true;
+      _st.dockAuto = false;              // da qui l'altezza la decide chi ha trascinato
+      try { grip.setPointerCapture(e.pointerId); } catch (_) { /* niente cattura: si trascina lo stesso */ }
+      e.preventDefault();
+    });
+    grip.addEventListener('pointermove', (e) => {
+      if (!da) return;
+      _st.dockH = da.h + (da.y - e.clientY);
+      _applyDock();
+    });
+    for (const ev of ['pointerup', 'pointercancel']) grip.addEventListener(ev, () => { da = null; });
+  }
+  window.addEventListener('resize', () => { if (_st.view) _applyDock(); });
 
   // Il trascinamento parte SOLO dallo sfondo. Sui riquadri e sulle pastiglie il
-  // clic ha già un significato — aprire il progetto, aprire il collegamento — e
+  // clic ha già un significato — scegliere la sede, aprire il collegamento — e
   // un trascinamento che parte da lì li renderebbe difficili da premere.
   let trascina = null;
   ov.addEventListener('pointerdown', (e) => {
@@ -2928,46 +3326,95 @@ function _wireBackdrop() {
     ov.addEventListener(ev, () => {
       if (!trascina) return;
       trascina = null;
-      const f = _el('org-body') && _el('org-body').querySelector('.org-map-frame');
+      const f = _el('ms-schema') && _el('ms-schema').querySelector('.org-map-frame');
       if (f) f.classList.remove('is-panning');
     });
   }
   _wired = true;
 }
 
-/** Apre «Sedi e collegamenti» e ricarica dal server: l'organizzazione è una per
- *  installazione, e potrebbe averla cambiata un altro amministratore.
- *  ⚠️ Con modifiche non salvate NON si ricarica: la risposta del server
- *  rimpiazzerebbe lo stato in lavorazione, cioè butterebbe via ciò che si stava
- *  scrivendo, senza chiedere e senza dirlo. */
-export function openOrgPanel() {
-  const ov = _el('org-overlay');
-  if (!ov) return;
-  _wireBackdrop();
-  ov.classList.add('open');
-  if (_st.dirty) { _render(); return; }
-  _st.tab = 'map'; _st.dropped = null; _st.wanReport = null; _st.wanBusy = false;
-  _st.geoFind = null;
-  _render();
-  _load();
-  _loadGeocoderStatus();
-}
-
-export function closeOrgPanel() {
-  const ov = _el('org-overlay');
-  if (!ov) return;
-  if (_st.dirty) {
-    showConfirm(t('org.confirmDiscard'), () => { _st.dirty = false; _destroyGeoMap(); ov.classList.remove('open'); });
+/**
+ * ⭐ Accende o spegne il Multisito. Acceso, ricarica dal server: l'organizzazione è una per
+ * installazione, e potrebbe averla cambiata un altro amministratore.
+ * ⚠️ Con modifiche non salvate NON si ricarica: la risposta del server rimpiazzerebbe lo stato in
+ * lavorazione, cioè butterebbe via ciò che si stava scrivendo, senza chiedere e senza dirlo. E per
+ * lo stesso motivo non si SPEGNE senza chiedere.
+ * Una vista alla volta: la Panoramica cede il posto.
+ */
+export function setMultisite(on, forza) {
+  const voglio = !!on;
+  if (voglio === _st.view) return;
+  if (!voglio && _st.dirty && !forza) {
+    showConfirm(t('org.confirmDiscard'), () => { _st.dirty = false; setMultisite(false, true); });
     return;
   }
-  _destroyGeoMap();
-  ov.classList.remove('open');
+  _st.view = voglio;
+  document.body.classList.toggle('view-multisite', voglio);
+  const stage = _el('ms-stage');
+  if (stage) stage.hidden = !voglio;
+  const cassetto = _el('ms-dock');
+  if (cassetto) cassetto.hidden = !voglio;
+  const btn = _el('btn-org');
+  if (btn) btn.setAttribute('aria-pressed', voglio ? 'true' : 'false');
+  if (voglio) {
+    if (document.body.classList.contains('view-overview') && typeof setOverview === 'function') setOverview(false);
+    store._viewMode = 'multisite';
+    _wireStage();
+    if (_st.dirty) { _applyDock(); _render(); }
+    else {
+      _st.tab = 'sites'; _st.dropped = null; _st.wanReport = null; _st.wanBusy = false; _st.geoFind = null;
+      _applyDock();
+      _render();
+      _load();
+    }
+    _loadGeocoderStatus();
+  } else {
+    _destroyGeoMap();
+    _applyDock();                      // a vista spenta l'altezza torna a zero: la planimetria ha di nuovo tutto lo spazio
+    store._viewMode = store._topoVisible ? 'topology' : 'map';
+  }
+  if (typeof renderSubbar === 'function') renderSubbar();
 }
 
-/** Dal collegamento (la pastiglia sullo schema, la linea sulla mappa) alla sua riga.
+export function toggleMultisite() { setMultisite(!_st.view); }
+
+/** Sceglie una sede (dalla tabella o dalla carta): la scheda «Sedi» passa a lei e il suo cerchio si
+ *  evidenzia. `pan`: dalla tabella la carta si sposta sulla sede, dalla carta no — chi ha cliccato
+ *  sul cerchio lo vede già dov'è, e uno spostamento sotto il dito è il modo di sbagliare il clic dopo. */
+function _pickSite(siteId, pan) {
+  const s = _sites().find(x => x.id === siteId);
+  if (!s) return;
+  _st.selSite = s.id; _st.tab = 'sites'; _st.focusLink = null;
+  _render();
+  if (pan && _geoMap && s.geo) { try { _geoMap.panTo([s.geo.lat, s.geo.lng]); } catch (_) { /* carta non pronta */ } }
+}
+
+/** Sceglie un collegamento: la sua riga, e sulla carta si accende. Se la carta non lo mostra per intero
+ *  la si porta sul suo punto di mezzo. */
+function _pickLink(linkId, pan) {
+  const l = _links().find(x => x.id === linkId);
+  if (!l) return;
+  _st.selLink = l.id; _st.tab = 'links'; _st.focusLink = null;
+  _render();
+  const a = _sites().find(x => x.id === l.aSiteId), b = _sites().find(x => x.id === l.bSiteId);
+  if (pan && _geoMap && a && b && a.geo && b.geo) {
+    try { _geoMap.panTo([(a.geo.lat + b.geo.lat) / 2, (a.geo.lng + b.geo.lng) / 2]); } catch (_) { /* carta non pronta */ }
+  }
+}
+
+/** Sceglie una linea WAN: la sua riga, e la sua sede si evidenzia sulla carta. */
+function _pickUplink(upId) {
+  const u = _uplinks().find(x => x.id === upId);
+  if (!u) return;
+  _st.selUp = u.id; _st.selSite = u.siteId; _st.tab = 'wan'; _st.focusLink = null;
+  _render();
+}
+
+/** Dal collegamento (la pastiglia sullo schema, la linea sulla carta, la riga della sede) alla sua riga.
  *  Si scaldano i progetti come fa `org-tab`: le due tendine degli apparati vivono di quelli. */
 function _goToLink(linkId) {
   _st.focusLink = linkId || null;
+  if (linkId) _st.selLink = linkId;
   _st.tab = 'links';
   _render();
   _warmProjects(_links()
@@ -2975,35 +3422,45 @@ function _goToLink(linkId) {
     .map(id => (_sites().find(s => s.id === id) || {}).projectRef));
 }
 
-/** Click su una sede della mappa: si scende nel progetto-sede. Senza un
- *  riferimento valido non si indovina un progetto — si dice che manca. */
+/** Si scende nel progetto-sede. Senza un riferimento valido non si indovina un progetto — si dice che manca. */
 function _openSite(siteId) {
   const s = _sites().find(x => x.id === siteId);
   if (!s) return;
   const p = s.projectRef && _st.projects.find(x => String(x.id) === String(s.projectRef));
   if (!p) { showAlert(t('org.noProjectFor').replace('{name}', s.name)); return; }
+  const vai = () => { setMultisite(false, true); switchProject(p.id); };
   if (_st.dirty) {
-    showConfirm(t('org.confirmDiscard'), () => { _st.dirty = false; closeOrgPanel(); switchProject(p.id); });
+    showConfirm(t('org.confirmDiscard'), () => { _st.dirty = false; vai(); });
     return;
   }
-  closeOrgPanel();
-  switchProject(p.id);
+  vai();
 }
 
 registerClickActions({
   'org-zoom': (el) => _zoomMap(Number(el.dataset.delta) || 0, null),
   'org-zoom-fit': () => _fitMap(),
-  'org-open': () => openOrgPanel(),
-  'org-close': () => closeOrgPanel(),
-  'org-backdrop': (el, ev) => { if (ev.target === el && _pressOnBackdrop) closeOrgPanel(); },
+  // Il bottone «Multisito» della testata: un interruttore, non un'apertura.
+  'org-open': () => toggleMultisite(),
   'org-reload': () => { _load(); },
   // Si disegna SUBITO con quello che si ha, e i progetti-sede arrivano dopo: la
   // scheda «Collegamenti» ha bisogno degli apparati per riempire le due tendine,
   // ma aspettarli lascerebbe il pannello fermo. Le tendine dicono «carico…»
   // finché non ci sono, e `_warmProjects` ridisegna una volta sola alla fine.
   'org-tab': (el) => {
-    _st.tab = el.dataset.tab || 'map';
+    const k = el.dataset.tab;
+    _st.tab = (k === 'links' || k === 'wan' || k === 'audit') ? k : 'sites';
     _st.focusLink = null;
+    // Cambiando tabella si resta sulla STESSA sede, se ha qualcosa da mostrare: scelta una sede, la scheda
+    // «Linee WAN» apre la sua prima linea e «Collegamenti» il suo primo collegamento, invece di una riga qualunque.
+    if (_st.selSite) {
+      if (_st.tab === 'wan') {
+        const mia = _uplinks().find(u => u.siteId === _st.selSite);
+        if (mia) _st.selUp = mia.id;
+      } else if (_st.tab === 'links') {
+        const mio = _links().find(l => l.aSiteId === _st.selSite || l.bSiteId === _st.selSite);
+        if (mio) _st.selLink = mio.id;
+      }
+    }
     _render();
     if (_st.tab === 'links') {
       _warmProjects(_links()
@@ -3026,7 +3483,33 @@ registerClickActions({
     _st.org.links = _links().filter((_, k) => k !== i);
     _st.dirty = true; _render();
   },
-  'org-node': (el) => _openSite(el.dataset.site || ''),
+  // Il riquadro dello schema: sceglie la sede, come il cerchio sulla carta. (Prima apriva il progetto.)
+  'org-node': (el) => _pickSite(el.dataset.site || '', false),
+  'ms-pick-site': (el) => _pickSite(el.dataset.site || '', true),
+  'ms-open-site': (el) => _openSite(el.dataset.site || ''),
+  // Dall'elenco delle linee: si sceglie la sede e si apre quella linea nella sua scheda.
+  // Una riga della tabella aperta: sceglie sede, collegamento o linea secondo di cosa è la riga.
+  'ms-pick-row': (el) => {
+    const id = el.dataset.id || '';
+    if (el.dataset.kind === 'link') _pickLink(id, true);
+    else if (el.dataset.kind === 'wan') _pickUplink(id);
+    else _pickSite(id, true);
+  },
+  'ms-dock-toggle': () => { _st.dockOpen = !_st.dockOpen; _applyDock(); },
+  // Il tile. Un tipo spento si guarda, non si documenta: nessun «da salvare».
+  'ms-kind': (el) => {
+    const k = el.dataset.kind || '';
+    const prossimo = Object.assign({}, _st.hiddenKinds);
+    if (prossimo[k]) delete prossimo[k]; else prossimo[k] = true;
+    _st.hiddenKinds = prossimo;
+    _renderTile(); _renderStage();
+  },
+  'ms-kind-reset': () => { _st.hiddenKinds = {}; _renderTile(); _renderStage(); },
+  'ms-access': (el) => {
+    const k = el.dataset.access || '';
+    _st.accessSel = _st.accessSel === k ? '' : k;
+    _renderTile(); _renderStage();
+  },
   // ⑭ Dalla mappa alla riga. Si scaldano i progetti come fa `org-tab`: le due
   // tendine degli apparati vivono di quelli, e arrivarci dalla mappa non è un
   // modo diverso di aprire la stessa scheda.
@@ -3034,8 +3517,8 @@ registerClickActions({
   'org-nets-from-project': (el) => { _netsFromProject(Number(el.dataset.idx)); },
   'org-wan-from-dcim': (el) => { _wanFromDcim(Number(el.dataset.idx)); },
   // Il punto di una sede: «Trova» PROPONE, «Usa» sceglie, «Togli» svuota.
-  // La scheda Mappa: schema o carta.
-  'org-map-mode': (el) => { _st.mapMode = el.dataset.mode === 'geo' ? 'geo' : 'schema'; _render(); },
+  // La carta o lo schema.
+  'org-map-mode': (el) => { _st.mapMode = el.dataset.mode === 'schema' ? 'schema' : 'geo'; _render(); },
   'org-geo-find': (el) => { _geoFind(Number(el.dataset.idx)); },
   'org-geo-dcim': (el) => { _geoFromDcim(Number(el.dataset.idx)); },
   'org-geo-use': (el) => _geoUse(Number(el.dataset.idx), Number(el.dataset.cand)),
@@ -3047,9 +3530,10 @@ registerClickActions({
 
 registerInputActions({
   'org-name': (el) => { _st.org.name = el.value; _touch(); },
+  // La ricerca dell'elenco: ridisegna SOLO l'elenco, non il campo in cui si sta scrivendo.
+  'ms-filter': (el) => { _st.filter = el.value; _renderMaster(); },
   // Volutamente NESSUN re-render mentre si scrive: rifare l'HTML a ogni tasto
-  // butterebbe via il cursore. La mappa vive in un'altra tab e si ricostruisce
-  // quando ci si torna.
+  // butterebbe via il cursore.
   'org-field': (el) => _setField(el),
   // Le due coordinate: come gli altri campi, niente ridisegno mentre si scrive.
   'org-geo': (el) => _setGeoAxis(el),
@@ -3059,6 +3543,15 @@ registerInputActions({
 // tabulatore arriva sull'elemento, legge «bottone» e preme invano. Il riquadro
 // della sede lo prometteva già da prima; ora tutti e due lo mantengono.
 registerKeydownActions({
+  // La maniglia del cassetto si governa anche da tastiera: freccia su = più alto, giù = più basso.
+  'ms-grip': (el, ev) => {
+    if (ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown') return;
+    ev.preventDefault();
+    _st.dockOpen = true;
+    _st.dockAuto = false;
+    _st.dockH += ev.key === 'ArrowUp' ? DOCK.step : -DOCK.step;
+    _applyDock();
+  },
   'org-activate': (el, ev) => {
     if (ev.key !== 'Enter' && ev.key !== ' ') return;
     ev.preventDefault();   // o la barra fa scorrere il pannello sotto le dita
@@ -3080,3 +3573,7 @@ registerChangeActions({
     _touch();
   },
 });
+
+// Chi accende il Multisito senza passare dal bottone (il «torna su» della sotto-header) e la
+// Panoramica, che gli cede il posto, lo chiamano per nome: stesso schema di `renderSubbar`.
+expose({ setMultisite, toggleMultisite });

@@ -1611,6 +1611,9 @@ function _gotoVlanPanel() {
 export function setOverview(on) {
     const want = !!on;
     if (want) {
+        // Una vista alla volta: il Multisito cede il posto (chiamata BARE con typeof-guard, come
+        // renderSubbar più sotto: niente import fra i due moduli).
+        if (document.body.classList.contains('view-multisite') && typeof setMultisite === 'function') setMultisite(false);
         store._viewMode = 'overview';
         document.body.classList.add('view-overview');
         _saveView('overview');

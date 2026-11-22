@@ -29,6 +29,7 @@
     <link rel="stylesheet" href="/styles/10-modern.css">
     <link rel="stylesheet" href="/styles/11-overview.css">
     <link rel="stylesheet" href="/styles/12-touch.css">
+    <link rel="stylesheet" href="/styles/13-multisite.css">
 </head>
 
 <body>
@@ -66,7 +67,7 @@
          si parlano. Fra lui e il selettore di progetto ora c'è «Salva», ma resta
          di casa lì: è la stessa domanda a una scala più grande («dove sono?»),
          non un'esportazione. -->
-    <button class="toolbar-btn" id="btn-org" data-act="org-open" data-i18n-tip="org.tip" data-tip="Sedi, uplink WAN e collegamenti fra le sedi"><i class="fas fa-sitemap"></i><span class="btn-label" data-i18n="org.btnLabel"> Multisito</span></button>
+    <button class="toolbar-btn" id="btn-org" data-act="org-open" aria-pressed="false" data-i18n-tip="org.tip" data-tip="Sedi, uplink WAN e collegamenti fra le sedi"><i class="fas fa-sitemap"></i><span class="btn-label" data-i18n="org.btnLabel"> Multisito</span></button>
     <div id="impexp-menu-wrap" style="position:relative">
         <button class="toolbar-btn" id="btn-impexp" data-act="impexp-toggle" data-i18n-tip="impexp.tip" data-tip="Importa / Esporta">
             <i class="fas fa-right-left"></i><span class="btn-label" data-i18n="impexp.btnLabel"> Esporta</span><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-left:4px;opacity:.6"></i>
@@ -368,6 +369,7 @@
                     </div>
                 </section>
             </div>
+
         </aside>
 
         <div id="sidebar-divider" data-tip="Trascina per ridimensionare · Clic per nascondere/mostrare palette">
@@ -394,6 +396,53 @@
                  z-index 0/auto decide l'ordine del DOM, e una griglia dopo la tela
                  coprirebbe apparati e cavi. -->
             <div id="floorplan-grid"></div>
+            <!-- MULTISITO (body.view-multisite): la carta al posto della planimetria. `hidden` finché la
+                 vista non è accesa. `#org-geo-map` è il contenitore di Leaflet, `#ms-schema` quello dello
+                 schema (uno dei due è visibile, secondo `data-mode`). Lo riempie src/app-inter-site.js. -->
+            <div id="ms-stage" class="ms-stage" data-mode="geo" hidden>
+                <div id="org-geo-map" class="org-geo-map" role="application" data-i18n-aria="org.geoMapAria" aria-label="Mappa delle sedi"></div>
+                <div id="ms-schema" class="ms-schema"></div>
+                <p class="org-geo-map-note" id="org-geo-map-note" hidden></p>
+                <div id="ms-modes" class="ms-modes-slot"></div>
+                <div id="ms-unplaced" class="ms-unplaced"></div>
+                <div id="ms-empty" class="ms-empty"></div>
+            </div>
+            <!-- MULTISITO: il CASSETTO sotto la carta. Quattro schede (Sedi · Collegamenti · Linee WAN · Coerenza): le prime
+                 tre sono tabelle con a destra la scheda della riga scelta, la quarta è il referto. Il campo di
+                 ricerca è STATICO di proposito: ridisegnarlo a ogni tasto butterebbe via il cursore. Lo riempie
+                 src/app-inter-site.js. -->
+            <section id="ms-dock" class="ms-dock" hidden data-i18n-aria="ms.dockAria" aria-label="Sedi, collegamenti, linee WAN e coerenza">
+                <div id="ms-dock-grip" class="ms-grip" role="separator" aria-orientation="horizontal" tabindex="0" data-keydown="ms-grip"
+                     data-i18n-aria="ms.gripAria" aria-label="Ridimensiona il cassetto"></div>
+                <div class="ms-dock-bar">
+                    <!-- L'ORGANIZZAZIONE è una per installazione e ha un nome: sta in testa alla barra, prima delle schede,
+                         perché non è di una scheda — vale per tutte. Il campo è STATICO (ridisegnarlo a ogni tasto butterebbe
+                         via il cursore); lo tiene allineato al documento `_renderOrgName` in src/app-inter-site.js. -->
+                    <label class="ms-org" data-i18n-tip="org.orgName" data-tip="Organizzazione">
+                        <i class="fas fa-building-columns" aria-hidden="true"></i>
+                        <span class="ms-org-lab" data-i18n="org.orgName">Organizzazione</span>
+                        <input id="ms-org-name" type="text" autocomplete="off" data-input="org-name" data-i18n-ph="org.orgNamePh" placeholder="Nome dell’azienda"
+                               data-i18n-aria="org.orgName" aria-label="Organizzazione">
+                    </label>
+                    <span class="ms-sep" aria-hidden="true"></span>
+                    <div id="ms-tabs" class="ms-tabs" role="tablist" data-i18n-aria="ms.dockAria" aria-label="Sedi, collegamenti, linee WAN e coerenza"></div>
+                    <span class="ms-spacer"></span>
+                    <span class="ms-sep" aria-hidden="true"></span>
+                    <div class="sidebar-search-wrap ms-search">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input id="ms-filter" type="text" autocomplete="off" data-i18n-ph="ms.searchPh" placeholder="Filtra…"
+                               data-i18n-aria="ms.searchAria" aria-label="Filtra la tabella" data-input="ms-filter">
+                    </div>
+                    <span class="ms-sep" aria-hidden="true"></span>
+                    <div id="ms-actions" class="ms-actions"></div>
+                    <span class="ms-sep" aria-hidden="true"></span>
+                    <button type="button" id="ms-dock-toggle" class="ms-collapse" data-act="ms-dock-toggle" aria-expanded="true"><i class="fas fa-chevron-down" aria-hidden="true"></i></button>
+                </div>
+                <div id="ms-dock-body" class="ms-dock-body">
+                    <div id="ms-detail" class="ms-detail"></div>
+                    <div id="ms-master" class="ms-master"></div>
+                </div>
+            </section>
             <div id="floor-canvas">
                 <img id="floor-bg-img" src="" alt="mappa">
                 <div id="floor-structures"></div>
@@ -406,6 +455,8 @@
                  (#btn-topology, stato gestito da _setTopoBtn) e, separato da |, il
                  Filtra VLAN (#topo-legend, contenuto da _renderTopoLegend). -->
             <div id="map-view-bar">
+                <!-- MULTISITO: i tipi di connessione, al posto dei selettori VLAN (che qui spariscono). -->
+                <div id="ms-tile" class="ms-tile"></div>
                 <div id="topo-legend"></div>
                 <span id="map-view-sep"></span>
                 <button class="toolbar-btn" id="btn-topology" data-act="toggle-topology" oncontextmenu="event.preventDefault();discoverTopology(true)"
@@ -1156,23 +1207,6 @@
       <button class="toolbar-btn" id="shared-bind-back" data-act="ssbind-back" style="display:none"><i class="fas fa-arrow-left"></i> <span data-i18n="common.back">Indietro</span></button>
       <button class="toolbar-btn primary" data-act="ssbind-close" data-i18n="common.close">Chiudi</button>
     </div>
-  </div>
-</div>
-
-<!-- ===== SEDI E COLLEGAMENTI (layer multi-sede, Fase 1) =====
-     Il piano SOPRA il progetto: un progetto documenta un edificio, questo
-     pannello documenta come gli edifici si parlano. Corpo e piè di pagina sono
-     costruiti interamente da src/app-inter-site.js (mappa + form + coerenza):
-     qui c'è solo il guscio, così l'a11y del `.tool-modal-overlay` (focus-trap +
-     Esc) vale anche per lui senza codice dedicato. -->
-<div id="org-overlay" class="tool-modal-overlay" data-act="org-backdrop">
-  <div id="org-modal" class="tool-modal" style="width:min(1150px,96vw);max-height:92vh" role="dialog" aria-modal="true" aria-labelledby="org-title">
-    <div class="tool-modal-header um-header">
-      <h3 id="org-title"><i class="fas fa-sitemap"></i> <span data-i18n="org.title">Sedi e collegamenti</span></h3>
-      <button class="toolbar-btn" data-act="org-close" style="padding:4px 8px" data-i18n-tip="common.close" data-tip="Chiudi"><i class="fas fa-times"></i></button>
-    </div>
-    <div id="org-body" class="tool-modal-body"></div>
-    <div id="org-footer" class="tool-modal-footer"></div>
   </div>
 </div>
 
