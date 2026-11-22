@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const { versionLabel, CHANGELOG_URL } = require('../lib/app-version.js');
 const i18n = require('../lib/i18n.js');
-const { loadApp, run } = require('../tools/smoke-dom-stub.js');
+const { loadApp } = require('../tools/smoke-dom-stub.js');
 
 const ROOT = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, 'netmapper.html'), 'utf8');
