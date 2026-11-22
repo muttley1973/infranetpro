@@ -28,11 +28,17 @@ function getSearchIcon(kind,type='') {
     if(kind==='link') return 'fa-link';
     return TYPES[type]?.icon||(TYPES[type]?.isRack?'fa-server':'fa-cube');
 }
+// Il testo su cui si cerca una porta. Oltre a «apparato · id · stato · numero VLAN · velocità» ci va ciò che la
+// PERSONA ha scritto o l'apparato ha detto di lei: la descrizione (per convenzione la PRESA: «PP1-14 | 203»),
+// il nome dell'interfaccia (`Gi1/0/5`), l'alias letto, l'IP della porta e il NOME della sua VLAN. Prima si
+// poteva cercare `vlan:20` ma non «Ospiti», e la presa scritta nel documento non si trovava.
 function getPortSummary(pid) {
     const p=store.state.ports[pid]||{}, n=getNodeByPortId(pid);
+    const vlan=p.vlan||1, vlanName=(store.state.vlanNames||{})[vlan];
     const parts=[getNodeDisplayName(n),pid,`status:${normalizePortStatus(p.status)}`,
-                 `vlan:${p.vlan||1}`,`speed:${p.speed||'1G'}`,`connections:${getPortConnectionCount(pid)}`];
+                 `vlan:${vlan}`,`speed:${p.speed||'1G'}`,`connections:${getPortConnectionCount(pid)}`];
     if(n?.rackId) parts.push(`rack:${getRackName(n.rackId)}`);
+    for(const extra of [p.desc,p.ifName,p.alias,p.ip,vlanName]) if(extra) parts.push(String(extra));
     return parts.join(' ');
 }
 
@@ -42,12 +48,16 @@ function getPortSummary(pid) {
 function buildSearchResults(query) {
     const q=query.trim().toLowerCase();
     if(q.length<2) return [];
-    const results=[];
+    // Tre liste, poi in coda: prima gli APPARATI, poi le porte, poi i cavi. Con il tetto a 40, le porte di un
+    // apparato (ora anche per descrizione, VLAN e IP) riempivano la lista e chi stava dopo non si vedeva più.
+    const devices=[], ports=[], links=[];
 
     store.state.nodes.forEach(node=>{
         const view = typeof _nodeSpecView==='function' ? _nodeSpecView(node) : node;
         const def=TYPES[node.type]; if(!def) return;
-        const hay=[view.id,view.name,def.name,typeName(node.type),view.type,view.hostname,view.brand,view.model,view.ip,view.mac,
+        const measured = (node.integration && node.integration.inventory) || {};   // la matricola LETTA via SNMP
+        const hay=[view.id,view.name,def.name,typeName(node.type),view.type,view.hostname,view.brand,view.model,view.ip,view.ip6,view.mac,
+                   view.serialNumber,measured.serialNumber,
                    view.assignedUser,
                    view.rackId,getRackName(view.rackId),view.notes]
                   .filter(Boolean).join(' ').toLowerCase();
@@ -56,17 +66,21 @@ function buildSearchResults(query) {
             const loc=def.isRack?`${getRackName(node.rackId)} - U${node.rackU||'?'}`
                                  :`Floor ${Math.round(node.x||0)}, ${Math.round(node.y||0)}`;
             const userTag = view.assignedUser ? ` - 👤 ${view.assignedUser}` : '';
-            results.push({kind:'device',id:node.id,icon:getSearchIcon('device',node.type),
+            devices.push({kind:'device',id:node.id,icon:getSearchIcon('device',node.type),
                 title:`${getNodeDisplayName(node)} (${typeName(node.type)})`,
                 meta:`${loc} - ${getNodePortCount(node)} porte${userTag}`});
         }
         const pCount=getNodePortCount(node);
         for(let i=1;i<=pCount;i++){
             const pid=`${node.id}-${i}`;
-            if(getPortSummary(pid).toLowerCase().includes(q))
-                results.push({kind:'port',id:pid,icon:getSearchIcon('port'),
+            if(getPortSummary(pid).toLowerCase().includes(q)){
+                const pi=store.state.ports[pid]||{};
+                // la presa scritta (o il nome dell'interfaccia) in coda: è ciò che si cercava, e dice PERCHÉ la porta è qui
+                const trovato=[pi.ifName,pi.desc].filter(Boolean).join(' · ');
+                ports.push({kind:'port',id:pid,icon:getSearchIcon('port'),
                     title:`${getNodeDisplayName(node)} - Porta ${i}`,
-                    meta:`ID ${pid} - VLAN ${(store.state.ports[pid]||{}).vlan||1} - ${getPortConnectionCount(pid)} conn.`});
+                    meta:`ID ${pid} - VLAN ${pi.vlan||1} - ${getPortConnectionCount(pid)} conn.${trovato?` - ${trovato}`:''}`});
+            }
         }
     });
 
@@ -76,11 +90,11 @@ function buildSearchResults(query) {
                    getRackName(sn?.rackId),getRackName(dn?.rackId),
                    `vlan:${(store.state.ports[link.src]||{}).vlan||1}`].filter(Boolean).join(' ').toLowerCase();
         if(hay.includes(q))
-            results.push({kind:'link',id:link.id,icon:getSearchIcon('link'),
+            links.push({kind:'link',id:link.id,icon:getSearchIcon('link'),
                 title:`${link.src} → ${link.dst}`,
                 meta:`${getNodeDisplayName(sn)} → ${getNodeDisplayName(dn)} - VLAN ${(store.state.ports[link.src]||{}).vlan||1}`});
     });
-    return results.slice(0,40);
+    return devices.concat(ports,links).slice(0,40);
 }
 
 function handleSearchInput(v) {

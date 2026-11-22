@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- **The search finds the jack, the serial number and the VLAN by name.** It looked only at a device's name, host, brand, model, IP, MAC, user and notes, and at a port's number, state, VLAN number and speed — so the jack you wrote in a port's description (`PP1-14 | 203`, the product's own convention) was not findable. It now also searches a port's description, interface name (`Gi1/0/5`), the alias the device reported, its IP and its VLAN's name (type `Guests`, get the ports on that VLAN), and a device's serial number — declared or read over SNMP — and its IPv6. A port found this way shows its interface name and description next to it.
+
+### Changed
+
+- **Search results list devices first, then ports, then cables.** The list is capped at 40, and a switch's ports (which now match more) could fill it and push a device further down out of sight.
+
 ### Fixed
 
 - **The same IP in two different VRFs is no longer reported as a duplicate.** Two firewalls of two customers on the same `172.16.0.1` are two routing tables, not a clash — and the prefix check already knew it; the address check did not. The VRF of an address is now read from the addresses NetBox declares, and the pair is excused only when **both** VRFs are declared and different: if one is missing the app cannot tell, and it still reports the duplicate. What it excused is said, not dropped — the L3 report lists the address with the VRF names. The import now keeps the VRF's name next to its number (on addresses and on prefixes); a project imported before shows "VRF 7" until it is imported again.

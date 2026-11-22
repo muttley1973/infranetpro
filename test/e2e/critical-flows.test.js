@@ -2981,6 +2981,15 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           const res = buildSearchResults('coreswitch');
           const foundDevice = res.some(x => x.kind === 'device' && x.id === 'n1');
 
+          // 2b) la PRESA scritta nella descrizione di una porta si trova, scrivendo davvero nel campo (input
+          //     delegato) e leggendo il pannello dei risultati: la presa compare accanto alla porta trovata
+          state.ports['n1-3'] = Object.assign(state.ports['n1-3'] || {}, { desc: 'PP1-14 | 203' });
+          const box = document.getElementById('global-search');
+          box.value = 'pp1-14'; box.dispatchEvent(new Event('input', { bubbles: true }));
+          const panelText = document.getElementById('search-results').textContent;
+          const foundPresa = /CoreSwitch01 - Porta 3/.test(panelText) && /PP1-14 \| 203/.test(panelText);
+          box.value = ''; box.dispatchEvent(new Event('input', { bubbles: true }));
+
           // 3) zoom floor via EVENT DELEGATION (data-act): cambia lo stato + scale() al canvas
           const z0 = state.floorView.zoom;
           document.querySelector('[data-act="zoom-floor"][data-delta="0.1"]').click();
@@ -3011,7 +3020,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
           // 7c) file-input immagine planimetria cablato via delegation (data-change="map-upload")
           const mapUploadWired = document.getElementById('map-upload').getAttribute('data-change') === 'map-upload';
 
-          return { ok: true, allFns, foundDevice, zoomed, transformApplied, opts, switched, moved, nodeRack, delegatedGone, changeInputGone, mapUploadWired };
+          return { ok: true, allFns, foundDevice, foundPresa, zoomed, transformApplied, opts, switched, moved, nodeRack, delegatedGone, changeInputGone, mapUploadWired };
         } catch (e) { return { ok: false, err: String(e && e.stack || e) }; }
       });
       assert.ok(r.ok, 'nessun errore nel flusso search/zoom/rack: ' + r.err);
@@ -3020,6 +3029,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.changeInputGone, 'ASSE B: filterPaletteItems/updateRackSize/switchRack/handleMapUpload ritirate dal ponte (data-input/data-change)');
       assert.ok(r.mapUploadWired, 'ASSE B: #map-upload cablato via data-change="map-upload" (delegation)');
       assert.ok(r.foundDevice, 'buildSearchResults trova il device per nome');
+      assert.ok(r.foundPresa, 'scrivendo la presa nel campo di ricerca compare la porta, con la presa accanto');
       assert.ok(r.zoomed, 'zoomFloor aumenta lo zoom della planimetria');
       assert.ok(r.transformApplied, 'updateTransforms applica scale() al floor-canvas');
       assert.equal(r.opts, 2, 'renderRackTabs popola il select con 2 rack');
