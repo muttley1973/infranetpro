@@ -126,17 +126,17 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 </p>
 
 <p align="center">
-  <img src="GitHub%20Images/Multisito.png" alt="InfraNet Pro — Sites and links: the multi-site map, with each site's WAN lines, the tunnels between them and the coherence counters" width="900"><br>
-  <em>Sites and links — each site with its WAN lines, the tunnels between them and the counters of what does not add up. Double-click a site to walk down into its project.</em>
+  <img src="GitHub%20Images/Multisito.png" alt="InfraNet Pro — Multi-site: the map in place of the floor plan, the connection-type tile above it and, under it, a drawer of tables for sites, links, WAN lines and coherence, with the card of the chosen link" width="900"><br>
+  <em>Multi-site is a view of the workspace: the map takes the place of the floor plan, a tile filters the link types and the WAN access types, and a drawer underneath holds the sites, the links, the WAN lines and the counters of what does not add up — a table on the right, the card of the chosen row on the left. Double-click a site to walk down into its project.</em>
 </p>
 
 <p align="center">
-  <img src="GitHub%20Images/Multisito%20mappa.jpg" alt="InfraNet Pro — the Sites map in its Geographic view: four sites on an OpenStreetMap background, with the links between them" width="900"><br>
-  <em>Sites on a real map — each site where it really is, a circle coloured by its state, the links between them drawn from site to site. Your own server fetches and caches the OpenStreetMap tiles.</em>
+  <img src="GitHub%20Images/Multisito%20mappa.jpg" alt="InfraNet Pro — the Multi-site map: four sites on an OpenStreetMap background, with the links between them and the tile that filters link types" width="900"><br>
+  <em>Sites on a real map — each site where it really is, a circle with its state sign, the links drawn from site to site: the colour says up or down, the stroke says MPLS, IPsec or WireGuard, and the tile switches a type off. Your own server fetches and caches the OpenStreetMap tiles.</em>
 </p>
 
 <p align="center">
-  <img src="GitHub%20Images/Multisito%20mappa%20dettaglio.jpg" alt="InfraNet Pro — the Geographic view zoomed in on Milan and Turin, with the roads and towns between them" width="900"><br>
+  <img src="GitHub%20Images/Multisito%20mappa%20dettaglio.jpg" alt="InfraNet Pro — the Multi-site map zoomed in on Milan and Turin, with the roads and towns between them" width="900"><br>
   <em>Zoom in and the streets are there — click a circle to pick the site (double-click it to open the project), a line to edit the link.</em>
 </p>
 
