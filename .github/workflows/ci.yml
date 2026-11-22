@@ -52,4 +52,18 @@ jobs:
           if [ -n "$detail" ]; then echo "::error title=failing tests, with details::${detail}"; fi
 
       - name: E2E — migrated modules in a real browser (headless Chrome)
-        run: RUN_E2E=1 npm run e2e   # Chrome is preinstalled on ubuntu-latest
+        run: |
+          set -o pipefail
+          RUN_E2E=1 npm run e2e 2>&1 | tee "$RUNNER_TEMP/e2e.log"   # Chrome is preinstalled on ubuntu-latest
+
+      # Same for the e2e: the whole run is ONE test with a subtest per flow, so "exit code 1" alone does not say
+      # which flow fell. TAP prints "not ok"; the spec reporter prints a cross.
+      - name: Name the failing e2e flows (annotations)
+        if: failure()
+        run: |
+          [ -f "$RUNNER_TEMP/e2e.log" ] || exit 0
+          grep -E '^[[:space:]]*(not ok|✖)' "$RUNNER_TEMP/e2e.log" | head -10 | while IFS= read -r l; do
+            echo "::error title=failing e2e flow::${l}"
+          done
+          detail=$(grep -E -A18 '^[[:space:]]*(not ok|✖)' "$RUNNER_TEMP/e2e.log" | head -90 | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
+          if [ -n "$detail" ]; then echo "::error title=failing e2e flows, with details::${detail}"; fi
