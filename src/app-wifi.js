@@ -21,7 +21,7 @@ import { registerClickActions, registerChangeActions } from './app-delegation.js
 import { propagateVlans, _ensureVlanColor, _getLinkTrunk } from './app-vlan-autopoll.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { _parseCidrInfo, _ipInCidr } from '../lib/cidr.js';   // lib pura ESM (no win.*): IP→VLAN dalla subnet dichiarata, per la coerenza IP/SSID
 import { prefixesOf } from '../lib/ipam-model.js';   // le subnet dichiarate stanno nei prefissi
-import { renderProps, _propsSectionIsOpen, _buildPropsHeader } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
+import { renderProps, _propsSectionIsOpen, _buildPropsHeader, _propsToggleButtonsHtml } from './app-properties.js';   // ritiro ponte fase 2+: funzioni/builder (ex win.*)
 import { renderAll } from './app-render-core.js';   // ritiro ponte fase 2: funzioni (ex win.*)
 import { TYPES } from './app-types.js';   // ritiro ponte fase 1: catalogo tipi (ex TYPES)
 import { wifiIssueTexts } from './app-issue-text.js';   // le PAROLE dei validatori puri (i18n), che lib/wifi-spec.js non ha più
@@ -491,7 +491,7 @@ export function _renderRadioProps(panel, pid){
         ? `<div class="radio-assocs"><div class="prop-subhead">${esc(_t('radio.assocList'))}</div>${assocRows}</div>`
         : `<div class="radio-assoc-empty">${esc(_t('radio.noAssoc'))}</div>`;
     panel.innerHTML = `
-        ${_buildPropsHeader(devName, lbl, 'fa-wifi')}
+        ${_buildPropsHeader(devName, lbl, 'fa-wifi', `<span class="props-toggles">${_propsToggleButtonsHtml({ reset: true })}</span>`)}
         <div class="prop-group"><label>${esc(_t('radio.label'))}</label>
           <input value="${esc(cfg.label || '')}" placeholder="${esc(_t('radio.iface'))} ${p.idx + 1}" data-change="radio-label" data-nid="${p.nodeId}" data-idx="${p.idx}"></div>
         ${(() => {

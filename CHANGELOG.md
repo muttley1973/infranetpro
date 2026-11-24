@@ -9,6 +9,7 @@
 ### Changed
 
 - **A port's properties follow one order, and the VLAN section is a fold.** From the top: *Add to LAG*, the description block (description, interface address, status, speed, duplex), *VLAN* — now a fold like the cable's, with a one-line summary when closed — and last the live reading.
+- **The expand-all / collapse-all / reset chevrons are now in every properties panel that has folds.** The port, the power-outlet and the radio panels did not have them. A test now requires them wherever a panel draws a fold.
 
 ## [2.15.0] — 2026-11-22
 

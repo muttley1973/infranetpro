@@ -1244,6 +1244,22 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         assert.ok(ordine.vlan < ordine.live, 'e per ultima la lettura dal vivo: ' + JSON.stringify(ordine));
         assert.ok(ordine.vlanAperta, 'la fisarmonica VLAN e\' aperta di default come le altre');
         assert.match(ordine.vlanTit, /^VLAN/, 'il titolo dice VLAN');
+        // Gli chevron dell'intestazione, come in ogni altro pannello: espandi tutto / comprimi tutto / ripristina.
+        const chevron = await page.evaluate(() => {
+          const p = document.getElementById('props-panel');
+          const bt = (a) => p.querySelector(`.props-selected-title [data-act="${a}"]`);
+          const aperte = () => Array.from(p.querySelectorAll('details.props-collapsible')).filter(d => d.open).length;
+          const tot = p.querySelectorAll('details.props-collapsible').length;
+          const presenti = !!bt('props-expand-all') && !!bt('props-collapse-all') && !!bt('props-reset-sections');
+          const prima = aperte();
+          bt('props-collapse-all').click(); const chiuse = aperte();
+          bt('props-expand-all').click(); const riaperte = aperte();
+          return { presenti, tot, prima, chiuse, riaperte };
+        });
+        assert.ok(chevron.presenti, 'l\'intestazione della porta ha i tre bottoni espandi/comprimi/ripristina');
+        assert.equal(chevron.tot, 2, 'le fisarmoniche della porta: VLAN e lettura dal vivo');
+        assert.equal(chevron.chiuse, 0, '«comprimi tutto» chiude tutte le fisarmoniche');
+        assert.equal(chevron.riaperte, chevron.tot, '«espandi tutto» le riapre tutte');
         assert.match(c.testo, /↓\s*[\d,.]+\s*kbit\/s/, 'velocita\' in ingresso dalla differenza fra le due letture');
         assert.match(c.testo, /↑\s*[\d,.]+\s*Mbit\/s/, 'velocita\' in uscita');
         assert.match(c.testo, /1 Gbit\/s/, 'velocita\' del link');

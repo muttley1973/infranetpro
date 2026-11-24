@@ -23,7 +23,7 @@ import { _effPortVlan, _getLinkTrunk, _parseTrunkVlans, _runActiveAnchor, _voipV
 import { prefixesOf, prefixesWithoutVlan } from '../lib/ipam-model.js';   // l'autorità sui prefissi, e su che cosa vuol dire «senza VLAN»
 import { CABLE_NEUTRAL } from './app-link-color.js';   // il colore del cavo che non sta in nessuna VLAN: una definizione sola, non una copia dell'hex
 import { fieldSource } from '../lib/field-provenance.js';   // descrizione e indirizzo copiati da una lettura: il segno li dice «Misurato»
-import { renderProps, _buildPropsHeader, _propsSectionIsOpen, _ctyMark, _ctyLegendHtml } from './app-properties.js';   // ritiro ponte + ASSE B: dispatcher + builder header (ex win.*)
+import { renderProps, _buildPropsHeader, _propsToggleButtonsHtml, _propsSectionIsOpen, _ctyMark, _ctyLegendHtml } from './app-properties.js';   // ritiro ponte + ASSE B: dispatcher + builder header (ex win.*)
 import { _vlanLabel } from './app-popup.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*) — carica anche le azioni CONDIVISE port-field/port-speed
 import { _floorAccessVlanRow } from './app-properties-node-devices.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*)
 import { getPassivePortLagInfo, clearPortField, removePortFromLag, togglePortVlanLock } from './app-ports.js';   // ritiro ponte + ASSE B: fn del dominio porta (ex win.*)
@@ -150,7 +150,8 @@ export function _renderPduOutletProps(panel){
         ${_buildPropsHeader(
             `${node.name || node.hostname || node.id} — ${label}`,
             `${_outletKindLabel} · ${t('pduOutlet.title')}`,
-            'fa-plug'
+            'fa-plug',
+            `<span class="props-toggles">${_propsToggleButtonsHtml({ reset: true })}</span>`
         )}
         <div class="prop-group"><label>${t('pduOutlet.identifier')}</label><input disabled value="${escapeHTML(label)}"></div>
         ${connectionHtml}
@@ -379,7 +380,10 @@ export function _renderPortProps(panel){
             ${_buildPropsHeader(
                 (portNode?.name || portNode?.hostname || portNode?.ip || pid),
                 t('pnl.dev.portN',{n:portNum}),
-                'fa-ethernet'
+                'fa-ethernet',
+                // Gli chevron servono dove ci sono fisarmoniche: una tappa passiva (presa, patch panel) non ne ha, e due bottoni
+                // che non muovono niente sarebbero rumore.
+                _passiveConduit ? '' : `<span class="props-toggles">${_propsToggleButtonsHtml({ reset: true })}</span>`
             )}
             ${_lagHead}
             <div class="prop-group"><label>Port ID</label><input disabled value="${escapeHTML(pid)}"></div>
