@@ -10,8 +10,12 @@
 // stantio → chiavi letterali nei menu). I moduli src/ devono leggere quei lib
 // dal ponte (win.* / forward in _bridge.js), non importarli da ../lib.
 //
-// Il test ricostruisce un bundle fresco (build ~15ms) così è deterministico
-// anche in locale senza un `npm run build` precedente.
+// Il test ricostruisce un bundle fresco (build ~15ms), ma in una cartella TEMPORANEA e mai in
+// dist/: esbuild riscrive il file sul posto (lo svuota, poi lo riempie), e `node --test` lancia gli
+// altri file in parallelo — quelli che caricano dist/app.bundle.js (loadApp, smoke) potevano
+// leggerlo VUOTO. Misurato il 24/11: 25 build in fila contro un lettore, 3 letture vuote e 4 a
+// metà su 816; la CI di quel giorno cadde su «_buildDefaultState is not defined» in un test che
+// con questo file non c'entrava niente.
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { execFileSync } = require('node:child_process');
@@ -19,10 +23,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
-const BUNDLE = path.join(ROOT, 'dist', 'app.bundle.js');
+const DIST = path.join(ROOT, 'dist', 'app.bundle.js');
+const OUT_DIR = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'infranet-bundle-'));
+const BUNDLE = path.join(OUT_DIR, 'app.bundle.js');
 
-execFileSync(process.execPath, ['build.js'], { cwd: ROOT, stdio: 'ignore' });
+const distPrima = fs.existsSync(DIST) ? fs.statSync(DIST).mtimeMs : null;
+execFileSync(process.execPath, ['build.js'], { cwd: ROOT, stdio: 'ignore', env: { ...process.env, INFRANET_BUILD_OUTFILE: BUNDLE } });
 const bundle = fs.readFileSync(BUNDLE, 'utf8');
+const distDopo = fs.existsSync(DIST) ? fs.statSync(DIST).mtimeMs : null;
+fs.rmSync(OUT_DIR, { recursive: true, force: true });
 
 // Marker UNIVOCI dell'implementazione di ciascun lib <script> (non delle glue
 // che li consumano): se compaiono nel bundle, il lib è stato ri-bundlato.
@@ -47,6 +56,9 @@ test('bundle: contiene davvero i moduli migrati (build non vuota)', () => {
   // Sanity: se il bundle fosse vuoto/rotto, il guard sopra passerebbe a vuoto.
   assert.ok(bundle.includes('expose'), 'il bundle deve contenere il ponte expose()');
   assert.ok(bundle.length > 5000, `bundle troppo piccolo (${bundle.length}B): build rotta?`);
+  // E il guard NON ha toccato dist/: gli altri file di test lo leggono in parallelo, e un file riscritto sul posto
+  // si vede vuoto o a metà (la corsa di cui sopra). Se build.js ignorasse INFRANET_BUILD_OUTFILE, qui cade.
+  assert.equal(distDopo, distPrima, 'dist/app.bundle.js è stato riscritto dal guard: un lettore in parallelo lo vede vuoto o a metà');
 });
 
 // ── Nessun sorgente è BINARIO per git ────────────────────────────────

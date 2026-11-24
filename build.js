@@ -11,17 +11,26 @@
 //
 //   node build.js            build una volta
 //   node build.js --watch    ricostruisce a ogni salvataggio (dev)
+//
+//   INFRANET_BUILD_OUTFILE=<file>   scrive il bundle (e la sua .map) altrove invece che in dist/.
+//   Serve a chi vuole UN bundle fresco senza toccare quello che gli altri leggono: esbuild riscrive il
+//   file sul posto (lo svuota, poi lo riempie) e un lettore che arriva in mezzo lo vede VUOTO o a metà —
+//   `test/bundle-architecture.test.js` lo faceva mentre `node --test` lanciava gli altri file in parallelo,
+//   e la CI del 24/11 cadde su «_buildDefaultState is not defined».
 // ============================================================
 const esbuild = require('esbuild');
 const path = require('path');
 
 const watch = process.argv.includes('--watch');
+const outfile = process.env.INFRANET_BUILD_OUTFILE
+  ? path.resolve(process.env.INFRANET_BUILD_OUTFILE)
+  : path.join(__dirname, 'dist', 'app.bundle.js');
 
 /** @type {import('esbuild').BuildOptions} */
 const opts = {
   entryPoints: [path.join(__dirname, 'src', 'main.js')],
   bundle: true,
-  outfile: path.join(__dirname, 'dist', 'app.bundle.js'),
+  outfile,
   format: 'iife',
   platform: 'browser',
   target: 'es2020',
@@ -37,6 +46,6 @@ const opts = {
     console.log('[build] watch su src/ attivo …');
   } else {
     await esbuild.build(opts);
-    console.log('[build] dist/app.bundle.js scritto');
+    console.log('[build] ' + (process.env.INFRANET_BUILD_OUTFILE ? outfile : 'dist/app.bundle.js') + ' scritto');
   }
 })().catch(() => process.exit(1));
