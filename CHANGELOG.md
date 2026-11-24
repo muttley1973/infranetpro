@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Click a switch port and read its traffic, errors and state live.** A new fold in the port's properties, *Live reading*, asks the device over SNMP when it is open (or with *Refresh*): bytes and packets in and out with the current rate (two readings three seconds apart), errors and discards with the detail (CRC, alignment, late collisions…) only where it is not zero, how long the port has been in its state, and the speed, duplex and MTU. A row turns amber only if an error counter rose between the two readings; a column the device does not publish is "not read", never zero. Nothing is saved in the project — counters change every second — and it needs an administrator, like every SNMP call. Standard IF-MIB and EtherLike-MIB only; measured on a real switch and on nine lab devices.
+
+### Changed
+
+- **A port's properties follow one order, and the VLAN section is a fold.** From the top: *Add to LAG*, the description block (description, interface address, status, speed, duplex), *VLAN* — now a fold like the cable's, with a one-line summary when closed — and last the live reading.
+
 ## [2.15.0] — 2026-11-22
 
 Multi-site becomes a view of the workspace — the map takes the place of the floor plan — and the search finds the jack, the interface and the serial number.

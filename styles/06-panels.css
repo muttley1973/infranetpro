@@ -270,6 +270,22 @@
         .pop-close:hover { color:var(--text-main); }
         .snmp-bar { background:rgba(0,212,255,.07); border:1px solid rgba(0,212,255,.18); border-radius: var(--radius-sm); padding:4px 7px; margin:0 0 8px; font-size:var(--fs-xs); color:var(--text-muted); line-height:1.5; }
         .snmp-bar .sb { background:rgba(0,212,255,.18); color:var(--accent); border-radius:3px; padding:1px 4px; font-size:var(--fs-xs); font-weight:700; letter-spacing:.04em; margin-right:4px; }
+        /* Card «Lettura dal vivo» della porta (src/app-port-live.js): stessa scheda grigia neutra della card STP e
+           di quelle SNMP del pannello nodo. L'ambra e' SOLO per un contatore di errori salito fra le due letture. */
+        .pl-body { font-size:var(--fs-2xs); }
+        .pl-stack { display:flex; flex-direction:column; gap:8px; }
+        .pl-bar { display:flex; align-items:center; gap:8px; }
+        .pl-when { margin-left:auto; text-align:right; color:var(--text-muted); font-size:var(--fs-2xs); }
+        .pl-grp { display:flex; flex-direction:column; gap:5px; padding:7px 9px; background:rgba(139,148,158,.07); border:1px solid rgba(139,148,158,.25); border-radius:5px; }
+        .pl-gt { color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; font-weight:700; }
+        .pl-gt i { width:13px; text-align:center; margin-right:6px; }
+        .pl-row { display:flex; gap:8px; align-items:baseline; line-height:1.45; }
+        .pl-k { color:var(--text-muted); flex-shrink:0; }
+        .pl-v { margin-left:auto; text-align:right; color:var(--text-main); word-break:break-word; }
+        .pl-sub { text-align:right; color:var(--text-muted); }
+        .pl-note { color:var(--text-muted); line-height:1.45; }
+        .pl-item.warn .pl-v, .pl-item.warn .pl-sub { color:var(--idle-color); font-weight:600; }
+        .props-collapsible-preview.pl-warn { color:var(--idle-color); opacity:1; }
         .port-row { display:grid; grid-template-columns:72px 1fr 20px; align-items:center; gap:4px; margin-bottom:5px; }
         .port-row label { font-size:var(--fs-xs); color:var(--text-muted); }
         .port-row input, .port-row select { background:var(--bg-color); border:1px solid var(--panel-border); color:var(--text-main); border-radius: var(--radius-sm); padding:3px 5px; font-size:var(--fs-sm); font-family:inherit; width:100%; min-width:0; }

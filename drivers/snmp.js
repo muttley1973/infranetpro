@@ -2864,7 +2864,92 @@ async function pollPower(cfg, kind) {
   return out;
 }
 
-module.exports = { poll, pollNeighbors, probe, pollPower, deviceIps };
+// ---- Porta DAL VIVO: contatori, errori e stato di UNA interfaccia ----------------
+// Clic sulla porta di uno switch → il pannello chiede QUI com'e' adesso. Non e' una walk del dispositivo e non
+// si salva niente nel progetto: si trova l'ifIndex della porta dal suo NOME (l'ifIndex non e' stabile ai
+// riavvii se l'apparato non lo persiste, il nome si), si leggono ~35 colonne di IF-MIB/EtherLike-MIB per quella
+// sola interfaccia, si aspetta qualche secondo e si rileggono: dalla differenza esce la velocita' attuale.
+// I grezzi si consegnano cosi' come sono (colonna non pubblicata = null): le conclusioni sono di
+// lib/port-live.js, che e' pura e ha i suoi test. Standard-first: nessun OID di un fornitore.
+const PORT_LIVE = require('../lib/port-live.js');
+const _delay = ms => new Promise(r => setTimeout(r, ms));
+
+// Camminata di UNA colonna: indice → valore. Si ferma da sola alla fine del sottoalbero.
+function _subtreeMap(session, base) {
+  return new Promise((resolve, reject) => {
+    const m = {};
+    session.subtree(base, 25, vbs => {
+      for (const vb of vbs) {
+        if (snmp.isVarbindError(vb)) continue;
+        m[vb.oid.slice(base.length + 1)] = bufToStr(vb.value);
+      }
+    }, err => (err ? reject(err) : resolve(m)));
+  });
+}
+
+// L'ifIndex della porta dal suo nome: prima ifName, poi ifDescr. Stessa normalizzazione con cui
+// `applyPollResult` abbina porta e interfaccia (spazi tagliati, maiuscole indifferenti). Un nome che
+// compare due volte e' AMBIGUO e non si indovina quale sia.
+async function _findIfIndex(session, ifName) {
+  const want = String(ifName || '').trim().toLowerCase();
+  if (!want) return { ifIndex: 0, reason: 'no-name' };
+  for (const [via, base] of [['ifName', IFNAME_OID], ['ifDescr', OID.ifDescr]]) {
+    let names;
+    try { names = await _subtreeMap(session, base); }
+    catch (e) { if (via === 'ifName') continue; throw e; }   // ifName assente su agenti molto vecchi: si prova ifDescr
+    // `_subtreeMap` ha gia' tagliato gli spazi (bufToStr): qui basta la minuscola.
+    const hits = Object.keys(names).filter(idx => String(names[idx]).toLowerCase() === want);
+    if (hits.length === 1) return { ifIndex: parseInt(hits[0], 10), name: names[hits[0]], via };
+    if (hits.length > 1) return { ifIndex: 0, reason: 'ambiguous' };
+  }
+  return { ifIndex: 0, reason: 'not-found' };
+}
+
+// UNA lettura di tutte le colonne della porta, a gruppi di pochi OID. Una colonna che l'agente non pubblica
+// (noSuchObject/noSuchInstance) vale null; un gruppo intero che non risponde fa fallire la lettura.
+async function _readPortSample(session, ifIndex) {
+  const keys = ['sysUpTime'].concat(PORT_LIVE.PORT_KEYS);
+  const oidOf = k => (k === 'sysUpTime' ? PORT_LIVE.SYS_UPTIME : `${PORT_LIVE.PORT_COLUMNS[k]}.${ifIndex}`);
+  const v = {};
+  let upCs = null;
+  for (let i = 0; i < keys.length; i += PORT_LIVE.GET_CHUNK) {
+    const part = keys.slice(i, i + PORT_LIVE.GET_CHUNK);
+    const vbs = await new Promise((resolve, reject) => {
+      session.get(part.map(oidOf), (err, out) => (err ? reject(err) : resolve(out)));
+    });
+    part.forEach((k, j) => {
+      const vb = vbs[j];
+      const val = (!vb || snmp.isVarbindError(vb)) ? null : PORT_LIVE.counterValue(vb.value);
+      if (k === 'sysUpTime') upCs = val; else v[k] = val;
+    });
+  }
+  return { upCs, at: Date.now(), v };
+}
+
+async function pollPort(cfg, opts = {}) {
+  const host    = (cfg.host || '').trim();
+  const port    = parseInt(cfg.port) || 161;
+  const timeout = Math.min((parseInt(cfg.timeout) || 3), 8) * 1000;
+  const driver  = (cfg.driver || 'snmp-v2c').toLowerCase();
+  if (!host) throw new Error('Host/IP mancante');
+  const gapMs = Math.max(1000, Math.min(parseInt(opts.gapMs) || 3000, 8000));
+
+  let session;
+  try { session = _createSnmpSession(driver, host, port, timeout, cfg, 1); }
+  catch (e) { throw new Error(e.message, { cause: e }); }
+  try {
+    const found = await _findIfIndex(session, opts.ifName);
+    if (!found.ifIndex) return { found: false, reason: found.reason };
+    const s0 = await _readPortSample(session, found.ifIndex);
+    await _delay(gapMs);
+    const s1 = await _readPortSample(session, found.ifIndex);
+    return { found: true, ifIndex: found.ifIndex, ifName: found.name, via: found.via, gapMs, samples: [s0, s1] };
+  } finally {
+    try { session.close(); } catch (_) { /* gia' chiusa */ }
+  }
+}
+
+module.exports = { poll, pollNeighbors, probe, pollPower, pollPort, deviceIps };
 
 // Funzioni pure interne esposte SOLO per i test di regressione (node --test).
 // Additivo: non altera il comportamento runtime del driver.
@@ -2878,4 +2963,5 @@ module.exports._internals = {
   _ownIp4FromVbs, _ipv4FromAddrOid, _isUsableOwnIp4, _createSnmpSession,
   walkSession, ENTITY_BASES, LAG_BASES, _ifDescrMissing,
   walkNeighbors, NEIGHBOR_OIDS, EVIDENCE_LLDP, EVIDENCE_CDP,
+  _findIfIndex, _readPortSample, _subtreeMap,
 };

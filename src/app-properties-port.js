@@ -32,6 +32,7 @@ import { _renderRadioProps } from './app-wifi.js';   // ritiro ponte: coda funzi
 import { _sharedSegmentHtml } from './app-shared-segment.js';   // ritiro ponte: coda funzioni A (batch 2/2) (ex win.*)
 import { normalizePduOutletCount, outletStatusText, pduOutletStatusState, pduOutletConnection, hasPowerOutlets } from '../lib/pdu-layout.js';
 import { pduConnectionDeviceSelect } from './app-pdu-connection.js';
+import { portLiveHtml, bindPortLive } from './app-port-live.js';   // la card «Lettura dal vivo» (traffico, errori, stato): foglia, non importa app.js
 
 // ASSE B (ritiro ponte): azioni delegate SPECIFICHE del pannello Proprieta' PORTA.
 // I campi stato/descrizione/velocita'/VLAN usano le azioni CONDIVISE port-field/
@@ -182,6 +183,24 @@ function _portInheritedLinkData(pid){
         }
     }
     return {};
+}
+
+// «Aggiungi a LAG»: ingresso per creare un bundle o aggiungersi a uno (ex pulsante del popup porta, ora orfano).
+// Sta in CIMA al pannello, subito dopo la riga SNMP. Solo per un switchport ATTIVO non ancora in un LAG: se e'
+// gia' membro, la membership e «Rimuovi» sono nell'intestazione (`_lagHead`).
+function _lagAddButtonHtml(pid, portNode){
+    if(!portNode || !TYPES[portNode.type]?.isActive || (store.state.ports[pid]||{}).lagGroup) return '';
+    return `<div style="margin:0 0 10px"><button class="toolbar-btn" style="width:100%;padding:6px;font-size:0.8rem" data-act="port-lag-add" data-pid="${escapeHTML(pid)}">⛓ ${t('pnl.misc.addToLag')}</button></div>`;
+}
+
+// La sezione VLAN del pannello porta e' una fisarmonica come quella del pannello cavo (`link-vlan`): titolo, un
+// riassunto a sezione chiusa, e il corpo. Due pezzi (apre/chiude) perche' il corpo cambia secondo il tipo di porta
+// e va scritto dove nasce. `.props-collapsible-body` vuole UN figlio solo: da qui il `<div>` interno.
+function _vlanSectionOpen(preview){
+    return `<details class="props-collapsible props-primary" ${_propsSectionIsOpen('port-vlan')?'open':''} data-toggle="props-section" data-section="port-vlan"><summary class="props-collapsible-head"><span><i class="fas fa-network-wired"></i> VLAN</span><span class="props-collapsible-preview">${escapeHTML(preview)}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body"><div>`;
+}
+function _vlanSectionClose(){
+    return `</div></div></details>`;
 }
 
 // Proprieta' di una PORTA selezionata (selType==='port').
@@ -364,7 +383,7 @@ export function _renderPortProps(panel){
             )}
             ${_lagHead}
             <div class="prop-group"><label>Port ID</label><input disabled value="${escapeHTML(pid)}"></div>
-            ${snmpBar}
+            ${snmpBar}${_lagAddButtonHtml(pid, portNode)}
             ${_ctyLegendHtml([[pi.desc, ''], [pi.ip, ''], [effStatus, '']])}
             <div class="prop-group"><label>${t('common.description')}${_ctyMark(pi.desc||'', pi.desc||'', fieldSource(pi, 'desc', pi.alias) === 'measured')}</label>
               <input value="${escapeHTML(pi.desc||'')}" placeholder="${escapeHTML(pi.alias||pi.ifName||t('pnl.dev.phDescEg'))}"
@@ -431,9 +450,9 @@ export function _renderPortProps(panel){
                                 <input type="number" min="1" max="4094" value="${_vv}" class="${_vv>1?'ovr':''}" style="flex:1"
                                        data-change="node-voice-vlan" data-nid="${portNode.id}" data-tip="${t('f.vlanVoiceTip')}"></div>`;
                         })() : '';
-                        return `<div class="prop-group"><label>VLAN</label>${_roBox(_inner)}</div>${_voiceRow}`;
+                        return `${_vlanSectionOpen('TRUNK · ' + t('cable.trunkNative') + ' ' + _tk.native)}<div class="prop-group">${_roBox(_inner)}</div>${_voiceRow}${_vlanSectionClose()}`;
                     }
-                    return `<div class="prop-group"><label>VLAN</label>${(typeof _floorAccessVlanRow==='function')?_floorAccessVlanRow(portNode,pid):_roBox('VLAN '+effVlan)}</div>`;
+                    return `${_vlanSectionOpen('VLAN ' + effVlan)}<div class="prop-group">${(typeof _floorAccessVlanRow==='function')?_floorAccessVlanRow(portNode,pid):_roBox('VLAN '+effVlan)}</div>${_vlanSectionClose()}`;
                 }
                 // Campo VLAN/nativa editabile (scrive il PVID = vlanOvr). Riutilizzato
                 // sia dalle porte passive sia dallo switchport (con label diversa).
@@ -452,7 +471,7 @@ export function _renderPortProps(panel){
                   </div>`;
 
                 // Porta passiva (patch/presa/…): solo il campo VLAN semplice.
-                if(!portNode || !TYPES[portNode.type]?.isActive) return _vlanField('VLAN');
+                if(!portNode || !TYPES[portNode.type]?.isActive) return `${_vlanSectionOpen(_vlanDet ? 'VLAN ' + effVlan : '—')}${_vlanField('VLAN')}${_vlanSectionClose()}`;
 
                 // Switchport (interfaccia ATTIVA): GUI UNIFORME al pannello cavo —
                 // badge TRUNK/access · nativa · trasportate → Modalità porta →
@@ -524,8 +543,12 @@ export function _renderPortProps(panel){
                        <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${_color};flex-shrink:0;border:1px solid rgba(255,255,255,.18)"></span>
                        <b>VLAN ${effVlan}</b>${_vlanName?`<span style="color:var(--text-muted)">— ${_vlanName}</span>`:''}
                      </span>`;
-                return `
-                  <div class="prop-group" style="margin-top:6px"><label>VLAN</label>
+                // Il riassunto che resta a fisarmonica chiusa: la stessa cosa che dice il badge, in una riga.
+                const _vlanPreview = _isRouted ? t('legend.routedLink')
+                    : _isTrunk ? 'Trunk · ' + t('cable.trunkNative') + ' ' + effVlan
+                    : 'VLAN ' + effVlan + (state.vlanNames?.[effVlan] ? ' · ' + state.vlanNames[effVlan] : '');
+                return `${_vlanSectionOpen(_vlanPreview)}
+                  <div class="prop-group" style="margin-top:2px">
                     <div style="padding:4px 0;font-size:var(--fs-md);color:var(--text-main)">${_badge}</div>
                   </div>
                   <div class="prop-group" style="margin-top:8px;border-top:1px solid var(--panel-border);padding-top:8px">
@@ -546,19 +569,13 @@ export function _renderPortProps(panel){
                     <div style="font-size:var(--fs-md);color:var(--text-muted);margin-top:3px">
                       ${_fromSnmp?`<span style="color:#5ba3f5"><i class="fas fa-satellite-dish" style="font-size:0.6rem;margin-right:3px"></i>SNMP</span> · `:''}${t('cable.vlansConfigured',{n:_tvArr.length})} · ${t('port.trunkPropNote')}
                     </div>
-                  </div>`:''}`;
+                  </div>`:''}${_vlanSectionClose()}`;
             })()}
             ${(()=>{
+                // Il pulsante «Aggiungi a LAG» di un switchport attivo sta in CIMA (v. _lagAddButtonHtml);
+                // qui resta solo il passivo.
                 const portNode2=getNodeByPortId(pid);
-                // Switchport ATTIVO non ancora in un LAG: ingresso per crearlo /
-                // aggiungersi a uno (ex pulsante del popup porta, ora orfano). Se
-                // e' gia' in LAG, membership + Rimuovi sono nell'header (_lagHead).
-                if(portNode2&&TYPES[portNode2.type]?.isActive){
-                    if((state.ports[pid]||{}).lagGroup) return '';
-                    return `<div style="border-top:1px solid var(--panel-border);margin-top:8px;padding-top:8px">
-                  <button class="toolbar-btn" style="width:100%;padding:6px;font-size:0.8rem" data-act="port-lag-add" data-pid="${pid}">⛓ ${t('pnl.misc.addToLag')}</button>
-                </div>`;
-                }
+                if(portNode2&&TYPES[portNode2.type]?.isActive) return '';
                 // Dispositivo passivo: info LAG traversal se presente.
                 const info=getPassivePortLagInfo(pid);
                 if(!info) return '';
@@ -569,8 +586,10 @@ export function _renderPortProps(panel){
             })()}`;
         // I MAC visti sulla porta vengono ora elencati interamente dentro il
         // blocco "Segmento L2 condiviso" (non piu' duplicati in due box adiacenti).
-        panel.innerHTML += _sharedSegmentHtml(pid,'props');
+        // In fondo, dopo tutto il resto: «Lettura dal vivo» (traffico, errori, stato) e' una misura, non una proprieta'.
+        panel.innerHTML += _sharedSegmentHtml(pid,'props') + (_passiveConduit ? '' : portLiveHtml(pid, portNode, pi, _propsSectionIsOpen('port-live')));
         _enableManualValueInProps(panel);
+        bindPortLive(panel);   // la card dal vivo (se c'e'): lettura automatica quando e' aperta
 }
 
 // Chiamato dal dispatcher renderProps() (app-properties.js, classic);

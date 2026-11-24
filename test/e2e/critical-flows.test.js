@@ -1181,6 +1181,164 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.radioDelegated, 'pid radio: _renderPortProps delega a _renderRadioProps (app-wifi)');
     });
 
+    await t.test('Porta: «Lettura dal vivo» — traffico, errori e stato letti al clic, ambra solo se un errore SALE, mai salvata', async () => {
+      // Il server di prova non ha uno switch vero dietro: la risposta di /api/poll-port si recita (page.route), con la
+      // forma che il driver consegna (due letture, colonna non pubblicata = null). Si prova il PANNELLO: cosa chiede,
+      // cosa disegna, quando NON legge, e che non lasci niente nel documento.
+      const letture = [];
+      let risposta = null;
+      await page.route('**/api/poll-port', async (route) => {
+        letture.push(JSON.parse(route.request().postData() || '{}'));
+        await route.fulfill({ contentType: 'application/json', body: JSON.stringify(risposta) });
+      });
+      const campione = (upCs, v) => ({ upCs, at: upCs * 10, v });
+      const sana = { oper: 1, admin: 1, lastChange: 2000, mtu: 1500, speed: 1000000000, highSpeed: 1000, duplex: 3,
+        hcInOctets: 6926135670, hcOutOctets: 677016500224, hcInUcast: 18000000, hcInMulti: 100000, hcInBcast: 20000,
+        hcOutUcast: 739000000, hcOutMulti: 600000, hcOutBcast: 75000, inErrors: 0, outErrors: 0, inDiscards: 0, outDiscards: 0,
+        inUnknown: 0, fcs: 0, align: 0, symbol: 0, tooLong: 0, macRx: 0, macTx: 0, late: 0, excessive: 0, carrier: 0,
+        single: 0, multiple: 0, deferred: 0, pauseIn: 0, pauseOut: 0 };
+      const scena = (con) => page.evaluate((snmp) => {
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push({ id: 'sw', type: 'switch', name: 'SW1', x: 0, y: 0, ports: 4,
+          integration: snmp ? { driver: 'snmp-v2c', host: '10.9.9.9', community: 'segreta', port: 161, timeout: 3 } : undefined });
+        state.nodes.push({ id: 'pc', type: 'pc', name: 'PC1', x: 9, y: 9, ports: 1 });
+        state.ports['sw-1'] = { ifName: 'Gi0/1' };
+        state.ports['sw-2'] = {};                                   // porta mai sincronizzata: nessun ifName
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        _currentUser = null;
+        _clearDirty();
+      }, con);
+      const apri = (pid) => page.evaluate((p) => { selType = 'port'; selId = p; renderProps(); }, pid);
+      const card = () => page.evaluate(() => {
+        const d = document.querySelector('details[data-section="port-live"]');
+        if (!d) return null;
+        return { open: d.open, testo: d.innerText, warn: Array.from(d.querySelectorAll('.pl-item.warn')).map(e => e.innerText),
+                 gruppi: Array.from(d.querySelectorAll('.pl-gt')).map(e => e.textContent.trim().toLowerCase()), img: d.querySelectorAll('img').length };
+      });
+      // Il pannello Proprieta' non e' per forza la scheda in primo piano (qui c'e' il Rack): il clic va all'elemento, la delega lo vede lo stesso.
+      const aggiorna = () => page.evaluate(() => document.querySelector('[data-act="port-live-refresh"]').click());
+      const attendi = (re) => page.waitForFunction((src) => { const d = document.querySelector('details[data-section="port-live"]'); return !!d && new RegExp(src, 'i').test(d.innerText); }, re.source, { timeout: 8000 });
+      try {
+        // 1) Porta con ifName su un apparato SNMP: la card c'e', e' APERTA, e legge da sola con le credenziali del nodo.
+        await scena(true);
+        risposta = { ok: true, found: true, ifIndex: 1, ifName: 'Gi0/1', via: 'ifName', gapMs: 3000, samples: [
+          campione(1000000, { ...sana, outDiscards: 11 }),
+          campione(1000304, { ...sana, outDiscards: 14, hcInOctets: 6926135670 + 145000, hcOutOctets: 677016500224 + 2520000 })] };
+        await apri('sw-1');
+        await attendi(/Traffico/);
+        let c = await card();
+        assert.ok(c.open, 'la fisarmonica e\' aperta di default');
+        assert.deepEqual(c.gruppi, ['traffico', 'errori', 'stato']);
+        // L'ORDINE del pannello porta, dall'alto: «Aggiungi a LAG» · il blocco descrizione · la fisarmonica VLAN · la lettura dal vivo.
+        const ordine = await page.evaluate(() => {
+          const p = document.getElementById('props-panel');
+          const tutti = Array.from(p.querySelectorAll('*'));
+          const pos = (sel) => { const e = p.querySelector(sel); return e ? tutti.indexOf(e) : -1; };
+          const vlan = p.querySelector('details[data-section="port-vlan"]');
+          return { lag: pos('[data-act="port-lag-add"]'), desc: pos('[data-pfield="desc"]'), vlan: pos('details[data-section="port-vlan"]'),
+                   live: pos('details[data-section="port-live"]'), vlanAperta: !!(vlan && vlan.open), vlanTit: vlan ? vlan.querySelector('summary').innerText.trim() : '' };
+        });
+        assert.ok(ordine.lag > 0 && ordine.lag < ordine.desc, 'prima «Aggiungi a LAG», poi la descrizione: ' + JSON.stringify(ordine));
+        assert.ok(ordine.desc < ordine.vlan, 'poi la fisarmonica VLAN: ' + JSON.stringify(ordine));
+        assert.ok(ordine.vlan < ordine.live, 'e per ultima la lettura dal vivo: ' + JSON.stringify(ordine));
+        assert.ok(ordine.vlanAperta, 'la fisarmonica VLAN e\' aperta di default come le altre');
+        assert.match(ordine.vlanTit, /^VLAN/, 'il titolo dice VLAN');
+        assert.match(c.testo, /↓\s*[\d,.]+\s*kbit\/s/, 'velocita\' in ingresso dalla differenza fra le due letture');
+        assert.match(c.testo, /↑\s*[\d,.]+\s*Mbit\/s/, 'velocita\' in uscita');
+        assert.match(c.testo, /1 Gbit\/s/, 'velocita\' del link');
+        assert.match(c.testo, /full duplex/);
+        assert.equal(letture.length, 1, 'una sola richiesta per il clic');
+        assert.equal(letture[0].ifName, 'Gi0/1', 'chiede la porta per NOME');
+        assert.equal(letture[0].host, '10.9.9.9');
+        assert.equal(letture[0].community, 'segreta', 'le credenziali sono quelle del nodo');
+        assert.equal(letture[0].gapMs, 3000);
+        // l'ambra: gli scarti in uscita sono SALITI (11 → 14) fra le due letture
+        assert.equal(c.warn.length, 1, 'un solo riquadro ambra: ' + JSON.stringify(c.warn));
+        assert.match(c.warn[0], /Scarti/);
+        assert.match(c.warn[0], /\+3 in 3 s/, 'quanto e\' salito e in quanto tempo');
+
+        // 2) Non e' un monitor: ridisegnare il pannello con una lettura recente NON ne lancia un'altra.
+        await page.evaluate(() => renderProps());
+        await page.waitForTimeout(600);
+        assert.equal(letture.length, 1, 'una lettura di meno di 15 s non si ripete da sola');
+        // ...ma «Aggiorna» la rifa' subito
+        await aggiorna();
+        await page.waitForFunction(() => document.querySelector('details[data-section="port-live"] .pl-when')?.textContent.trim().length > 0, null, { timeout: 8000 });
+        await page.waitForTimeout(300);
+        assert.equal(letture.length, 2, '«Aggiorna» rilegge');
+
+        // 3) Nessun errore nuovo: i valori restano, l'ambra NO. Rete sana = una riga, non 20 zeri.
+        risposta = { ok: true, found: true, ifIndex: 1, ifName: 'Gi0/1', via: 'ifName', gapMs: 3000, samples: [
+          campione(1000000, sana), campione(1000300, sana)] };
+        await aggiorna();
+        await attendi(/Nessun errore né scarto/);
+        c = await card();
+        assert.deepEqual(c.warn, [], 'nessun errore salito = nessuna ambra');
+
+        // 4) Scarti vecchi ma fermi: si VEDONO (11), non fanno ambra.
+        risposta = { ok: true, found: true, ifIndex: 1, ifName: 'Gi0/1', via: 'ifName', gapMs: 3000, samples: [
+          campione(1000000, { ...sana, outDiscards: 11 }), campione(1000300, { ...sana, outDiscards: 11 })] };
+        await aggiorna();
+        await attendi(/0 \/ 11/);
+        c = await card();
+        assert.deepEqual(c.warn, [], 'scarti vecchi e fermi: visibili, non ambra');
+
+        // 5) Una porta MAI sincronizzata (nessun ifName): niente richiesta, e lo dice invece di fingere uno zero.
+        const prima = letture.length;
+        await apri('sw-2');
+        await page.waitForTimeout(700);
+        c = await card();
+        assert.match(c.testo, /Sincronizza/, 'dice cosa fare');
+        assert.equal(letture.length, prima, 'senza ifName non si interroga nessuno');
+
+        // 6) Apparato senza SNMP: la card non c'e' proprio.
+        await scena(false);
+        await apri('sw-1');
+        assert.equal(await card(), null, 'un apparato senza SNMP non ha la card');
+
+        // 7) La porta non esiste piu' sull'apparato: lo dice col NOME, senza markup attivo (il nome arriva dall'apparato).
+        await scena(true);
+        await page.evaluate(() => { state.ports['sw-1'].ifName = '<img src=x onerror=window.__pwn=1>'; });
+        risposta = { ok: true, found: false, reason: 'not-found' };
+        await apri('sw-1');
+        await attendi(/non ha un'interfaccia chiamata/);
+        c = await card();
+        assert.equal(c.img, 0, 'il nome dell\'interfaccia resta testo');
+        assert.equal(await page.evaluate(() => window.__pwn), undefined);
+
+        // 8) L'apparato non risponde: l'errore si legge, il resto del pannello resta.
+        await scena(true);
+        risposta = { ok: false, error: 'Timeout: nessuna risposta SNMP' };
+        await apri('sw-1');
+        await attendi(/Lettura non riuscita/);
+        c = await card();
+        assert.match(c.testo, /Timeout/);
+
+        // 9) Un account di SOLA LETTURA non puo' interrogare (le rotte SNMP sono da admin): lo dice e non chiama.
+        await scena(true);
+        await page.evaluate(() => { _currentUser = { role: 'viewer' }; });
+        const prima9 = letture.length;
+        await apri('sw-1');
+        await page.waitForTimeout(700);
+        c = await card();
+        assert.match(c.testo, /amministratore/);
+        assert.equal(letture.length, prima9, 'un viewer non lancia la lettura');
+
+        // 10) Non resta niente nel DOCUMENTO: nessun campo nuovo, niente da salvare.
+        await scena(true);
+        risposta = { ok: true, found: true, ifIndex: 1, ifName: 'Gi0/1', via: 'ifName', gapMs: 3000, samples: [campione(1000000, sana), campione(1000300, { ...sana, hcOutOctets: sana.hcOutOctets + 1000000 })] };
+        const fotoPrima = await fotoDoc();
+        await apri('sw-1');
+        await attendi(/Traffico/);
+        assert.equal(await fotoDoc(), fotoPrima, 'la lettura dal vivo non scrive nel documento');
+        assert.equal((await storia()).daSalvare, false, 'e non sporca il progetto');
+      } finally {
+        await page.unroute('**/api/poll-port');
+        await page.evaluate(() => { _currentUser = null; selType = null; selId = null; });
+      }
+    });
+
     await t.test('app-properties-link migrato: pannello cavo + associazione wireless nel browser reale', async () => {
       const r = await page.evaluate(() => {
         state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);

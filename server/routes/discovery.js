@@ -141,6 +141,32 @@ router.post('/api/poll-power', auth.requireAdmin, async (req, res) => {
   }
 });
 
+// ---- Poll porta: contatori, errori e stato di UNA interfaccia, DAL VIVO ------------
+// Come /api/poll-power: letto al momento, mai salvato. La porta si indica per NOME (`ifName`): l'ifIndex
+// lo trova il driver ogni volta. Solo admin come ogni rotta SNMP. L'esito «porta non trovata» non e' un
+// errore di rete: torna `ok:true, found:false` con la ragione, cosi' l'interfaccia puo' dirla.
+router.post('/api/poll-port', auth.requireAdmin, async (req, res) => {
+  const cfg0   = req.body ?? {};
+  const driver = (cfg0.driver || '').toLowerCase();
+  const drv    = DRIVERS[driver];
+  if (!drv || typeof drv.pollPort !== 'function') {
+    return res.json({ ok: false, error: `Driver non supportato: ${driver}` });
+  }
+  const h = hostOrName(cfg0.host);
+  if (h.error) return res.json({ ok: false, error: h.error });
+  const ifName = typeof cfg0.ifName === 'string' ? cfg0.ifName.trim() : '';
+  if (!ifName || ifName.length > 128) return res.json({ ok: false, error: 'Nome interfaccia non valido' });
+  const cfg = { ...cfg0, host: h.host };
+  try {
+    const data = await drv.pollPort(cfg, { ifName, gapMs: cfg0.gapMs });
+    res.json({ ok: true, ...data });
+  } catch (err) {
+    const msg = err?.message || String(err);
+    console.error(`  [POLL-PORT] ${driver} ${cfg.host}: ${msg}`);
+    res.json({ ok: false, error: msg });
+  }
+});
+
 // ---- Raggiungibilità multi-segnale (audit presenza per "Verifica documentazione")
 // Data una lista di IP documentati, dice quali sono RAGGIUNGIBILI sulla rete
 // SENZA SNMP: ARP (già nella tabella locale) → ping ICMP → fallback TCP su

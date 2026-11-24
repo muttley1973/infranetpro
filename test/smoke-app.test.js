@@ -757,7 +757,7 @@ test('porta: endpoint floor — Stato/Velocità read-only, VLAN editabile (overr
                  speedEdit:/data-change="port-speed"/.test(h),
                  vlanEditPort:/data-change="port-field"[^>]*data-pfield="vlanOvr"/.test(h),
                  vlanEditEndpoint:/data-change="endpoint-vlan"/.test(h),   // ASSE B: ex onchange="setEndpointVlan(…)"
-                 hasVlanLabel:/>VLAN</.test(h) };
+                 hasVlanLabel:/data-section="port-vlan"/.test(h) };   // la VLAN e' una fisarmonica (titolo «VLAN» nella testata), non piu' un'etichetta
       };
       return JSON.stringify({ ok:true, pc:probe('pc6-1'), sw:probe('sw-1'), wp:probe('wp-1') });
     } catch(e){ return JSON.stringify({ ok:false, err:String(e&&e.stack||e) }); }

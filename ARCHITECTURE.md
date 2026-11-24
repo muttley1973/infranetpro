@@ -268,6 +268,18 @@ lib/                   Shared browser + test modules (the heart of the app)
                     else switch) — the Sync flags the port as a shared L2 segment with
                     that suggestion; the user materialises it from the Shared L2 panel  (pure)
   power-mib.js wifi-spec.js cable-labels.js drift-report.js
+  port-live.js      the LIVE reading of ONE port, asked when the port is clicked: which IF-MIB and
+                    EtherLike-MIB columns to read (a table of standard OIDs, none from a vendor) and
+                    how two readings a few seconds apart become what the panel shows. The rate comes
+                    from the device's own `sysUpTime`, never the browser's clock; the utilisation is
+                    only given on a port that is up; «rose» means an error counter went UP between
+                    the two readings (no threshold, and ordinary collisions never count); a column the
+                    device does not publish is `null` = «not read», never zero; counters reset in the
+                    middle (`ifCounterDiscontinuityTime`) or a 64-bit one that drops give no rate;
+                    Counter64 arrives as a Buffer of variable length. NOT stored in the project: the
+                    counters change every second, so a saved figure would look current without being
+                    (`pollPort` in drivers/snmp.js, `POST /api/poll-port`, admin only, like every SNMP
+                    route; src/app-port-live.js draws the fold in the port's properties)  (pure)
   field-provenance.js  where a value came from: the `copiedFromRead` mark, `fieldSource`
                     (what a panel asks to draw "Measured" or "Declared") and the registry
                     of every field that a reading and a person can both write, each with
@@ -1775,7 +1787,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **5,263 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **5,298 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`
