@@ -1046,6 +1046,46 @@ of every mapped port that walk did not cover. A project saved before 2.9.2 carri
 `operUp` and accumulates nothing until the first poll writes it, which is exactly what
 is known about it.
 
+### A port read live: counters, errors and state — never stored
+
+Clicking a switch port opens, in its properties, a fold that asks the device *now*. The decision worth
+remembering is that **none of it is stored.** Counters are cumulative since the device started and change every
+second, so a figure saved with a Sync would look current without being; some twenty-five numbers per port would
+also fatten the project JSON, need a class for the portable export and an expiry. Read on demand they tell the
+truth of this moment and leave nothing behind — the same choice `/api/poll-power` makes for a UPS.
+
+The path: `src/app-port-live.js` draws the fold and, when it is open, posts the node's credentials and the
+port's `ifName` to `POST /api/poll-port` (admin only, like every SNMP route) → `pollPort` in `drivers/snmp.js`
+finds the ifIndex **from the name** (ifName, then ifDescr; two interfaces with the same name are ambiguous and
+are not guessed), reads about thirty-seven standard columns in groups of ten, waits about three seconds and reads
+again → `lib/port-live.js` turns the two readings into what the panel shows (the lib entry in §2 lists its
+rules). The rules the panel keeps on top of that:
+
+- **a column the device does not publish is «not read», never zero** — and bytes with zero packets (measured on
+  an ESXi vmnic) is also «not read», not a zero that lies;
+- **amber means an error counter rose between the two readings**, nothing else: no threshold, and ordinary
+  collisions never count;
+- **it is not a monitor**: a redraw within 15 s of a reading does not repeat it; only opening the fold or
+  *Refresh* does;
+- **a reading belongs to a node, an address and an interface name — not to a port id.** `sw-1` exists in every
+  project: the first version remembered by port id and showed one project's numbers on another's switch; the
+  e2e flow caught it;
+- a port never matched to an interface (no `ifName`) says to run a Sync instead of guessing, and a read-only
+  account is told it needs an administrator instead of firing a request that would be refused.
+
+What the MIBs give, measured read-only on 24/11/2026 on a real Zyxel GS1900-24 and nine lab devices (the lab is
+virtual, so PoE and optical sensors are **not** proven on hardware): the IF-MIB core answers on 10 of 10;
+EtherLike-MIB (`dot3Stats`: CRC, collisions, duplex) on 8 — not MikroTik, not pfSense; LLDP statistics on 6;
+pause frames on 5; RMON `etherStats` on 4; PoE (RFC 3621: state, class, counters — the RFC has no per-port power)
+on 2; MAU-MIB on 1; entity sensors (optical DOM) on none. The fold reads the first two families; the others are
+known and unread.
+
+**Order of the port panel, and the chevrons.** Top to bottom: *Add to LAG*, the description block (description,
+interface address, status, speed, duplex), *VLAN* — a fold like the cable's, with a one-line preview when
+closed — and the live reading last. Every properties panel that draws folds carries the expand-all / collapse-all
+/ reset buttons in its header, all from `_propsToggleButtonsHtml` (a passive stage, which has no fold, has none);
+`test/props-header-toggles.test.js` requires it.
+
 ### Spanning-tree: a reading that is valid as a whole, or does not exist
 
 `extractStp()` in `drivers/snmp.js` reads the BRIDGE-MIB `dot1dStp` subtree (RFC 4188) in

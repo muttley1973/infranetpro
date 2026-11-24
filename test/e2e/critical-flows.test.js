@@ -1305,7 +1305,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         await apri('sw-2');
         await page.waitForTimeout(700);
         c = await card();
-        assert.match(c.testo, /Sincronizza/, 'dice cosa fare');
+        assert.match(c.testo, /Sync/, 'dice cosa fare');
         assert.equal(letture.length, prima, 'senza ifName non si interroga nessuno');
 
         // 6) Apparato senza SNMP: la card non c'e' proprio.

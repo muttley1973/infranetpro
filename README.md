@@ -31,11 +31,11 @@
 <tr>
 <td align="center" width="50%">
 <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="26" alt=""><br><b>Manuale tecnico — Italiano</b></a><br>
-<sub>73 pagine illustrate · interfaccia, onboarding e manuale completi in italiano, con selettore IT/EN nell'app.</sub>
+<sub>74 pagine illustrate · interfaccia, onboarding e manuale completi in italiano, con selettore IT/EN nell'app.</sub>
 </td>
 <td align="center" width="50%">
 <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="26" alt=""><br><b>Technical manual — English</b></a><br>
-<sub>75 illustrated pages · fully bilingual UI, onboarding and manual, with an in-app IT/EN switcher.</sub>
+<sub>76 illustrated pages · fully bilingual UI, onboarding and manual, with an in-app IT/EN switcher.</sub>
 </td>
 </tr>
 </table>
@@ -122,7 +122,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
   <b>Full feature manual (PDF)</b> —
   <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="20" alt=""> Italiano</a> ·
   <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="20" alt=""> English</a><br>
-  <sub>Dark cover, white printable interior, 22 illustrated chapters — 73 pages in Italian, 75 in English.</sub>
+  <sub>Dark cover, white printable interior, 22 illustrated chapters — 74 pages in Italian, 76 in English.</sub>
 </p>
 
 <p align="center">
@@ -258,7 +258,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 
 **🔒 Security & 🌍 Bilingual**
 - Session auth with admin and viewer roles, a rate-limited login, a loopback bind and secrets structurally excluded from every data surface. See [Security](#authentication--roles).
-- Complete Italian and English interface, onboarding and a ~73-page manual, guarded by an `it ↔ en` key-parity test.
+- Complete Italian and English interface, onboarding and a ~74-page manual, guarded by an `it ↔ en` key-parity test.
 
 ---
 
@@ -395,8 +395,9 @@ The four `*_FILE` paths let a deployment keep every secret on one persistent vol
 
 - **Universal discovery.** The *Scopri* dialog scans with `auto`. A v2c host is imported with data; a **v3-only** host is detected without credentials and flagged **"v3 da configurare"** — fill the credentials in **Properties → Integration** and *Sync*. The Integration panel works for any device with an IP, not only rack devices.
 - **SNMPv3 fields:** username; auth `MD5`, `SHA` (SHA-1), `SHA224`–`SHA512`; privacy `DES`, `AES` (128), `AES256` (Blumenthal) or `AES256R` (Reeder — the agent's variant must match, a wrong one shows up as a timeout); passphrases ≥ 8 characters; an optional **context name** (HP JetDirect needs `jetdirect`). A protocol name the driver does not know is refused with an error, never replaced by another.
-- **MIBs used (standard, vendor-neutral):** IF-MIB (`ifTable`, `ifXTable`, `ifStackTable`) · IEEE 802.3ad · BRIDGE-MIB (including the spanning-tree default tree) and Q-BRIDGE-MIB · LLDP-MIB and CISCO-CDP-MIB · Cisco VTP · SNMPv2-MIB · ENTITY-MIB · Printer-MIB and `hrPrinterStatus` · HOST-RESOURCES-MIB.
+- **MIBs used (standard, vendor-neutral):** IF-MIB (`ifTable`, `ifXTable`, `ifStackTable`) · EtherLike-MIB (`dot3Stats`, for the port's live reading) · IEEE 802.3ad · BRIDGE-MIB (including the spanning-tree default tree) and Q-BRIDGE-MIB · LLDP-MIB and CISCO-CDP-MIB · Cisco VTP · SNMPv2-MIB · ENTITY-MIB · Printer-MIB and `hrPrinterStatus` · HOST-RESOURCES-MIB.
 - **Live cards** (system, spanning-tree, Printer-MIB, HOST-RESOURCES) are read-only, appear only when the device exposes them and never overwrite manual fields. Printer-MIB is read in an isolated single-concurrency pass, because weak agent stacks truncate it otherwise.
+- **Live port reading.** Click a switch port and the *Live reading* fold in its properties asks the device over SNMP how the port is right now: bytes and packets with the current rate (two readings three seconds apart), errors and discards with the detail only where it is not zero, how long the port has been in its state, speed, duplex and MTU. Nothing is stored in the project — counters change every second — a row turns amber only if an error counter *rose* between the two readings, and a column the device does not publish is "not read", never zero. Administrators only; standard IF-MIB and EtherLike-MIB only.
 
 ---
 
@@ -450,6 +451,7 @@ Every endpoint needs an authenticated session; writes need the **admin** role. T
 | `POST` | `/api/projects/:id/copy` | admin | Duplicate a project |
 | `GET` / `PUT` | `/api/organization` | any / admin | The organisation (sites, WAN uplinks, links) with its coherence audit / replace it |
 | `POST` | `/api/poll` | admin | Poll one device via SNMP — `{ driver, host, community, port, timeout }` |
+| `POST` | `/api/poll-port` | admin | Read one interface live (counters, errors, state; two readings a few seconds apart, never stored) — `{ driver, host, community, port, timeout, ifName, gapMs }` |
 | `POST` | `/api/discover` | admin | Scan a subnet or range — `subnet`, `driver`, `community`, `concurrency`, `timeout`, `safeMode`, `deepScan` |
 | `POST` | `/api/topology` | admin | LLDP/CDP neighbours of one device |
 | `POST` | `/api/discover/topology` | admin | Topology crawl from one or more seeds, streamed as `text/event-stream` |
@@ -525,7 +527,7 @@ RUN_E2E=1 npm run e2e # headless end-to-end in a real Chrome — off by default
 - Coverage focuses on the pure logic that has historically broken: SNMP parsing, discovery and classification, the three engines, cable validation, IPAM and LAG audits — plus an app-wide smoke test that loads every script into a DOM stub and asserts rendering never throws.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **663** of them.
+- `npm run check` parses every JS source of the product — **664** of them.
 - `npm test` runs the full regression suite (currently **5,301 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **167 flows**).
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that lists something, and the test count measured against what the suite really prints.
 
