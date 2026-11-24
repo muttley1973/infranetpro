@@ -99,18 +99,17 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 - 🖥️ **Windows:** double-click `avvia.bat`. Details in [Installation](#installation) and [Configuration](#configuration).
 - **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.15.0) — Multi-site is a view of the workspace: the map takes the place of the floor plan.**
+> 📰 **What's new (v2.16.0) — Click a switch port and read its traffic, errors and state live.**
 >
-> - The Multi-site button is a switch: on, the geographic map fills the centre and a drawer under it holds the sites, the links, the WAN lines and the coherence report as tables; the tile that filters VLANs on the floor plan filters connection types on the map, where the colour says up or down and the stroke says MPLS, IPsec or WireGuard.
-> - The search finds the jack, the interface name, the serial number and the VLAN by name.
-> - A reminder while the first-start password is still the generated one, "Change password" in the menu works for everyone, and the same IP in two different VRFs is no longer reported as a duplicate.
+> - A new fold in the port's properties asks the device over SNMP when you open it: bytes and packets with the current rate, errors and discards with the detail only where it is not zero, and how long the port has been in its state. Nothing is saved in the project, and a column the device does not publish is "not read", never zero.
+> - The port's properties follow one order — Add to LAG, description, VLAN as a fold, live reading — and the expand-all / collapse-all chevrons are now in every properties panel that has folds.
 >
 > Earlier:
+> - **v2.15.0** — Multi-site is a view of the workspace: the map takes the place of the floor plan, and the search finds the jack, the interface and the serial number.
 > - **v2.14.0** — what NetBox declares now comes in as fields: virtual machines, Wi-Fi, port speed, duplex and PoE.
 > - **v2.13.0** — a fiber drawer you can compose slot by slot, sites on a real map, spanning-tree read and shown, and a FortiGate cluster read as evidence.
 > - **v2.12.0** — the Verify run looks at your virtual machines, a VM's state is the colour of its icon, and Undo and Redo keep what you did.
 > - **v2.11.19** — the dossier lives inside Export PDF, the catalogue update works again, and the manuals describe the interface as it is.
-> - **v2.11.18** — a machine you documented stays documented, Ctrl+Z does what it says, and the VM card closes like the host panel.
 >
 > Every release, in detail: [CHANGELOG.md](CHANGELOG.md).
 

@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [2.16.0] — 2026-11-24
+
+Click a switch port and read its traffic, errors and state live, in one panel order that every properties panel now shares.
 
 ### Added
 
