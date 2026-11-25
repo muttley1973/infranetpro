@@ -2949,7 +2949,258 @@ async function pollPort(cfg, opts = {}) {
   }
 }
 
-module.exports = { poll, pollNeighbors, probe, pollPower, pollPort, deviceIps };
+// ---- SALUTE delle interfacce: stato, errori e scarti di TUTTE le interfacce, ogni Sync ------------------------
+// A differenza di `pollPort` (UNA porta, due volte, al clic, mai salvata) questa legge una volta le colonne di
+// stato/errori/scarti/FCS di ogni interfaccia: da due letture di Sync distanti di ore `lib/health-store.js`
+// ricava quanti errori sono arrivati nell'intervallo. E' un PASSO A PARTE, non una colonna in piu' della walk
+// principale: l'aggiunta di un subtree a `OID`/`BASE_OIDS` ha gia' fatto regredire il poll (v. sopra), e le famiglie
+// nuove stanno in un passo loro come stampante e HOST-RESOURCES. Solo OID standard (IF-MIB, EtherLike-MIB); solo
+// `get` e `subtree`, mai `set`. I grezzi si consegnano come sono (colonna non pubblicata = null): le conclusioni
+// sono della lib pura, che ha i suoi test.
+const HEALTH = require('../lib/health-store.js');
+const HEALTH_MAX_ROWS = 4096;
+
+// vbs (oid → valore grezzo) → righe `{ ifName, oper, admin, inErrors, … }`. Pura: niente rete.
+function extractHealthIf(vbs, nameBase) {
+  const colOf = {};   // OID base della colonna → chiave
+  for (const k of Object.keys(HEALTH.HEALTH_IF_OIDS)) colOf[HEALTH.HEALTH_IF_OIDS[k]] = k;
+  const names = {};
+  const cols = {};
+  for (const k of Object.keys(HEALTH.HEALTH_IF_OIDS)) cols[k] = {};
+  for (const oid of Object.keys(vbs)) {
+    const dot = oid.lastIndexOf('.');
+    if (dot < 0) continue;
+    const base = oid.slice(0, dot), idx = oid.slice(dot + 1);
+    if (!/^\d+$/.test(idx)) continue;
+    if (base === nameBase) names[idx] = bufToStr(vbs[oid]);
+    else if (colOf[base]) cols[colOf[base]][idx] = vbs[oid];
+  }
+  const int = (v) => (typeof v === 'number' && Number.isInteger(v) ? v : null);
+  const rows = [];
+  for (const idx of Object.keys(names).sort((a, b) => a - b)) {
+    if (rows.length >= HEALTH_MAX_ROWS) break;
+    if (!names[idx]) continue;
+    const c = (k) => (idx in cols[k] ? cols[k][idx] : null);
+    rows.push({
+      ifName: names[idx],
+      oper: int(c('oper')), admin: int(c('admin')),
+      inErrors: PORT_LIVE.counterValue(c('inErrors')), outErrors: PORT_LIVE.counterValue(c('outErrors')),
+      inDiscards: PORT_LIVE.counterValue(c('inDiscards')), outDiscards: PORT_LIVE.counterValue(c('outDiscards')),
+      fcs: PORT_LIVE.counterValue(c('fcs')), disc: PORT_LIVE.counterValue(c('disc')),
+    });
+  }
+  return rows;
+}
+
+// ── SENSORI AMBIENTALI (stesso passo della salute: una sessione, un tetto di tempo) ───────────────────────────
+// Standard prima: ENTITY-SENSOR-MIB (RFC 3433). Le MIB dei fornitori sono un RIPIEGO e sono DATI (famiglie descritte in
+// lib/health-store.js, HEALTH_SENSOR_FAMILIES), non codice: qui non c'e' nessun nome di marca, e aggiungere un fornitore non
+// tocca questo file (regola cardine ③ vendor-neutral). Una famiglia si chiede a un apparato con `_baseApplies` — la stessa
+// regola della walk principale, derivata dall'OID e non da un elenco di marche: un apparato che dice di essere di un
+// altro fornitore non la riceve (un agente che tace su una famiglia sconosciuta costa timeout), e senza prova contraria non
+// si salta niente. Solo per i tipi di misura che lo standard non ha dato. Cio' che non si e' potuto verificare su una fonte
+// NON si legge: v. HEALTH_SENSOR_NOT_READ. Un sensore assente non lascia NESSUNA riga (e un apparato senza sensori
+// dice `rows: []`): mai uno zero.
+const _OID_RE = /^[0-9]+(\.[0-9]+)*$/;
+// Gli indici (anche a piu' parti) che una colonna `base` ha nei varbind letti.
+function _colMap(vbs, base) {
+  const m = {};
+  const p = base + '.';
+  for (const oid of Object.keys(vbs)) {
+    if (oid.startsWith(p)) { const idx = oid.slice(p.length); if (_OID_RE.test(idx)) m[idx] = vbs[oid]; }
+  }
+  return m;
+}
+const _asInt = (v) => (typeof v === 'number' && Number.isInteger(v) ? v : null);
+const _asText = (v) => (v === null || v === undefined ? '' : bufToStr(v));
+
+// Sensori STANDARD (vbs = le cinque colonne; names = indice → testo da entPhysicalName/Descr).
+function extractEntitySensors(vbs, names) {
+  const C = HEALTH.HEALTH_ENT_SENSOR_COLS;
+  const vals = _colMap(vbs, C.value), types = _colMap(vbs, C.type), scales = _colMap(vbs, C.scale), precs = _colMap(vbs, C.precision), stats = _colMap(vbs, C.status);
+  const rows = [];
+  for (const idx of Object.keys(vals).filter(i => /^\d+$/.test(i)).sort((a, b) => a - b)) {
+    const t = HEALTH.healthEntityType(_asInt(types[idx]));
+    const status = HEALTH.healthEntityStatus(_asInt(stats[idx]));
+    // Il valore conta solo se l'apparato dice che e' operativo: con «unavailable» il numero non vuol dire niente.
+    let value = status === 'ok' ? HEALTH.healthEntityValue(_asInt(vals[idx]), _asInt(scales[idx]), _asInt(precs[idx])) : null;
+    let state = status;
+    if (status === 'ok' && value === null) state = 'unknown';   // scala o precisione fuori dallo standard: non si indovina
+    rows.push({
+      sid: 'ent:' + idx, kind: t.kind, label: (names && names[idx]) || ('Sensor ' + idx), value, unit: t.unit, state,
+      mib: 'ENTITY-SENSOR-MIB', oid: `${C.value}.${idx}`, limLo: null, limHi: null,
+    });
+    if (rows.length >= 512) break;
+  }
+  return rows;
+}
+
+// Una TABELLA di una famiglia (i DATI stanno in lib/health-store.js, HEALTH_SENSOR_FAMILIES): una riga per indice. ⚠️ Nessun nome
+// di marca qui — regola cardine ③ vendor-neutral: la forma della famiglia (colonne, scala, mappa degli stati, valore minimo)
+// e' tutta nella sua descrizione, e aggiungere un fornitore non tocca questo codice.
+const _cmpIdx = (a, b) => {
+  const A = a.split('.').map(Number), B = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(A.length, B.length); i++) { const d = (A[i] ?? -1) - (B[i] ?? -1); if (d) return d; }
+  return 0;
+};
+function extractVendorTable(vbs, fam, tbl) {
+  const colMaps = {};
+  for (const k of Object.keys(tbl.cols)) colMaps[k] = [].concat(tbl.cols[k]).map(c => ({ c, m: _colMap(vbs, `${tbl.base}.${c}`) }));
+  const idxRe = tbl.multiIndex ? /^\d+(\.\d+)*$/ : /^\d+$/;
+  const seen = new Set();
+  for (const k of Object.keys(colMaps)) for (const { m } of colMaps[k]) for (const i of Object.keys(m)) if (idxRe.test(i)) seen.add(i);
+  const div = tbl.div || 1;
+  const first = (k, idx) => { for (const { c, m } of (colMaps[k] || [])) if (idx in m) return { c, v: m[idx] }; return null; };
+  const num = (k, idx) => { for (const { c, m } of (colMaps[k] || [])) { const v = m[idx]; if (typeof v === 'number' && Number.isFinite(v)) return { c, v }; } return null; };
+  const rows = [];
+  for (const idx of [...seen].sort(_cmpIdx)) {
+    const val = num('value', idx);
+    // `valueMin`: la MIB dichiara che sotto questo valore la riga non e' una misura (es. «0 = non disponibile o non applicabile»).
+    if (tbl.valueMin !== undefined && !(val && val.v >= tbl.valueMin)) continue;
+    const st = first('state', idx);
+    if (!val && !st) continue;   // niente valore e niente stato dichiarato: non e' un sensore
+    const lim = (k) => { const x = num(k, idx); return x ? x.v / div : null; };
+    const lab = first('label', idx);
+    rows.push({
+      sid: `${fam.id}:${tbl.sid}:${idx}`, kind: tbl.kind, label: (lab && _asText(lab.v)) || `${tbl.label || tbl.sid} ${idx}`,
+      value: val ? val.v / div : null, unit: tbl.unit || '', state: st ? HEALTH.healthMapState(tbl.states, _asInt(st.v)) : 'unknown',
+      mib: fam.mib, oid: `${tbl.base}.${(val || st).c}.${idx}`, limLo: lim('limLo'), limHi: lim('limHi'),
+    });
+    if (rows.length >= 512) break;
+  }
+  return rows;
+}
+
+// Gli SCALARI di una famiglia (`oid` + `.0`): l'apparato non dichiara nessuno stato, quindi `unknown` (non lo inventiamo).
+// ⚠️ Regola di CLASSE, MISURATA sul lab e valida per ogni scalare di questa forma: uno scalare di temperatura o di tensione
+// che vale ZERO non e' una misura — e' cio' che risponde un apparato SENZA quel sensore (una macchina virtuale): 0 V su un
+// apparato acceso non esiste, 0,0 °C su un router nemmeno. Una ventola a 0 giri invece e' una scoperta (ventola ferma).
+function extractVendorScalars(values, fam) {
+  const rows = [];
+  for (const s of (fam.scalars || [])) {
+    const raw = values[s.oid + '.0'];
+    if (typeof raw !== 'number' || !Number.isFinite(raw)) continue;   // non pubblicato: nessuna riga
+    if (raw === 0 && (s.kind === 'temperature' || s.kind === 'voltage')) continue;
+    rows.push({ sid: `${fam.id}:${s.sid}`, kind: s.kind, label: s.label, value: raw / (s.div || 1), unit: s.unit, state: 'unknown', mib: fam.mib, oid: s.oid + '.0', limLo: null, limHi: null });
+  }
+  return rows;
+}
+
+const _getP = (session, oids) => new Promise((resolve, reject) => session.get(oids, (err, out) => (err ? reject(err) : resolve(out))));
+// oid → valore grezzo (null se l'apparato non lo pubblica). Un gruppo che non risponde lascia i suoi null: mancano dei nomi, non si perde la lettura.
+async function _getValues(session, oids) {
+  const out = {};
+  for (let i = 0; i < oids.length; i += PORT_LIVE.GET_CHUNK) {
+    const part = oids.slice(i, i + PORT_LIVE.GET_CHUNK);
+    let vbs;
+    try { vbs = await _getP(session, part); } catch (_) { continue; }
+    part.forEach((o, j) => { const vb = vbs && vbs[j]; out[o] = (!vb || snmp.isVarbindError(vb)) ? null : vb.value; });
+  }
+  return out;
+}
+
+// Legge i sensori. `rows: null` = NON letto (errore, nessuna risposta); `rows: []` = l'apparato ha risposto e non ne pubblica.
+async function _readSensors(session, timeoutMs) {
+  const deadline = _walkDeadline(timeoutMs, 5, 25000);
+  const via = [];
+  let errs = 0;
+  // Di chi e' l'apparato (PEN del sysObjectID): decide se ha senso chiedere una MIB di un fornitore.
+  let pen;   // null = non si sa (nessuna prova contraria: `_baseApplies` non salta niente)
+  try {
+    const v = await _getValues(session, [OID.sysObjectID + '.0']);
+    const so = v[OID.sysObjectID + '.0'];
+    pen = so ? _basePen(typeof so === 'string' ? so : bufToStr(so)) : null;
+  } catch (_) { pen = null; }
+
+  // 1) Standard. Si legge PRIMA la sola colonna del valore: se e' vuota non c'e' nessun sensore e le altre quattro walk
+  // sono tempo buttato — misurato sul lab, uno switch che non implementa la MIB (lo Zyxel) ci perdeva ~12 s a lettura.
+  const svbs = {};
+  const COLS = HEALTH.HEALTH_ENT_SENSOR_COLS;
+  errs += await _runWalks(session, [COLS.value], svbs, 'SNMP-SENSORS', 1, { deadline });
+  if (Object.keys(_colMap(svbs, COLS.value)).length) {
+    errs += await _runWalks(session, [COLS.type, COLS.scale, COLS.precision, COLS.status], svbs, 'SNMP-SENSORS', WALK_CONCURRENCY, { deadline });
+  }
+  const idxs = Object.keys(_colMap(svbs, HEALTH.HEALTH_ENT_SENSOR_COLS.value)).filter(i => /^\d+$/.test(i)).slice(0, 512);
+  const names = {};
+  if (idxs.length) {
+    const nm = await _getValues(session, idxs.map(i => `${HEALTH.HEALTH_ENT_PHYS_NAME}.${i}`));
+    const need = idxs.filter(i => !_asText(nm[`${HEALTH.HEALTH_ENT_PHYS_NAME}.${i}`]));
+    const ds = need.length ? await _getValues(session, need.map(i => `${HEALTH.HEALTH_ENT_PHYS_DESCR}.${i}`)) : {};
+    for (const i of idxs) names[i] = _asText(nm[`${HEALTH.HEALTH_ENT_PHYS_NAME}.${i}`]) || _asText(ds[`${HEALTH.HEALTH_ENT_PHYS_DESCR}.${i}`]);
+  }
+  const rows = extractEntitySensors(svbs, names);
+  if (rows.length) via.push('entity-sensor');
+
+  // 2) Ripiego dei fornitori, SOLO per i tipi di misura che lo standard non ha dato. Una famiglia si chiede a un apparato solo se
+  //    `_baseApplies` lo permette: il PEN del sysObjectID dev'essere quello della famiglia (derivato dal suo OID, nessun elenco
+  //    di marche) e senza prova contraria non si salta niente — la STESSA regola della walk principale, una definizione sola.
+  const have = new Set(rows.map(r => r.kind));
+  for (const fam of HEALTH.HEALTH_SENSOR_FAMILIES) {
+    if (!_baseApplies(HEALTH.healthFamilyRoot(fam), pen)) continue;
+    const got = [];
+    if (fam.tables && fam.tables.length) {
+      const vv = {};
+      errs += await _runWalks(session, HEALTH.healthFamilyBases(fam), vv, 'SNMP-SENSORS', WALK_CONCURRENCY, { deadline });
+      for (const tbl of fam.tables) for (const r of extractVendorTable(vv, fam, tbl)) got.push(r);
+    }
+    if (fam.scalars && fam.scalars.length) {
+      const vals = await _getValues(session, fam.scalars.map(s => s.oid + '.0'));
+      for (const r of extractVendorScalars(vals, fam)) got.push(r);
+    }
+    const fresh = got.filter(r => !have.has(r.kind));
+    if (fresh.length) { via.push(fam.id); for (const r of fresh) rows.push(r); }
+  }
+  // Nessuna riga E qualcosa e' andato storto: non sappiamo se l'apparato abbia sensori → «non letto», non «non ne ha».
+  if (!rows.length && errs > 0) return { rows: null, via, pen, partial: true };
+  return { rows, via, pen, partial: errs > 0 };
+}
+
+// La lettura su una sessione GIA' aperta (cosi' si prova con una sessione finta). `opts.sensors === false` salta i sensori.
+async function _readHealth(session, timeoutMs, opts) {
+  const vbs = {};
+  const bases = [HEALTH.HEALTH_IF_NAME_OID].concat(Object.keys(HEALTH.HEALTH_IF_OIDS).map(k => HEALTH.HEALTH_IF_OIDS[k]));
+  const deadline = _walkDeadline(timeoutMs, 5, 25000);
+  let errs = await _runWalks(session, bases, vbs, 'SNMP-HEALTH', WALK_CONCURRENCY, { deadline });
+  // ifName manca sugli agenti molto vecchi: si ripiega su ifDescr, come `_findIfIndex`.
+  let nameBase = HEALTH.HEALTH_IF_NAME_OID;
+  if (!Object.keys(vbs).some(o => o.startsWith(nameBase + '.'))) {
+    nameBase = HEALTH.HEALTH_IF_DESCR_OID;
+    errs += await _runWalks(session, [nameBase], vbs, 'SNMP-HEALTH', 1, { deadline: _walkDeadline(timeoutMs, 2, 6000) });
+  }
+  // Il tempo DELL'APPARATO, letto subito dopo i contatori: e' lui a dire se nel frattempo e' ripartito.
+  let upCs;   // assegnato in entrambi i rami: letto, o null (non letto — mai zero)
+  try {
+    const out = await new Promise((resolve, reject) => session.get([HEALTH.HEALTH_SYS_UPTIME], (err, o) => (err ? reject(err) : resolve(o))));
+    const vb = out && out[0];
+    upCs = (!vb || snmp.isVarbindError(vb)) ? null : PORT_LIVE.counterValue(vb.value);
+  } catch (_) { upCs = null; }
+  const rows = extractHealthIf(vbs, nameBase);
+  const out = { at: Date.now(), upCs, rows, via: nameBase === HEALTH.HEALTH_IF_NAME_OID ? 'ifName' : 'ifDescr', partial: errs > 0 };
+  // I sensori sono un passo a parte e non fatale: se fallisce, le interfacce restano e i sensori valgono «non letti» (null).
+  if (!opts || opts.sensors !== false) {
+    try { out.sensors = await _readSensors(session, timeoutMs); }
+    catch (_) { out.sensors = { rows: null, via: [], pen: null, partial: true }; }
+  }
+  return out;
+}
+
+async function pollHealth(cfg) {
+  const host    = (cfg.host || '').trim();
+  const port    = parseInt(cfg.port) || 161;
+  const timeout = Math.min((parseInt(cfg.timeout) || 3), 8) * 1000;
+  const driver  = (cfg.driver || 'snmp-v2c').toLowerCase();
+  if (!host) throw new Error('Host/IP mancante');
+  let session;
+  try { session = _createSnmpSession(driver, host, port, timeout, cfg, 1); }
+  catch (e) { throw new Error(e.message, { cause: e }); }
+  try {
+    return await _readHealth(session, timeout);
+  } finally {
+    try { session.close(); } catch (_) { /* gia' chiusa */ }
+  }
+}
+
+module.exports = { poll, pollNeighbors, probe, pollPower, pollPort, pollHealth, deviceIps };
 
 // Funzioni pure interne esposte SOLO per i test di regressione (node --test).
 // Additivo: non altera il comportamento runtime del driver.
@@ -2964,4 +3215,5 @@ module.exports._internals = {
   walkSession, ENTITY_BASES, LAG_BASES, _ifDescrMissing,
   walkNeighbors, NEIGHBOR_OIDS, EVIDENCE_LLDP, EVIDENCE_CDP,
   _findIfIndex, _readPortSample, _subtreeMap,
+  extractHealthIf, _readHealth, _readSensors, extractEntitySensors, extractVendorTable, extractVendorScalars,
 };

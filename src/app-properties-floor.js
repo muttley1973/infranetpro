@@ -26,6 +26,7 @@ import { _isVoiceVlan, _siteNativeVlan,
          updateVlanName, updateVlanColor, updateVlanIpam, updateUiColor } from './app-vlan-autopoll.js';   // ritiro ponte: funzioni vlan/snmp + azioni card VLAN (ex win.*)
 import { _enableManualValueInProps, _vlanIpam, _clearPropsTab, toggleAbbrevNames } from './app.js';   // ritiro ponte: funzioni disc/props/vlan/hv (ex win.*)
 import { toggleBgImageLock, scaleBgImage, scaleBgImageTo, fitBgImageToCanvas, clearMap, toggleFloorGrid, setBgImageOpacity } from './app-search-zoom-rack.js';   // ASSE B: azioni immagine di sfondo / griglia (ex on* inline)
+import { healthThresholdsSectionHtml } from './app-health.js';   // soglie di salute dell'utente (una dichiarazione del progetto)
 import { openAdoptFromPrefix } from './app-drift-adopt.js';   // ASSE B: adotta lease non documentati (ex onclick inline)
 import { _l3Compute, _l3GatewayBindingHtml, _l3DeviceForIp } from './app-l3.js';   // ritiro ponte: coda funzioni A (batch 1/2) (ex win.*) + «chi risponde a questo IP»
 import { _ipamUsageForPrefix } from './app-ipam.js';   // occupazione di UN prefisso (non piu' di una VLAN)
@@ -558,6 +559,7 @@ export function _renderFloorProps(panel){
         } finally {
             if(typeof _ipamMemoEnd === 'function') _ipamMemoEnd();
         }
+        h+=healthThresholdsSectionHtml(_propsSectionIsOpen('floor-health'));
         h+=`<details class="props-collapsible props-primary" ${_propsSectionIsOpen('floor-bgimage')?'open':''} data-toggle="props-section" data-section="floor-bgimage">
               <summary class="props-collapsible-head"><span><i class="fas fa-map"></i> ${t('floor.imgSection')}</span>${_bgPreview}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary>
               <div class="props-collapsible-body">

@@ -17,6 +17,8 @@
 // anche da src/app-drift-adopt.js, quindi NON è una variabile di modulo.
 import { win, expose, t } from './_bridge.js';
 import { store } from './store.js';   // ritiro ponte fase 3: stato condiviso (ex win.*)
+import { healthDriftInput, healthSensorDriftInput } from './app-health.js';
+import { neighborDriftInput } from './app-neighbors.js';   // vicini non piu' riferiti (foglia)   // salute delle interfacce: contatori saliti fra le due ultime letture (foglia)
 import { DOWN_STREAK_N, forgetPortMeasure, nextDownStreak, clearPortOverrides } from '../lib/port-state.js';   // lib pura importata ESM: soglia anti-flap + avanzamento e scadenza delle misure di porta
 import { TYPES, _frontPanelPortLabel } from './app-types.js';   // catalogo tipi: distingue gli elementi passivi dall'audit di presenza
 import { escapeHTML, normalizeMacAddress, postJsonWithDeadline } from './app-util.js';
@@ -193,6 +195,11 @@ export function _driftComputeFromDoc(docSnap, opts){
     const state = store.state;
     _driftUpdateStreaks(docSnap);
     const snmpSnap = _driftBuildSnmpSnapshot(docSnap, opts && opts.reachable, opts && opts.arpTable);
+    // Salute delle interfacce: i contatori saliti fra le due ultime letture (v. lib/health-store.js). Non e' misura di
+    // vicinato ne' di presenza: e' un ingresso a parte, che il Sync ha letto e il sidecar ha tenuto. Mai fatale.
+    try{ snmpSnap.ifHealth = healthDriftInput(state.nodes); }catch(_){ snmpSnap.ifHealth = []; }
+    try{ snmpSnap.sensorHealth = healthSensorDriftInput(state.nodes); }catch(_){ snmpSnap.sensorHealth = []; }
+    try{ snmpSnap.neighborLost = neighborDriftInput(state.nodes); }catch(_){ snmpSnap.neighborLost = []; }
     _lastSnmpSnap = snmpSnap;   // la presenza delle VM legge gli stessi segnali di vicinato, senza ricostruirli
     if(!Array.isArray(state.driftIgnores)) state.driftIgnores = [];
     store._driftReport = win.buildDriftReport(snmpSnap, docSnap, state.driftIgnores, {
@@ -519,13 +526,13 @@ function _persistPresence(){
 function _driftAllRows(){
     const rep = store._driftReport;
     if(!rep) return [];
-    return [].concat(rep.stateDrift, rep.macOrphan, rep.undocumented, rep.ghostCable, rep.shutCable || [], rep.ipChanged || [], rep.unverified || [], rep.identityDrift || []);
+    return [].concat(rep.stateDrift, rep.macOrphan, rep.undocumented, rep.ghostCable, rep.shutCable || [], rep.ipChanged || [], rep.unverified || [], rep.identityDrift || [], rep.ifHealth || [], rep.sensorHealth || [], rep.sensorWarn || [], rep.neighborLost || []);
 }
 function _driftFindRow(key){ return _driftAllRows().find(r => r.key === key) || null; }
 function _driftDropRow(key){
     const rep = store._driftReport;
     if(!rep) return;
-    for(const cat of ['stateDrift','macOrphan','undocumented','ghostCable','shutCable','ipChanged','unverified','identityDrift']){
+    for(const cat of ['stateDrift','macOrphan','undocumented','ghostCable','shutCable','ipChanged','unverified','identityDrift','ifHealth','sensorHealth','sensorWarn','neighborLost']){
         if(!Array.isArray(rep[cat])) continue;
         rep[cat] = rep[cat].filter(r => r.key !== key);
         if(cat === 'undocumented'){
@@ -718,6 +725,15 @@ const _DRIFT_CATS = [
     { k:'undocumented', tk:'drift.catUndocumented', i:'fa-circle-question',      c:'#58a6ff' },
     { k:'ghostCable',   tk:'drift.catGhost',        i:'fa-link-slash',           c:'#f85149' },
     { k:'shutCable',    tk:'drift.catShut',         i:'fa-ban',                  c:'#cf222e' },
+    // Salute delle interfacce: un fatto MISURATO (contatori in salita fra due letture), non una divergenza dal documento.
+    // Informativo: fuori dal «da verificare» e dal banner, ma visibile (v. lib/drift-report.js).
+    { k:'ifHealth',     tk:'drift.catIfHealth',     i:'fa-heart-pulse',          c:'#d29922', info:true },
+    // Sensori ambientali con una gravita' (dell'apparato, o una soglia scritta dall'utente — la riga dice quale). I CRITICI sono
+    // lavoro (ventola ferma, alimentatore in guasto) e contano nel «da verificare»; gli avvisi sono solo informazione.
+    { k:'sensorHealth', tk:'drift.catSensorCrit',   i:'fa-temperature-full',     c:'#f85149' },
+    { k:'sensorWarn',   tk:'drift.catSensorWarn',   i:'fa-temperature-half',     c:'#d29922', info:true },
+    // Vicini LLDP/CDP che non si sentono piu': informazione (silenzio ≠ contraddizione), non una divergenza dal documento.
+    { k:'neighborLost',  tk:'drift.catNeighborLost', i:'fa-link-slash',           c:'#8b949e', info:true },
 ];
 function _driftEnsureOverlay(){
     let ov = document.getElementById('drift-overlay');
@@ -813,11 +829,37 @@ export function _driftRowHtml(cat, r){
         actions = `${ignBtn}${invBtn}`;
     } else if(cat === 'portUnverified'){
         main = `<span class="drift-row-main">${esc(r.label)}</span><span class="drift-row-sub">${esc(t('drift.portUnverifiedSub'))}</span>`;
+    } else if(cat === 'ifHealth'){
+        // Contatori saliti fra le due ultime letture: «+3 errori in · +12 scarti in». Il segno dice COME si sa: sono
+        // dedotti da due misure (non un tasso, non una soglia); il suggerimento porta OID e istante della lettura.
+        const what = (r.grew || []).map(k => `+${Number((r.deltas && r.deltas[k]) || 0).toLocaleString()} ${t('ifh.short.' + k)}`).join(' · ');
+        const oids = Object.keys(r.oids || {}).map(k => r.oids[k]).join(', ');
+        const tip = t('ifh.drift.tip', { oids, when: r.at ? new Date(r.at).toLocaleString() : '?' });
+        main = `<span class="drift-row-main">${esc(r.label)} · ${esc(r.ifName)}</span><span class="drift-row-sub">${esc(what)}</span><span class="drift-why"><span class="drift-why-tag" title="${esc(tip)}"><span class="cty-mark cty-derived"></span> ${esc(t('ifh.drift.tag'))}</span></span>`;
+        actions = `${ignBtn}${invBtn}`;
+    } else if(cat === 'neighborLost'){
+        // «Il vicino X sulla porta Y non e' riferito da N letture»: la riga dice cosa SA (quando l'ha sentito l'ultima volta, da quale
+        // protocollo, con quale OID) e NON dice cosa e' successo al cavo. L'apparato muto e' UN fatto, non una riga per vicino.
+        const when = r.lastAt ? new Date(r.lastAt).toLocaleString() : '?';
+        const sub = r.kind === 'device'
+            ? `${t('nb.drift.device', { n: Number(r.silentCount || 0).toLocaleString() })} — ${t('nb.lastHeard', { when, n: '≥' })}`
+            : `${r.localIf} ← ${r.remoteName || r.remoteId}${r.ports && r.ports.length ? ' (' + r.ports.join(', ') + ')' : ''} — ${t('nb.lastHeard', { when, n: Number(r.misses || 0).toLocaleString() })}`;
+        const tip = t('nb.drift.tip', { proto: r.source || 'LLDP/CDP', oid: r.oid || '?', when, n: Number(r.misses || 0).toLocaleString(), port: r.portState === 'up' ? t('nb.port.up') : t('nb.port.unknown') });
+        main = `<span class="drift-row-main">${esc(r.label)}</span><span class="drift-row-sub">${esc(sub)}</span><span class="drift-why"><span class="drift-why-tag" title="${esc(tip)}"><span class="cty-mark cty-derived"></span> ${esc(t('nb.drift.tag'))}</span></span>`;
+        actions = `${ignBtn}${invBtn}`;
+    } else if(cat === 'sensorHealth' || cat === 'sensorWarn'){
+        // Il valore, la gravita' E DA CHI VIENE (apparato o soglia dell'utente), e da quale OID: «dedotto» non c'entra, e' una misura.
+        const val = r.value === null ? t('ifh.sen.nd') : `${Number(r.value).toLocaleString()}${r.unit ? ' ' + r.unit : ''}`;
+        const why = r.why === 'state' && r.state && r.state !== 'warning' && r.state !== 'critical' ? ` · ${t('ifh.sen.state.' + r.state)}` : '';
+        const sub = `${val} — ${t('ifh.sen.sev.' + r.severity)} (${t('ifh.sen.src.' + r.severitySource)})${why}`;
+        const tip = t('ifh.sen.drift.tip', { mib: r.mib || '?', oid: r.oid || '?', when: r.at ? new Date(r.at).toLocaleString() : '?', src: t('ifh.sen.src.' + r.severitySource) });
+        main = `<span class="drift-row-main">${esc(r.label)} · ${esc(r.sensor)}</span><span class="drift-row-sub">${esc(sub)}</span><span class="drift-why"><span class="drift-why-tag" title="${esc(tip)}"><span class="cty-mark cty-measured"></span> ${esc(t('cty.measured'))}</span></span>`;
+        actions = `${ignBtn}${invBtn}`;
     } else { // consistent
         main = `<span class="drift-row-main">${esc(r.label)}</span>`;
     }
     // «Spiega» su tutte le righe azionabili (non sulle consistenti né sulle non verificate = nessuna azione).
-    const acts = (cat === 'consistent' || cat === 'portUnverified') ? actions : actions + explBtn;
+    const acts = (cat === 'consistent' || cat === 'portUnverified' || cat === 'ifHealth' || cat === 'sensorHealth' || cat === 'sensorWarn' || cat === 'neighborLost') ? actions : actions + explBtn;
     return `<div class="drift-row">${main}<span class="drift-row-acts">${acts}</span></div>`;
 }
 
@@ -954,8 +996,10 @@ export function _renderDriftReport(){
     // Header overlay reattivo al cambio lingua (l'overlay è creato una volta).
     const _ttl = document.getElementById('drift-title'); if(_ttl) _ttl.textContent = t('report.drift');
     // Non sono lavoro da fare: coerenti (a posto), non verificabili e porte non lette (copertura).
-    const _noLavoro = c => c.k === 'consistent' || c.k === 'unverified' || c.k === 'portUnverified';
-    const total = _DRIFT_CATS.reduce((a, c) => a + (_noLavoro(c) ? 0 : rep.counts[c.k]), 0);
+    const _noLavoro = c => c.k === 'consistent' || c.k === 'unverified' || c.k === 'portUnverified' || c.k === 'ifHealth' || c.k === 'sensorWarn' || c.k === 'neighborLost';
+    // `|| 0`: un report costruito prima di una categoria (o persistito da una versione precedente) non ne ha la chiave, e
+    // `undefined` sommato dava NaN («NaN discrepanze da verificare»): una categoria che non c'e' non pesa, non rompe il totale.
+    const total = _DRIFT_CATS.reduce((a, c) => a + (_noLavoro(c) ? 0 : (rep.counts[c.k] || 0)), 0);
     // Banner a 3 vie: anomalie · "cieca" (niente verificato) · allineata. Niente
     // falso "tutto a posto" quando in realtà non si è potuto verificare nulla.
     const kind = (typeof driftBannerKind === 'function') ? driftBannerKind(rep.counts, rep) : (total > 0 ? 'discrepancies' : 'aligned');
@@ -1033,6 +1077,7 @@ export function _renderDriftReport(){
             }
             openWhen = (idRows.length + foRows.length + fwRows.length) > 0;
         }
+        if(c.k === 'ifHealth' || c.k === 'sensorWarn' || c.k === 'neighborLost') openWhen = n > 0;   // informativa, ma se c'e' qualcosa e' proprio quello da vedere
         const open = openWhen ? ' open' : '';
         const rowsHtml = rows.length ? rows.map(r => _driftRowHtml(c.k, r)).join('') : '';
         const secBody = (rowsHtml || extra) ? (topBar + rowsHtml + extra) : '<div class="drift-empty">—</div>';

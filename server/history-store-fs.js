@@ -19,6 +19,8 @@
 //   <baseDir>/<id>/presence.json                  — chi c'è / chi non c'è (corrente)
 //   <baseDir>/<id>/observations.json              — chi è stato visto dove, e quante volte
 //   <baseDir>/<id>/audit.json                     — giornale «chi/quando/cosa» del documento
+//   <baseDir>/<id>/health.json                    — salute delle interfacce: ultima lettura e quella di prima
+//   <baseDir>/<id>/neighbors.json                 — i vicini LLDP/CDP riferiti da ogni apparato, e da quante letture non si sentono
 const fs = require('fs');
 const { PRIVATE_MODE } = require('./projects-store');
 const path = require('path');
@@ -68,6 +70,8 @@ function createFsHistoryStore(opts = {}) {
   const _presenceFile = (id) => path.join(_dir(id), 'presence.json');
   const _observationsFile = (id) => path.join(_dir(id), 'observations.json');
   const _auditFile = (id) => path.join(_dir(id), 'audit.json');
+  const _healthFile = (id) => path.join(_dir(id), 'health.json');
+  const _neighborsFile = (id) => path.join(_dir(id), 'neighbors.json');
 
   // Scrittura atomica: tmp + rename (vale per stringhe e Buffer/gzip).
   function _atomicWrite(file, data) {
@@ -247,6 +251,37 @@ function createFsHistoryStore(opts = {}) {
     readAudit(projectId) {
       try { return JSON.parse(fs.readFileSync(_auditFile(projectId), 'utf8')); }
       catch (_) { return null; }   // assente o illeggibile = nessun giornale salvato
+    },
+    // ── SALUTE delle interfacce (errori, scarti, stato: ultima lettura e quella di prima) ──
+    // Una MISURA come presenza e osservazioni, e come loro sta fuori dal documento: cambia a ogni Sync e
+    // cresce con gli apparati. File singolo sovrascritto; la fusione (la lettura nuova scorre quella di
+    // prima, mai due volte la stessa) la fa `healthFold` in lib/health-store.js prima di arrivare qui. Il
+    // file contiene righe piatte e scalari (v. quel file): il giorno che questo store passa a un database,
+    // `saveHealth`/`readHealth` sono le UNICHE due funzioni da riscrivere.
+    saveHealth(projectId, file) {
+      fs.mkdirSync(_dir(projectId), { recursive: true });
+      const rec = { v: (file && file.v) || 1, at: new Date().toISOString(), nodes: (file && file.nodes) || {} };
+      _atomicWrite(_healthFile(projectId), JSON.stringify(rec));
+      return rec;
+    },
+    readHealth(projectId) {
+      try { return JSON.parse(fs.readFileSync(_healthFile(projectId), 'utf8')); }
+      catch (_) { return null; }   // assente o illeggibile = nessuna salute salvata
+    },
+    // ── VICINI LLDP/CDP (chi e' collegato a chi, e da quante letture sane non si sente piu') ──
+    // Una MISURA come la salute e le osservazioni: sta fuori dal documento. File singolo sovrascritto; la fusione (i mancati
+    // crescono solo su letture sane, la stessa lettura non conta due volte) la fa `neighborFold` in lib/neighbor-store.js prima
+    // di arrivare qui. Il file contiene righe piatte e scalari: `saveNeighbors`/`readNeighbors` sono le UNICHE due funzioni
+    // da riscrivere il giorno che questo store passa a un database.
+    saveNeighbors(projectId, file) {
+      fs.mkdirSync(_dir(projectId), { recursive: true });
+      const rec = { v: (file && file.v) || 1, at: new Date().toISOString(), nodes: (file && file.nodes) || {} };
+      _atomicWrite(_neighborsFile(projectId), JSON.stringify(rec));
+      return rec;
+    },
+    readNeighbors(projectId) {
+      try { return JSON.parse(fs.readFileSync(_neighborsFile(projectId), 'utf8')); }
+      catch (_) { return null; }   // assente o illeggibile = nessun vicino salvato
     },
     removeProject(projectId) {
       return removeProjectHistory(baseDir, projectId);

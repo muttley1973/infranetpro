@@ -201,6 +201,10 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
   page.on('pageerror', (e) => pageErrors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
   page.on('response', (r) => { if (r.status() >= 400) httpErrors.push({ url: r.url(), status: r.status() }); });
+  // La salute delle interfacce (`/api/poll-health`) e' un passo del Sync verso un apparato VERO. Il server di prova non ne ha:
+  // una richiesta a un IP inesistente aspetterebbe la sua scadenza (decine di secondi) dentro OGNI flusso che fa il Sync.
+  // Si risponde «nessun apparato dietro»; il flusso che la prova (Salute interfacce) la recita da solo con window.fetch.
+  await page.route('**/api/poll-health', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'e2e: nessun apparato dietro' }) }));
 
   // Misura di un nodo che il RENDER RICREA (stanze, device nel rack, porte…).
   //
@@ -2088,6 +2092,321 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         return (p.state.auditLog || []).filter((e) => e.action === 'snmp-sync').length;
       });
       assert.equal(dopoSalva, suDisco.length, 'dopo un Salva le righe di giro restano le stesse: ' + dopoSalva + ' vs ' + suDisco.length);
+    });
+
+    await t.test('Salute interfacce: letta a ogni Sync, salvata FUORI dal documento, scheda nel pannello dell\'apparato e riga nel Drift', async () => {
+      // Il server di prova non ha uno switch dietro: /api/poll e /api/poll-health si recitano (window.fetch), con la forma che
+      // il driver consegna. Il sidecar (/history/health) e il progetto sono quelli VERI del server. Si prova la colla vera:
+      // pollAllSNMP → pollHealthForNodes → PUT nel sidecar → scheda del pannello → buildDriftReport.
+      const ora = Date.now();
+      const riga = (ifName, o) => Object.assign({ ifName, oper: 1, admin: 1, inErrors: 0, outErrors: 0, inDiscards: 0, outDiscards: 0, fcs: 0, disc: 0 }, o || {});
+      const salute = (at, upCs, gi1) => ({ ok: true, at, upCs, rows: [riga('Gi1', gi1), riga('Gi2'), riga('Gi3', { oper: 2, admin: 2 })] });
+      const giro = (risposta) => page.evaluate(async (risposta) => {
+        setLang('it');
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push({ id: 'swh', type: 'switch', name: 'SWH', x: 100, y: 100, ports: 8, ip: '10.8.8.8', integration: { driver: 'snmp-v2c', host: '10.8.8.8', community: 'segreta' } });
+        state.nodes.push({ id: 'pch', type: 'pc', name: 'PCH', x: 300, y: 100, ip: '10.8.8.9' });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const orig = window.fetch;
+        const chiamate = [];
+        window.fetch = (url, opts) => {
+          const u = String(url);
+          if (u.includes('/api/poll-health')) { chiamate.push(JSON.parse(opts.body)); return Promise.resolve({ json: () => Promise.resolve(risposta) }); }
+          if (u.includes('/api/poll')) return Promise.resolve({ json: () => Promise.resolve({ ok: true, hostname: 'h', system: { sysDescr: 'x' }, interfaces: [] }) });
+          return orig(url, opts);
+        };
+        try { await pollAllSNMP({ silent: true, dataOnly: true }); } finally { window.fetch = orig; }
+        selType = 'node'; selId = 'swh'; window._propsExplicit = true; renderProps();   // senza _propsExplicit il pannello mostra il contesto del progetto
+        const d = document.querySelector('details[data-section="if-health"]');
+        const prev = d && d.querySelector('summary .props-collapsible-preview');
+        const rep = _driftComputeFromDoc(_driftBuildDocSnapshot());
+        return {
+          chiamate,
+          card: d ? { aperta: d.open, anteprima: prev ? prev.textContent.trim() : '', testo: d.textContent } : null,
+          drift: { n: rep.counts.ifHealth, azionabile: driftActionable(rep.counts),
+                   righe: (rep.ifHealth || []).map((x) => ({ nodeId: x.nodeId, ifName: x.ifName, grew: x.grew, deltas: x.deltas, source: x.source, oids: x.oids })) },
+          nelloStato: JSON.stringify(state).includes('inErrors'),
+        };
+      }, risposta);
+      const conSalvataggio = async (risposta) => {
+        const [resp, r] = await Promise.all([
+          page.waitForResponse((x) => x.url().includes('/history/health') && x.request().method() === 'PUT'),
+          giro(risposta),
+        ]);
+        assert.equal(resp.status(), 200, 'la rotta del sidecar risponde');
+        return r;
+      };
+      const sidecar = () => page.evaluate(async () => (await (await fetch('/api/projects/' + window.currentProjectId + '/history/health')).json()).health);
+
+      // 1) PRIMA lettura: la scheda c'e' ma NON dice «niente errori» — dice «prima lettura»; nessuna differenza, nessuna riga nel Drift.
+      let r = await conSalvataggio(salute(ora - 7200000, 1000000, { inErrors: 10 }));
+      assert.equal(r.chiamate.length, 1, 'si legge UN apparato: il PC non ha SNMP e lo switch ne ha');
+      assert.equal(r.chiamate[0].host, '10.8.8.8');
+      assert.equal(r.chiamate[0].community, 'segreta', 'le credenziali sono quelle del nodo');
+      assert.ok(r.card, 'la scheda c\'e\' dopo la prima lettura');
+      assert.equal(r.card.aperta, false, 'chiusa di default: una rete sana e\' quasi tutta a zero');
+      assert.equal(r.card.anteprima, 'prima lettura');
+      assert.match(r.card.testo, /Prima lettura di 3 interfacce/);
+      assert.equal(r.drift.n, 0, 'senza una lettura precedente non c\'e\' nessuna differenza da dire');
+      let sc = await sidecar();
+      assert.equal(sc.nodes.swh.cur.r.length, 3, 'tre interfacce nel sidecar');
+      assert.equal(sc.nodes.swh.prev, null);
+      assert.ok(Array.isArray(sc.nodes.swh.cur.r[0]), 'righe in tuple');
+
+      // 2) SECONDA lettura (un'ora dopo): +4 errori in ingresso e +2 FCS su Gi1. La scheda lo dice, il Drift ne fa una riga INFORMATIVA.
+      r = await conSalvataggio(salute(ora - 3600000, 1360000, { inErrors: 14, fcs: 2 }));
+      assert.equal(r.card.anteprima, '1 con errori in aumento');
+      assert.match(r.card.testo, /Gi1/);
+      assert.match(r.card.testo, /\+4 errori in/);
+      assert.match(r.card.testo, /\+2 FCS/);
+      assert.match(r.card.testo, /intervallo 60 min \(tempo dell'apparato\)/,'l\'intervallo e\' quello DELL\'APPARATO (sysUpTime), e lo dice');
+      assert.doesNotMatch(r.card.testo, /Gi2|Gi3/, 'le interfacce a zero non si elencano');
+      assert.equal(r.drift.n, 1);
+      assert.deepEqual(r.drift.righe[0].grew, ['inErrors', 'fcs']);
+      assert.deepEqual({ a: r.drift.righe[0].deltas.inErrors, b: r.drift.righe[0].deltas.fcs }, { a: 4, b: 2 });
+      assert.equal(r.drift.righe[0].source, 'snmp');
+      assert.match(r.drift.righe[0].oids.inErrors, /^1\.3\.6\.1\.2\.1\.2\.2\.1\.14$/, 'la riga dice DA DOVE lo sa (OID)');
+      assert.equal(r.drift.azionabile, 0, 'e\' informativa: non entra nella coda «da verificare»');
+      sc = await sidecar();
+      assert.notEqual(sc.nodes.swh.prev, null, 'la lettura di prima e\' scorsa in «prima»');
+
+      // 3) Il dispositivo e' RIPARTITO (sysUpTime sceso, contatori ripartiti): nessuna differenza inventata.
+      r = await conSalvataggio(salute(ora, 5000, { inErrors: 3 }));
+      assert.equal(r.card.anteprima, 'riavviato dall\'ultima lettura');
+      assert.equal(r.drift.n, 0, 'un reboot non e\' un errore in salita');
+
+      // 4) Una lettura che NON torna lascia tutto com'era: niente zero al suo posto, niente nuova scrittura.
+      const prima = JSON.stringify(await sidecar());
+      r = await giro({ ok: false, error: 'timeout' });
+      assert.equal(r.card.anteprima, 'riavviato dall\'ultima lettura', 'la scheda mostra ancora l\'ultima lettura vera');
+      assert.equal(JSON.stringify(await sidecar()), prima, 'il sidecar non cambia');
+
+      // 5) MAI nel documento: nello stato del client non c'e' un solo contatore (il documento e' la sua serializzazione), e il
+      //    server lo ha solo nel sidecar. ⚠️ NON si preme «Salva»: il progetto salvato e' quello che le pagine nuove aprono da sole
+      //    (i flussi del monitoraggio), e uno scenario da un solo switch li lascerebbe senza le porte che aspettano.
+      assert.equal(r.nelloStato, false, 'nessun contatore nello stato del client');
+      const stato = await page.evaluate(() => JSON.stringify(state));
+      assert.doesNotMatch(stato, /inErrors|"Gi1"|ifHealth|health/i, "lo stato (cioe' il documento) non porta niente della salute");
+      await page.evaluate(() => { selType = null; selId = null; window._propsExplicit = false; });
+    });
+
+    await t.test('Sensori: letti nella stessa lettura, gravita\' dell\'apparato o soglia dell\'utente (dichiarata come tale), «non pubblicati» mai «a posto», e riga critica nel Drift', async () => {
+      // /api/poll e /api/poll-health si recitano (window.fetch); sidecar e progetto sono quelli VERI. Si prova la colla vera:
+      // pollAllSNMP → pollHealthForNodes → PUT nel sidecar → scheda «Sensori» → soglie dell'utente → buildDriftReport.
+      const ora = Date.now();
+      let passo = 0;
+      const sens = (sid, kind, label, value, unit, state, o) => Object.assign({ sid, kind, label, value, unit, state, mib: 'ENTITY-SENSOR-MIB', oid: '1.3.6.1.2.1.99.1.1.1.4.' + sid.replace(/\D/g, ''), limLo: null, limHi: null }, o || {});
+      const lettura = (sensors) => ({ ok: true, at: ora - 3 * 3600000 + (++passo) * 600000, upCs: 1000000 + passo * 60000, rows: [{ ifName: 'Gi1', oper: 1, admin: 1, inErrors: 0, outErrors: 0, inDiscards: 0, outDiscards: 0, fcs: 0, disc: 0 }], sensors });
+      const giro = (risposta) => page.evaluate(async ([risposta]) => {
+        setLang('it');
+        const soglie = state && state.healthThresholds;
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        if (soglie) state.healthThresholds = soglie;   // le soglie sono del PROGETTO: un giro non le butta
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push({ id: 'swz', type: 'switch', name: 'SWZ', x: 100, y: 100, ports: 8, ip: '10.8.8.7', integration: { driver: 'snmp-v2c', host: '10.8.8.7', community: 'x' } });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const orig = window.fetch;
+        window.fetch = (url, opts) => {
+          const u = String(url);
+          if (u.includes('/api/poll-health')) return Promise.resolve({ json: () => Promise.resolve(risposta) });
+          if (u.includes('/api/poll')) return Promise.resolve({ json: () => Promise.resolve({ ok: true, hostname: 'h', system: { sysDescr: 'x' }, interfaces: [] }) });
+          return orig(url, opts);
+        };
+        try { await pollAllSNMP({ silent: true, dataOnly: true }); } finally { window.fetch = orig; }
+        return true;
+      }, [risposta]);
+      const leggi = () => page.evaluate(() => {
+        selType = 'node'; selId = 'swz'; window._propsExplicit = true; renderProps();
+        const d = document.querySelector('details[data-section="sensors-health"]');
+        const prev = d && d.querySelector('summary .props-collapsible-preview');
+        const warn = d ? Array.from(d.querySelectorAll('.pl-item.warn')).map(e => e.textContent) : [];
+        const crit = d ? Array.from(d.querySelectorAll('.pl-item.crit')).map(e => e.textContent) : [];
+        const rep = _driftComputeFromDoc(_driftBuildDocSnapshot());
+        return {
+          card: d ? { aperta: d.open, anteprima: prev ? prev.textContent.trim() : '', testo: d.textContent, warn, crit } : null,
+          drift: { crit: rep.counts.sensorHealth, warn: rep.counts.sensorWarn, azionabile: driftActionable(rep.counts), banner: driftBannerKind(rep.counts, rep),
+                   righe: (rep.sensorHealth || []).concat(rep.sensorWarn || []).map((x) => ({ sid: x.sid, severity: x.severity, severitySource: x.severitySource, oid: x.oid, mib: x.mib })) },
+        };
+      });
+      const conSalvataggio = async (risposta) => {
+        const [resp] = await Promise.all([
+          page.waitForResponse((x) => x.url().includes('/history/health') && x.request().method() === 'PUT'),
+          giro(risposta),
+        ]);
+        assert.equal(resp.status(), 200);
+      };
+      try {
+        // 1) Sensori con la gravita' DELL'APPARATO: un alimentatore critico. La temperatura a 62 °C NON e' giudicata (nessuna soglia: l'app non ne ha).
+        await conSalvataggio(lettura({ rows: [
+          sens('ent:1001', 'temperature', 'CPU Temp', 62, '°C', 'ok'),
+          sens('ent:1002', 'fan', 'Fan 1', 4200, 'rpm', 'ok'),
+          sens('cisco-envmon:supply:1', 'psu', 'PSU 1', null, '', 'critical', { mib: 'CISCO-ENVMON-MIB', oid: '1.3.6.1.4.1.9.9.13.1.5.1.3.1' }),
+        ], via: ['entity-sensor'], pen: null, partial: false }));
+        let r = await leggi();
+        assert.ok(r.card, 'la scheda «Sensori ambientali» c\'e\'');
+        assert.equal(r.card.aperta, false, 'chiusa di default');
+        assert.equal(r.card.anteprima, '1 critici');
+        assert.match(r.card.testo, /PSU 1/);
+        assert.match(r.card.testo, /critico — lo dice l'apparato/, 'la gravita\' dice DA CHI viene');
+        assert.match(r.card.testo, /62 °C/);
+        assert.match(r.card.testo, /4\.?200 rpm/);
+        assert.equal(r.card.crit.length, 1, 'una sola riga rossa');
+        assert.deepEqual(r.card.warn, [], 'la temperatura non e\' giudicata: nessuna soglia');
+        assert.equal(r.drift.crit, 1);
+        assert.equal(r.drift.azionabile >= 1, true, 'un critico e\' lavoro');
+        assert.equal(r.drift.banner, 'discrepancies', 'il banner NON resta verde');
+        assert.deepEqual(r.drift.righe.map(x => [x.sid, x.severity, x.severitySource]), [['cisco-envmon:supply:1', 'crit', 'device']]);
+        assert.equal(r.drift.righe[0].oid, '1.3.6.1.4.1.9.9.13.1.5.1.3.1', 'la riga dice da quale OID lo sa');
+
+        // 2) La soglia dell'UTENTE: si scrive nel pannello del PROGETTO, e la temperatura diventa un avviso «soglia tua», mai dell'apparato.
+        const soglia = await page.evaluate(() => {
+          selType = null; selId = null; window._propsExplicit = false; renderProps();
+          const sez = document.querySelector('details[data-section="floor-health"]');
+          const inp = sez && sez.querySelector('input[data-key="warn"]');
+          if (!inp) return { sezione: !!sez, input: false };
+          inp.value = '60'; inp.dispatchEvent(new Event('change', { bubbles: true }));
+          return { sezione: true, input: true, stato: state.healthThresholds };
+        });
+        assert.equal(soglia.sezione, true, 'la sezione soglie compare: c\'e\' almeno un apparato con sensori');
+        assert.deepEqual(soglia.stato, { temperature: { warn: 60, crit: null } }, 'la soglia e\' del progetto, nella forma pulita');
+        r = await leggi();
+        assert.equal(r.card.anteprima, '1 critici', 'il critico resta il piu\' grave');
+        assert.equal(r.card.warn.length, 1, 'la temperatura a 62 supera la soglia dell\'utente');
+        assert.match(r.card.warn[0], /CPU Temp/);
+        assert.match(r.card.warn[0], /avviso — soglia tua/, 'DICHIARATA come soglia dell\'utente, non dell\'apparato');
+        assert.equal(r.drift.warn, 1);
+        assert.deepEqual(r.drift.righe.filter(x => x.severity === 'warn').map(x => x.severitySource), ['user_default']);
+        // una soglia non valida non si inventa: si cancella
+        const dopo = await page.evaluate(() => {
+          selType = null; selId = null; renderProps();
+          const inp = document.querySelector('details[data-section="floor-health"] input[data-key="warn"]');
+          inp.value = '999'; inp.dispatchEvent(new Event('change', { bubbles: true }));
+          return state.healthThresholds === undefined;
+        });
+        assert.equal(dopo, true, '999 °C non e\' una soglia: la chiave sparisce');
+
+        // 3) L'apparato RISPONDE e non pubblica sensori (una VM): «non pubblicati», e lo dice — mai «a posto».
+        await conSalvataggio(lettura({ rows: [], via: [], pen: 14988, partial: false }));
+        r = await leggi();
+        assert.equal(r.card.anteprima, 'non pubblicati');
+        assert.match(r.card.testo, /Non vuol dire «tutto a posto»/);
+        assert.equal(r.drift.crit + r.drift.warn, 0, 'nessun sensore, nessuna riga nel Drift');
+
+        // 4) Il passo dei sensori NON e' riuscito (rows null): la scheda sparisce — «non letti» non e' «nessuno».
+        await conSalvataggio(lettura({ rows: null, via: [], pen: null, partial: true }));
+        r = await leggi();
+        assert.equal(r.card, null, 'sensori non letti: niente scheda, niente «nessun sensore»');
+
+        // 5) MAI nel documento, tranne la soglia dell'utente (una dichiarazione): nessun sensore nello stato.
+        const stato = await page.evaluate(() => JSON.stringify(state));
+        assert.doesNotMatch(stato, /ent:1001|cisco-envmon|CPU Temp|PSU 1/, 'nessun sensore nello stato del client');
+      } finally {
+        await page.evaluate(() => { selType = null; selId = null; window._propsExplicit = false; if (state) delete state.healthThresholds; });
+      }
+    });
+
+    await t.test('Vicini: un vicino LLDP che non si sente piu\' dopo 3 letture SANE, mai per una lettura fallita, apparato muto = UN fatto, e riga informativa nel Drift', async () => {
+      // /api/poll, /api/poll-health e /api/topology si recitano (window.fetch); sidecar e progetto sono quelli VERI. La colla vera:
+      // pollAllSNMP (Sync completo) → fase topologia → cache dei vicini → recordNeighbors → PUT nel sidecar → scheda → Drift.
+      const AP ={ localPort: 'Gi1', remoteDevice: 'AP-1', remotePort: 'eth0', remoteMac: 'aa:bb:cc:00:00:01', remoteIP: '', protocol: 'LLDP' };
+      const SW = { localPort: 'Gi2', remoteDevice: 'SW-X', remotePort: 'Gi0/24', remoteMac: 'aa:bb:cc:00:00:02', remoteIP: '', protocol: 'LLDP' };
+      const giro = (topologia) => page.evaluate(async ([topologia]) => {
+        setLang('it');
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push({ id: 'swn', type: 'switch', name: 'SWN', x: 100, y: 100, ports: 8, ip: '10.8.8.5', integration: { driver: 'snmp-v2c', host: '10.8.8.5', community: 'x' } });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const orig = window.fetch;
+        window.fetch = (url, opts) => {
+          const u = String(url);
+          if (u.includes('/api/topology')) return Promise.resolve({ json: () => Promise.resolve(topologia) });
+          if (u.includes('/api/poll-health')) return Promise.resolve({ json: () => Promise.resolve({ ok: false, error: 'stub' }) });
+          if (u.includes('/api/poll')) return Promise.resolve({ json: () => Promise.resolve({ ok: true, hostname: 'h', system: { sysDescr: 'x' }, interfaces: [] }) });
+          return orig(url, opts);
+        };
+        try { await pollAllSNMP({ silent: true }); } finally { window.fetch = orig; }
+        return true;
+      }, [topologia]);
+      const topo = (neighbors) => ({ ok: true, hostname: 'SWN', neighbors, fdbTable: {}, arpTable: {}, fdbVlan: {}, wifiIfs: [], wifiNeighborMacs: [] });
+      const conSalvataggio = async (topologia) => {
+        const [resp] = await Promise.all([
+          page.waitForResponse((x) => x.url().includes('/history/neighbors') && x.request().method() === 'PUT'),
+          giro(topologia),
+        ]);
+        assert.equal(resp.status(), 200);
+      };
+      const leggi = () => page.evaluate(() => {
+        selType = 'node'; selId = 'swn'; window._propsExplicit = true; renderProps();
+        const d = document.querySelector('details[data-section="neighbors-health"]');
+        const prev = d && d.querySelector('summary .props-collapsible-preview');
+        const rep = _driftComputeFromDoc(_driftBuildDocSnapshot());
+        return {
+          card: d ? { aperta: d.open, anteprima: prev ? prev.textContent.trim() : '', testo: d.textContent } : null,
+          drift: { n: rep.counts.neighborLost, azionabile: driftActionable(rep.counts),
+                   righe: (rep.neighborLost || []).map((x) => ({ kind: x.kind, localIf: x.localIf, remoteName: x.remoteName, misses: x.misses, oid: x.oid, source: x.source, portState: x.portState })) },
+        };
+      });
+      const sidecar = () => page.evaluate(async () => (await (await fetch('/api/projects/' + window.currentProjectId + '/history/neighbors')).json()).neighbors);
+      try {
+        // 1) Prima lettura: due vicini. Niente da confrontare: nessuna scheda, nessuna riga.
+        await conSalvataggio(topo([AP, SW]));
+        let r = await leggi();
+        assert.equal(r.card, null, 'il primo giro non produce mai «spariti»');
+        assert.equal(r.drift.n, 0);
+        let sc = await sidecar();
+        assert.equal(sc.nodes.swn.r.length, 2, 'due vicini nel sidecar');
+        assert.ok(sc.nodes.swn.r.every(t => Array.isArray(t)), 'righe in tuple');
+
+        // 2) L'AP non c'e' piu' per DUE letture sane: ancora niente (anti-flap di 3 letture).
+        await conSalvataggio(topo([SW]));
+        await conSalvataggio(topo([SW]));
+        r = await leggi();
+        assert.equal(r.card, null, 'due mancati non bastano');
+        assert.equal(r.drift.n, 0);
+
+        // 3) UNA lettura che NON riesce non e' un silenzio: il conto dei mancati non si muove.
+        await giro({ ok: false, error: 'timeout' });
+        sc = await sidecar();
+        const ap = (f) => f.nodes.swn.r.find(t => t[3] === 'AP-1');
+        assert.equal(ap(sc)[7], 2, 'mancati ancora 2: la lettura fallita non conta');
+
+        // 4) La terza lettura sana senza l'AP: scheda e riga nel Drift, INFORMATIVA, che non dice cosa e' successo al cavo.
+        await conSalvataggio(topo([SW]));
+        r = await leggi();
+        assert.ok(r.card, 'la scheda «Vicini non riferiti» compare');
+        assert.equal(r.card.aperta, true, 'una scheda che c\'e\' perche\' c\'e\' qualcosa da dire e\' aperta');
+        assert.equal(r.card.anteprima, '1 non riferiti');
+        assert.match(r.card.testo, /AP-1/);
+        assert.match(r.card.testo, /Gi1/);
+        assert.match(r.card.testo, /3 letture sane senza sentirlo/);
+        assert.match(r.card.testo, /Silenzio non è contraddizione/, 'e lo dice: non e\' un cavo tolto');
+        assert.doesNotMatch(r.card.testo, /SW-X/, 'il vicino che c\'e\' ancora non e\' elencato');
+        assert.equal(r.drift.n, 1);
+        assert.equal(r.drift.azionabile, 0, 'informativa: non entra nel «da verificare»');
+        assert.deepEqual(r.drift.righe.map(x => [x.kind, x.localIf, x.remoteName, x.misses, x.source, x.oid]), [['neighbor', 'Gi1', 'AP-1', 3, 'LLDP', '1.0.8802.1.1.2.1.4.1']]);
+
+        // 5) Il vicino TORNA: la scheda sparisce.
+        await conSalvataggio(topo([AP, SW]));
+        r = await leggi();
+        assert.equal(r.card, null);
+        assert.equal(r.drift.n, 0);
+
+        // 6) L'apparato smette di riferire TUTTI i suoi vicini: dopo 3 letture sane e' UN fatto, non due righe.
+        for (let i = 0; i < 3; i++) await conSalvataggio(topo([]));
+        r = await leggi();
+        assert.ok(r.card);
+        assert.equal(r.card.anteprima, 'non riferisce vicini');
+        assert.match(r.card.testo, /Non riferisce più nessuno dei 2 vicini/);
+        assert.equal(r.drift.n, 1, 'UNA riga');
+        assert.equal(r.drift.righe[0].kind, 'device');
+
+        // 7) Il documento non porta niente della memoria dei vicini (la cache di sessione `topoCache` c'era gia', e non ha conteggi).
+        const stato = await page.evaluate(() => JSON.stringify(state));
+        assert.doesNotMatch(stato, /"misses"|neighborLost|"firstAt"/);
+      } finally {
+        await page.evaluate(() => { selType = null; selId = null; window._propsExplicit = false; });
+      }
     });
 
     await t.test('lock manual-first: toggleNodeLock (IP/hostname) e togglePortVlanLock fissano/sbloccano il valore', async () => {
@@ -6820,6 +7139,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         await p.route('**/api/topology', async (route) => { await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'stub' }) }); });
       }
       const appese = [];
+      await p.route('**/api/poll-health', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'stub' }) }));   // la salute delle interfacce non e' l'oggetto di questa pagina
       await p.route('**/api/poll', async (route) => {
         let host = '';
         try { host = JSON.parse(route.request().postData() || '{}').host || ''; } catch (_) { /* corpo non JSON */ }

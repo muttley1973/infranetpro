@@ -17,6 +17,8 @@ const { createFsHistoryStore } = require('../history-store-fs');
 const { sanitizePresence } = require('../../lib/presence-store');
 const { foldObservations } = require('../../lib/discovery-history');
 const { foldAudit, sanitizeRunEntries } = require('../../lib/audit-log');
+const { healthSanitizePut, healthFold } = require('../../lib/health-store');
+const { neighborSanitizePut, neighborFold } = require('../../lib/neighbor-store');
 const { _sanitizeBackupRefs, _sanitizeNodeAddrs, _repairUnsafeIds } = require('./projects');   // stesse ripuliture del PUT progetto
 
 const router = express.Router();
@@ -38,7 +40,7 @@ const _label  = (l) => String(l || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0
 // bucket nuovo che non arriva qui fa rosso invece di sparire.
 const COUNT_KEYS = [
   'consistent', 'portUnverified', 'stateDrift', 'macOrphan', 'undocumented', 'undocumentedEndpoint',
-  'ghostCable', 'shutCable', 'ipChanged', 'unverified', 'identityDrift', 'identityFirmware',
+  'ghostCable', 'shutCable', 'ipChanged', 'unverified', 'identityDrift', 'identityFirmware', 'ifHealth', 'sensorHealth', 'sensorWarn', 'neighborLost',
 ];
 
 function _projectExists(id) { return !!loadProject(id); }
@@ -128,6 +130,55 @@ router.put('/api/projects/:id/history/observations', auth.requireAdmin, (req, re
   const folded = foldObservations(store.readObservations(id), req.body);
   const rec = store.saveObservations(id, folded);
   res.json({ ok: true, at: rec.at, observations: folded.observations.length });
+});
+
+// ── SALUTE delle interfacce ──────────────────────────────────────────
+// Come presenza e osservazioni: una MISURA, fuori dal documento e senza aspettare un Salva. Il Sync la
+// manda qui appena l'ha letta. ⚠️ Il corpo NON si fida: `healthSanitizePut` tiene solo numeri interi e
+// nomi puliti (tetti su apparati e righe), e `healthFold` fa scorrere «ora» in «prima» una volta sola per
+// lettura (la stessa lettura rimandata, o una piu' vecchia, non cambia niente: altrimenti la differenza
+// fra le due sparirebbe al secondo invio). Si FONDE con quanto c'e' su disco, mai lo sostituisce.
+router.put('/api/projects/:id/history/health', auth.requireAdmin, (req, res) => {
+  const id = +req.params.id;
+  if (!_projectExists(id)) return res.status(404).json({ error: 'Project not found' });
+  const put = healthSanitizePut(req.body);
+  const accepted = Object.keys(put.nodes).length;
+  if (!accepted) return res.json({ ok: true, accepted: 0 });
+  const folded = healthFold(store.readHealth(id), put);
+  const rec = store.saveHealth(id, folded);
+  res.json({ ok: true, at: rec.at, accepted, nodes: Object.keys(folded.nodes).length });
+});
+
+// Il file com'e' (righe in tuple): chi lo legge lo apre con `healthDecodeFile`. Letto a richiesta e non
+// con la GET del progetto: non entra nello stato del client, quindi non pesa su salvataggi, snapshot e Annulla.
+router.get('/api/projects/:id/history/health', auth.requireAdmin, (req, res) => {
+  const id = +req.params.id;
+  if (!_projectExists(id)) return res.status(404).json({ error: 'Project not found' });
+  res.json({ health: store.readHealth(id) || { v: 1, nodes: {} } });
+});
+
+// ── VICINI LLDP/CDP ───────────────────────────────────────────────────
+// Come la salute: una MISURA, fuori dal documento. Ogni voce della PUT dice «questo apparato, a questo istante, con una lettura
+// SANA, ha riferito questi vicini»: i mancati crescono solo cosi', e solo per gli apparati nominati (una lettura che non e'
+// riuscita non arriva qui e non e' un silenzio). ⚠️ Il corpo NON si fida: `neighborSanitizePut` tiene solo identita' pulite
+// (tetti su apparati e righe) e `neighborFold` non conta due volte la stessa lettura. Si FONDE con il disco, mai lo sostituisce.
+router.put('/api/projects/:id/history/neighbors', auth.requireAdmin, (req, res) => {
+  const id = +req.params.id;
+  if (!_projectExists(id)) return res.status(404).json({ error: 'Project not found' });
+  const put = neighborSanitizePut(req.body);
+  const accepted = Object.keys(put.nodes).length;
+  if (!accepted) return res.json({ ok: true, accepted: 0 });
+  const folded = neighborFold(store.readNeighbors(id), put);
+  const rec = store.saveNeighbors(id, folded);
+  res.json({ ok: true, at: rec.at, accepted, nodes: Object.keys(folded.nodes).length });
+});
+
+// Il file com'e' (tuple): chi lo legge lo apre con `neighborDecodeFile`. A richiesta e non con la GET del progetto, cosi' non
+// entra nello stato del client e non pesa su salvataggi, snapshot e Annulla.
+router.get('/api/projects/:id/history/neighbors', auth.requireAdmin, (req, res) => {
+  const id = +req.params.id;
+  if (!_projectExists(id)) return res.status(404).json({ error: 'Project not found' });
+  res.json({ neighbors: store.readNeighbors(id) || { v: 1, nodes: {} } });
 });
 
 // Lista la timeline (?limit=&from=&to=). Ordine cronologico.

@@ -167,6 +167,30 @@ router.post('/api/poll-port', auth.requireAdmin, async (req, res) => {
   }
 });
 
+// ---- Poll salute: stato, errori e scarti di TUTTE le interfacce, una lettura ----------------------------------
+// Come /api/poll-port ma per l'intero apparato e senza la seconda lettura: la differenza la fa il Sync dopo,
+// contro la lettura dell'ora prima (lib/health-store.js). Il server non salva niente qui: la risposta la
+// manda al sidecar il client, con la PUT dello storico. Solo admin come ogni rotta SNMP.
+router.post('/api/poll-health', auth.requireAdmin, async (req, res) => {
+  const cfg0   = req.body ?? {};
+  const driver = (cfg0.driver || '').toLowerCase();
+  const drv    = DRIVERS[driver];
+  if (!drv || typeof drv.pollHealth !== 'function') {
+    return res.json({ ok: false, error: `Driver non supportato: ${driver}` });
+  }
+  const h = hostOrName(cfg0.host);
+  if (h.error) return res.json({ ok: false, error: h.error });
+  const cfg = { ...cfg0, host: h.host };
+  try {
+    const data = await drv.pollHealth(cfg);
+    res.json({ ok: true, ...data });
+  } catch (err) {
+    const msg = err?.message || String(err);
+    console.error(`  [POLL-HEALTH] ${driver} ${cfg.host}: ${msg}`);
+    res.json({ ok: false, error: msg });
+  }
+});
+
 // ---- Raggiungibilità multi-segnale (audit presenza per "Verifica documentazione")
 // Data una lista di IP documentati, dice quali sono RAGGIUNGIBILI sulla rete
 // SENZA SNMP: ARP (già nella tabella locale) → ping ICMP → fallback TCP su

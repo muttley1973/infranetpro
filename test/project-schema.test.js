@@ -92,6 +92,9 @@ test('CRICCHETTO — la classifica non elenca campi mai visti in nessun progetto
   // che il campione non conteneva. Si aggiunge qui invece che al censimento,
   // che è una misura e non si riscrive.
   const attesi = new Set(['proof', 'modelMatch', 'portsMeasured', 'osTypeMeasured', 'portsReal',
+    // Le soglie di salute che l'UTENTE scrive nel progetto (sensori, 25/11): una dichiarazione che compare solo dopo che qualcuno
+    // l'ha scritta, quindi nessun progetto del campione puo' averla. `document`, perche' la scrive una persona (lib/health-store.js).
+    'healthThresholds',
     'portsManual', 'backup', 'snmp', 'srcDevice', 'srcRack',
     'color', 'colorOvr', 'lengthM', 'length', 'overflow',
     // Il duplex: lo slot della persona (`duplexOvr`, il pannello porta e l'import DCIM) e il campo base che scrive solo l'adozione

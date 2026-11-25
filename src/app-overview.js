@@ -493,6 +493,9 @@ function _tileStatus(r) {
     // B4/B5 — «Reti del progetto»: informativa (copertura per subnet), non una decisione.
     if (r.drill === '__networks') return { w: t('ov.driftNetworks'), tone: 'info' };
     // B3 — righe-categoria del Drift: verdetto uniforme «da decidere» (una per riga).
+    // Le righe INFORMATIVE (errori d'interfaccia in salita, sensori in avviso, vicini non piu' riferiti) hanno `tone:'normal'`: non sono
+    // una decisione, quindi NON dicono «da decidere» (visto in uno screenshot: dicevano lo stesso verdetto delle divergenze vere).
+    if (r.drill && r.tone === 'normal') return { w: t('ov.driftInfo'), tone: 'info' };
     if (r.drill) return { w: t('ov.driftAction'), tone: r.value > 0 ? 'warn' : 'ok' };
     switch (r.key) {
         // IP e MAC in una riga sola: il numero grande conta gli IP, il verdetto

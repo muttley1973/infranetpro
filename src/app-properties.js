@@ -68,6 +68,9 @@ try{
  *  sono chiuse. L'utente puo' sempre cambiare e la scelta viene
  *  persistita in localStorage. */
 const _PROPS_DEFAULT_CLOSED = new Set([
+    'if-health',   // salute delle interfacce: una rete sana e' quasi tutta a zero, la scheda non deve occupare il pannello da sola
+    'sensors-health',   // sensori ambientali: idem, e su una VM c'e' solo «non pubblicati»
+    'floor-health',     // soglie di salute dell'utente: si scrivono una volta
     'lag-groups',
     'integration',
     'notes',

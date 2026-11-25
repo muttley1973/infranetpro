@@ -34,6 +34,8 @@ import { _refreshTopoBtnState } from './app-topology-discover.js';   // ritiro p
 import { registerClickActions } from './app-delegation.js';   // ASSE B: azione «Sincronizza ora» del popover Automazioni (owner di pollAllSNMP)
 import { snmpReadBudgetMs } from '../lib/auto-monitor.js';   // quanto aspettare UNA lettura prima di abbandonarla (lib pura)
 import { postJsonWithDeadline } from './app-util.js';   // POST con scadenza lato client (foglia: nessun ciclo)
+import { pollHealthForNodes, setHealthRepaint } from './app-health.js';
+import { recordNeighbors, setNeighborsRepaint } from './app-neighbors.js';   // vicini LLDP/CDP: la memoria del giro prima (foglia)   // salute delle interfacce: un passo a parte dopo la lettura principale (foglia)
 import { hasSnmpDriver, hasSnmpTarget, snmpTargetHost } from '../lib/snmp-target.js';   // «si interroga con SNMP?» e «a quale indirizzo?»: la definizione sta in un posto solo
 
 // POST di UNA lettura SNMP (`/api/poll`, `/api/poll-power`) con scadenza lato CLIENT.
@@ -55,6 +57,11 @@ export async function postSnmpRead(url, body){
         throw e;
     }
 }
+
+// La scheda «Salute interfacce» legge il suo file dal server una volta e, arrivato, chiede al pannello di ridisegnarsi.
+// La funzione si registra da qui (e non dentro app-health.js) perche' quel modulo e' una foglia: non importa il pannello.
+setHealthRepaint(() => { try { renderProps(); } catch(_) { /* pannello non ancora pronto */ } });
+setNeighborsRepaint(() => { try { renderProps(); } catch(_) { /* pannello non ancora pronto */ } });
 
 // Tipi per cui richiedere HOST-RESOURCES-MIB standard (CPU/RAM/dischi). Oltre agli
 // host generici, includiamo gli apparati di rete spesso Linux-based (MikroTik,
@@ -410,6 +417,7 @@ async function pollAllSNMP(opts){
     // renderebbe il primo Ctrl+Z un annulla di un aggiornamento invisibile, e un giro dopo un annulla butterebbe il ripeti.
     // (Come applyPollResult piu' sotto: noHistory.)
     if(!(opts && (opts.silent || opts.dataOnly))) pushHistory();
+    const _syncStartedAt = Date.now();   // le cache dei vicini riscritte da qui in poi sono di QUESTO giro
 
     // Snapshot del DOCUMENTATO prima del poll (i campi base verranno sovrascritti):
     // serve a ricalcolare la PRESENZA dopo il Sync → i device assenti si ingrigiscono
@@ -467,6 +475,14 @@ async function pollAllSNMP(opts){
         await Promise.all(slice.map(_pollOne));
     }
 
+    // Salute delle interfacce (stato, errori, scarti): un passo A PARTE, solo sugli apparati di rete che hanno appena
+    // risposto (uno che non ha risposto alla lettura principale non risponderebbe nemmeno qui, e costerebbe una scadenza
+    // a vuoto). La lettura va nel sidecar dello storico, mai nel documento. Mai fatale: il Sync prosegue comunque.
+    try{
+        setActLbl(`<i class="fas fa-spinner fa-spin"></i> ${t('sync.progress.health')}`);
+        await pollHealthForNodes(targets.filter(n=>n.snmpStatus==='ok'));
+    }catch(e){ console.warn('[SNMP Sync] salute interfacce:', e && e.message); }
+
     // Render unico al termine del polling
     renderAll(); renderCables(); renderProps();
 
@@ -476,6 +492,9 @@ async function pollAllSNMP(opts){
         setActLbl(`<i class="fas fa-spinner fa-spin"></i> ${t('sync.progress.topology')}`);
         const _ld = await win._autoDiscoverLinks(null);
         _recordAutoLink(_ld);
+        // I vicini LLDP/CDP appena letti dalla fase topologia → la memoria dei vicini (sidecar). Entrano solo gli apparati riletti in
+        // QUESTO giro: una lettura non riuscita non e' un silenzio. Mai fatale.
+        try{ await recordNeighbors(_syncStartedAt); }catch(e){ console.warn('[SNMP Sync] vicini:', e && e.message); }
         if(_ld.created>0 || _ld.updated>0 || _ld.lagGroups>0 || _ld.pruned>0){
             renderAll(); renderCables();
             if(_ld.created>0){

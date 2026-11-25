@@ -288,6 +288,8 @@
         .pl-note { color:var(--text-muted); line-height:1.45; }
         .pl-item.warn .pl-v, .pl-item.warn .pl-sub { color:var(--idle-color); font-weight:600; }
         .props-collapsible-preview.pl-warn { color:var(--idle-color); opacity:1; }
+        .pl-item.crit .pl-v, .pl-item.crit .pl-sub { color:var(--fault-color); font-weight:600; }
+        .props-collapsible-preview.pl-crit { color:var(--fault-color); opacity:1; }
         .port-row { display:grid; grid-template-columns:72px 1fr 20px; align-items:center; gap:4px; margin-bottom:5px; }
         .port-row label { font-size:var(--fs-xs); color:var(--text-muted); }
         .port-row input, .port-row select { background:var(--bg-color); border:1px solid var(--panel-border); color:var(--text-main); border-radius: var(--radius-sm); padding:3px 5px; font-size:var(--fs-sm); font-family:inherit; width:100%; min-width:0; }
