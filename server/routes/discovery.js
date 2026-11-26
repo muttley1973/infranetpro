@@ -16,6 +16,7 @@ const { publicMdns } = require('../../lib/discovery-mdns');
 const dhcpDrivers = require('../dhcp-drivers');
 const { crawlNetwork, probeArpCandidates } = require('../crawl-bfs');
 const { targetList, hostOrName, targetError } = require('../scan-target');   // la lettura unica dei bersagli
+const { planScanTargets, expandScanTargets, localNetworksFrom } = require('../scan-plan');   // piu' reti per scansione: il piano, l'ambito del crawl, le reti della macchina
 const { _parseIpv4Int } = require('../../lib/cidr.js');
 const { macKey } = require('../../lib/mac-class.js');   // la chiave di un MAC: una definizione sola, la stessa che il client usa per ritrovarlo
 const { REACHABILITY_BATCH, REACHABILITY_MAX_IPS } = require('../../lib/auto-monitor.js');   // ondata e tetto dello sweep: il client ne ricava la scadenza, UNA definizione
@@ -314,6 +315,35 @@ router.post('/api/dhcp-leases', auth.requireAdmin, async (req, res) => {
 });
 
 // ---- Network auto-discovery (subnet scan via SNMP probe) --------------------
+
+// Piu' reti per scansione. Il dialogo «Scopri» scansiona le reti UNA DOPO L'ALTRA (una richiesta a /api/discover per
+// ogni rete: la base sweep non si parallelizza mai, anti-IDS) e prima chiede qui il PIANO della lista, senza mandare un
+// pacchetto: quali voci, quali sbagliate col loro motivo, quali doppioni, quanti host. Solo admin come ogni rotta di rete.
+const MAX_PLAN_TEXT = 2000;
+router.post('/api/discover/plan', auth.requireAdmin, (req, res) => {
+  try {
+    const raw = req.body && req.body.ranges;
+    const text = typeof raw === 'string' ? raw : '';
+    if (text.length > MAX_PLAN_TEXT) return res.json({ ok: false, error: `Elenco troppo lungo (massimo ${MAX_PLAN_TEXT} caratteri)` });
+    res.json({ ok: true, ...planScanTargets(text) });
+  } catch (err) {
+    res.json({ ok: false, error: err?.message || String(err) });
+  }
+});
+
+// Le reti a cui il server e' collegato, da proporre come caselle sotto il campo: la netmask e' quella vera (mai assunto /24),
+// e ognuna dice se si puo' scansionare (una /16 no: il tetto e' 1024 host) col motivo di expandSubnet.
+router.get('/api/discover/networks', auth.requireAdmin, (req, res) => {
+  try {
+    const networks = localNetworksFrom(os.networkInterfaces?.() || {}).map((n) => {
+      const bad = planScanTargets(n.cidr).invalid[0];
+      return bad ? { ...n, scannable: false, reason: bad.error } : { ...n, scannable: true };
+    });
+    res.json({ ok: true, networks });
+  } catch (err) {
+    res.json({ ok: false, error: err?.message || String(err) });
+  }
+});
 
 router.post('/api/discover', auth.requireAdmin, async (req, res) => {
   try {
@@ -893,7 +923,8 @@ router.post('/api/discover/topology', auth.requireAdmin, async (req, res) => {
   // anti-rumore: si propongono solo IP dentro quella subnet (niente dump ARP di
   // un core-router). Vive dentro il crawl → gia' gated dal toggle "Espandi LLDP/CDP".
   let scanSet = null;
-  try { if (scanCidr) scanSet = new Set(expandSubnet(scanCidr)); }
+  // `scanCidr` e' una LISTA quando la scansione ha avuto piu' reti: il filtro vale per TUTTE (una sola lettura della lista).
+  try { if (scanCidr) scanSet = new Set(expandScanTargets(scanCidr)); }
   catch (_) { scanSet = null; }
 
   // Fase deep/neighbor: BFS livello-sincrono con pool bounded (server/crawl-bfs.js).

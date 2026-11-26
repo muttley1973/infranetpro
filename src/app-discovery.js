@@ -13,7 +13,8 @@ import { focusNode, switchRack } from './app-search-zoom-rack.js';   // ritiro p
 import { _isLeafEndpoint, _autoLinkEndpoint, _recordDiscoveryObservation, _persistObservations } from './app-autolink.js';   // ritiro ponte: funzioni nucleo/tipi/autolink (ex win.*)
 import { _discIndexNode, _discVendorFromMac, _discRememberVendor, _discIdentitySource, _discFindExistingDevice, _discBuildExistingIndexes, _discTouchNodeIdentity, _discMacIsNextHop, _loadDeepScanPref, _saveDeepScanPref, _discSanitizeDeviceClass, _discRememberClassHint, _discHasStrongIdentity, _discCanAutoRetype, _discInvalidateExistingIndexes, _discMarkIpMacConflict, _discConfidenceScore } from './app-discovery-classify.js';   // ritiro ponte: funzioni topo/discovery/vlan/snmp (ex win.*)
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
-import { registerChangeActions, registerClickActions } from './app-delegation.js';   // ASSE B: checkbox "seleziona tutti" Scopri via data-change; bottone "Nuova ricerca" via data-act
+import { registerChangeActions, registerClickActions, registerInputActions } from './app-delegation.js';   // ASSE B: checkbox "seleziona tutti" Scopri via data-change; bottone "Nuova ricerca" via data-act; il campo delle reti via data-input
+import { splitScanTargets, hasScanTarget, toggleScanTarget } from '../lib/scan-ranges.js';   // la lista di intervalli: la STESSA lettura che il server usa per il piano
 import { enableColumnResize } from './app-col-resize.js';   // colonne della tabella Scopri trascinabili + scorrimento orizzontale
 import { hasSnmpDriver } from '../lib/snmp-target.js';   // «ha un driver SNMP?»: la definizione sta in un posto solo
 import { macKey } from '../lib/mac-class.js';   // la chiave di un MAC: una definizione sola, la stessa del server
@@ -204,13 +205,15 @@ function _onDiscVlanChange(el){
     if(vid && !isNew){
         const known = _discKnownVlans().find(v => v.vid === vid);
         const sub = document.getElementById('disc-subnet');
-        if(known && known.subnet && sub && !sub.value.trim()) sub.value = known.subnet;
+        if(known && known.subnet && sub && !sub.value.trim()){ sub.value = known.subnet; _discAfterRangesChange(); }   // il testo e' cambiato da fuori: caselle e altezza lo seguono
     }
     _discRenderVlanHint();
 }
 
 function _discRenderVlanHint(){
     const el = document.getElementById('disc-vlan-hint'); if(!el) return;
+    // Con piu' reti nell'elenco l'associazione a UNA VLAN non ha un senso (a quale rete?): il campo e' spento e il suggerimento lo dice.
+    if(splitScanTargets((document.getElementById('disc-subnet') || {}).value || '').length > 1){ el.textContent = _dt('disc.vlanOneOnly','Vale per una rete sola: disattivata con più reti.'); return; }
     const vid = _discEffectiveVlanId();
     if(!vid){ el.textContent = ''; return; }
     const known = _discKnownVlans().find(v => v.vid === vid);
@@ -222,10 +225,11 @@ function _discRenderVlanHint(){
 
 // Alla SCANSIONE: se una VLAN è indicata, dichiara la subnet scansionata nel pannello.
 // Fill-if-empty: se la VLAN ha già una subnet DIVERSA non la tocca (e lo segnala).
-function _declareScanSubnetToVlan(){
+function _declareScanSubnetToVlan(rangeText){
     const vid = _discEffectiveVlanId();
     if(!vid) return;
-    const raw = (document.getElementById('disc-subnet') || {}).value || '';
+    // `rangeText` = LA rete scansionata (con piu' reti l'associazione non vale e arriva vuota); senza argomento, il campo com'e'.
+    const raw = rangeText !== undefined ? rangeText : ((document.getElementById('disc-subnet') || {}).value || '');
     const cidr = (typeof subnetInputToCidr === 'function') ? subnetInputToCidr(raw) : '';
     if(!cidr) return;   // niente subnet parsabile da dichiarare
     const existing = (typeof _vlanIpam === 'function' && (_vlanIpam(vid) || {}).subnet) || '';
@@ -276,6 +280,8 @@ function openDiscovery(prefillCidr){
     store._discRunning=false;
     store._discImporting=false;
     document.getElementById('disc-overlay').classList.add('open');
+    _discAfterRangesChange();   // il campo puo' arrivare gia' pieno (prefill, o la lista di prima): altezza, caselle, campo VLAN
+    _discRenderNets();          // le reti conosciute: quelle della macchina e le dichiarate nel progetto
     _discEnableColResize();
 }
 
@@ -342,6 +348,147 @@ function _closeDiscoveryOverlayClick(){
     closeDiscovery();
 }
 
+// ── Piu' reti per scansione: il piano, le sue note, le reti conosciute ─────────────────────────────
+// Il piano lo calcola il server (expandSubnet = UNA definizione di «intervallo valido»; lib/scan-ranges.js = UNA di «come si spezza la
+// lista»): la pagina non rilegge niente, mostra. Le reti si scansionano una dopo l'altra (anti-IDS: mai in parallelo).
+// Una richiesta del dialogo CON UNA SCADENZA: senza, un server che non risponde lascerebbe il campo «in corso» per sempre.
+async function _discFetchJson(url, opts, ms){
+    const ctl = new AbortController();
+    const to = setTimeout(() => ctl.abort(), ms);
+    try{
+        const r = await fetch(url, { ...(opts || {}), signal: ctl.signal });
+        return await r.json();
+    }finally{ clearTimeout(to); }
+}
+async function _discFetchPlan(raw){
+    return _discFetchJson('/api/discover/plan', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ranges: raw }) }, 15000);
+}
+
+// '' se si puo' partire; altrimenti il motivo, gia' in HTML. Una voce sbagliata ferma TUTTO: non si scansiona «il resto» lasciando un
+// refuso alle spalle. Una voce sola e sbagliata dice il messaggio di sempre.
+function _discPlanProblemHtml(plan){
+    const err = (s) => `<span class="tm-err">${s}</span>`;
+    if(!plan || !plan.ok) return err(`${_dt('disc.error','Errore')}: ${escapeHTML((plan && plan.error) || '')}`);
+    const lim = plan.limits || {};
+    if(plan.tooManyRanges) return err(escapeHTML(_dt('disc.tooManyRanges','Troppe reti nell\'elenco: il massimo è {max}.',{ max: lim.ranges })));
+    if(plan.invalid.length){
+        if(plan.invalid.length === 1 && !plan.ranges.length && !plan.skipped.length) return err(`${_dt('disc.error','Errore')}: ${escapeHTML(plan.invalid[0].error)}`);
+        return plan.invalid.map(i => err(escapeHTML(_dt('disc.rangeFailed','{range}: {error}',{ range: i.text, error: i.error })))).join('<br>');
+    }
+    if(!plan.ranges.length) return err(_dt('disc.enterRange','Inserisci un range di rete.'));
+    if(plan.tooMany) return err(escapeHTML(_dt('disc.tooManyHosts','{total} indirizzi in tutto: il massimo per una scansione è {max}. Togli qualche rete.',{ total: plan.total, max: lim.hosts })));
+    return '';
+}
+
+// Doppioni, voci contenute in altre e sovrapposizioni: si DICE cosa non si e' rifatto, non si tace.
+function _discPlanNotesHtml(plan){
+    const lines = [];
+    for(const s of (plan.skipped || [])){
+        lines.push(s.reason === 'duplicate'
+            ? _dt('disc.planDuplicate','{range} è già nell\'elenco: scansionata una volta sola.',{ range: s.text })
+            : _dt('disc.planContained','{range} è già compresa in {in}: non rifatta.',{ range: s.text, in: s.in }));
+    }
+    for(const o of (plan.overlaps || [])) lines.push(_dt('disc.planOverlap','{a} e {b} hanno {n} indirizzi in comune: nei risultati compaiono una volta sola.',{ a: o.a, b: o.b, n: o.hosts }));
+    if(!lines.length) return '';
+    return `<div style="color:var(--text-muted);font-size:var(--fs-xs);margin-top:6px">${lines.map(l => escapeHTML(l)).join('<br>')}</div>`;
+}
+
+// Le reti che non si sono potute scansionare, col perche' (le altre sono andate avanti).
+function _discFailedRangesHtml(failed){
+    if(!failed.length) return '';
+    const list = failed.map(f => f.range + (f.error ? ' (' + f.error + ')' : '')).join('; ');
+    return `<div class="tm-err" style="margin-top:6px">${escapeHTML(_dt('disc.rangesFailed','{n} reti non scansionate — {list}',{ n: failed.length, list }))}</div>`;
+}
+
+// «Reti conosciute»: una casella per rete. Righe = { cidr, scannable, reason, meta }; una rete non scansionabile si vede ma non si spunta,
+// e il suggerimento dice perche'.
+function _discNetsHtml(rows){
+    return rows.map(r => `<label class="disc-net${r.scannable ? '' : ' off'}"${r.scannable ? '' : ` data-tip="${escapeHTML(r.reason || '')}"`}><input type="checkbox" data-change="disc-net" data-cidr="${escapeHTML(r.cidr)}"${r.scannable ? '' : ' disabled'}><span class="disc-net-cidr">${escapeHTML(r.cidr)}</span><span class="disc-net-meta">${escapeHTML(r.meta)}</span></label>`).join('');
+}
+
+// Le righe: le reti a cui il server e' collegato (netmask vera) + le subnet DICHIARATE nel progetto (prefissi, quindi anche le VLAN che ne
+// hanno uno; solo IPv4, la scansione e' IPv4). La stessa rete in due posti e' UNA riga con tutte e due le provenienze.
+async function _discNetRows(){
+    const byCidr = new Map();
+    const add = (cidr, part, extra) => {
+        let e = byCidr.get(cidr);
+        if(!e){ e = { cidr, parts: [], hosts: null, scannable: true, reason: '' }; byCidr.set(cidr, e); }
+        if(part && !e.parts.includes(part)) e.parts.push(part);
+        if(extra) Object.assign(e, extra);
+    };
+    // Le reti della macchina e il piano delle dichiarate si chiedono INSIEME (e con una scadenza): una risposta lenta dell'una non deve far
+    // aspettare l'altra, e un server che non risponde lascia comunque le dichiarate.
+    const machineP = _discFetchJson('/api/discover/networks', null, 5000)
+        .then(j => (j && j.ok && Array.isArray(j.networks)) ? j.networks : [])
+        .catch(() => []);   // server piu' vecchio o rete giu': restano le dichiarate
+    const vlanNames = (store.state && store.state.vlanNames) || {};
+    const declared = [];
+    for(const p of prefixesOf(store.state || {})){
+        const c = (typeof subnetInputToCidr === 'function') ? subnetInputToCidr(p && p.cidr) : '';
+        if(!c || c.indexOf(':') >= 0) continue;
+        const vid = (p.vlan != null && Number.isFinite(+p.vlan)) ? +p.vlan : null;
+        declared.push([c, vid != null ? _dt('disc.netDeclaredVlan','VLAN {vid}{name}',{ vid, name: vlanNames[vid] ? ' — ' + vlanNames[vid] : '' }) : _dt('disc.netDeclared','dichiarata nel progetto')]);
+    }
+    // Quali dichiarate si possono scansionare e quanti host sono: lo dice il PIANO (una definizione sola), a gruppi di 30 voci.
+    const toAsk = [...new Set(declared.map(d => d[0]))];
+    const info = new Map();
+    const infoP = (async () => {
+        for(let i = 0; i < toAsk.length; i += 30){
+            try{
+                const pl = await _discFetchPlan(toAsk.slice(i, i + 30).join(', '));
+                if(!pl || !pl.ok || pl.tooManyRanges) continue;
+                for(const rg of pl.ranges) info.set(rg.text, { hosts: rg.hosts, scannable: true, reason: '' });
+                for(const iv of pl.invalid) info.set(iv.text, { hosts: null, scannable: false, reason: iv.error });
+            }catch(_){ /* senza piano si propone comunque: il piano vero lo dira' al via */ }
+        }
+    })();
+    const [machine] = await Promise.all([machineP, infoP]);
+    for(const n of machine) add(n.cidr, _dt('disc.netHere','questa macchina · {iface}',{ iface: n.iface }), { hosts: n.hosts, scannable: !!n.scannable, reason: n.reason || '' });
+    const fromMachine = new Set(machine.map(n => n.cidr));
+    for(const [c, label] of declared) add(c, label, fromMachine.has(c) ? null : (info.get(c) || null));   // se la rete e' anche della macchina, vale cio' che ne ha detto il server
+    return [...byCidr.values()].map(e => ({
+        cidr: e.cidr, scannable: e.scannable, reason: e.reason,
+        meta: [e.parts.join(' · '), e.scannable ? (e.hosts != null ? _dt('disc.netHosts','{n} host',{ n: e.hosts }) : '') : _dt('disc.netTooBig','troppo grande per una scansione')].filter(Boolean).join(' · '),
+    }));
+}
+
+let _discNetsSeq = 0;   // una risposta piu' vecchia dell'ultima richiesta (dialogo riaperto) non si disegna
+async function _discRenderNets(){
+    const seq = ++_discNetsSeq;
+    const box = document.getElementById('disc-nets'), list = document.getElementById('disc-nets-list');
+    if(!box || !list) return;
+    let rows;
+    try{ rows = await _discNetRows(); }catch(_){ rows = []; }
+    if(seq !== _discNetsSeq) return;
+    list.innerHTML = _discNetsHtml(rows);
+    box.hidden = rows.length === 0;
+    _discSyncNetChecks();
+}
+
+// Le caselle seguono il testo (non il contrario): una voce scritta a mano che coincide con una rete conosciuta la spunta da sola.
+function _discSyncNetChecks(){
+    const f = document.getElementById('disc-subnet'); if(!f) return;
+    document.querySelectorAll('#disc-nets-list input[data-cidr]').forEach(cb => { cb.checked = hasScanTarget(f.value, cb.dataset.cidr); });
+}
+
+// Dopo OGNI cambio del testo (digitato, spuntato, riempito da una VLAN): altezza del campo, caselle, e campo VLAN (spento con piu' reti).
+function _discAfterRangesChange(){
+    const f = document.getElementById('disc-subnet'); if(!f) return;
+    if(f.scrollHeight > 0){ f.style.height = 'auto'; f.style.height = Math.min(f.scrollHeight + 2, 92) + 'px'; }   // 0 = dialogo ancora chiuso: niente da misurare
+    _discSyncNetChecks();
+    const multi = splitScanTargets(f.value).length > 1;
+    const sel = document.getElementById('disc-vlan');
+    if(sel){
+        if(multi && sel.value){
+            sel.value = '';
+            const w = document.getElementById('disc-vlan-new-wrap'); if(w) w.style.display = 'none';
+            const ni = document.getElementById('disc-vlan-new'); if(ni) ni.value = '';
+        }
+        sel.disabled = multi;
+    }
+    _discRenderVlanHint();
+}
+
 async function runDiscovery(){
     if(store._discRunning) return;
     const subnet  = document.getElementById('disc-subnet').value.trim();
@@ -366,7 +513,19 @@ async function runDiscovery(){
     const ignorePing = !!document.getElementById('disc-ignore-ping')?.checked;
     const expandTopology = !!document.getElementById('disc-expand-topology')?.checked;
     if(!subnet){ document.getElementById('disc-progress').innerHTML=`<span class="tm-err">${_dt('disc.enterRange','Inserisci un range di rete.')}</span>`; return; }
-    _declareScanSubnetToVlan();   // declare-first: se una VLAN è indicata, dichiara la subnet nel pannello
+    // Il PIANO della lista, chiesto al server prima di mandare un solo pacchetto: quali reti si scansionano, quali sono sbagliate (e
+    // perche': col motivo di sempre), quali sono doppioni o stanno dentro un'altra, e quanti indirizzi sono in tutto. Una definizione
+    // sola di «intervallo valido» (expandSubnet) e una sola di «come si spezza la lista» (lib/scan-ranges.js).
+    store._discRunning = true;   // gia' qui: un secondo clic mentre il piano arriva non deve far partire due scansioni
+    let plan;
+    try{ plan = await _discFetchPlan(subnet); }
+    catch(e){ plan = { ok:false, error: e.name==='AbortError' ? _dt('disc.planTimeout','Il server non ha risposto al piano di scansione entro 15 secondi.') : e.message }; }
+    if(!store._discRunning) return;   // il dialogo si e' chiuso mentre il piano arrivava
+    const planProblem = _discPlanProblemHtml(plan);
+    if(planProblem){ document.getElementById('disc-progress').innerHTML = planProblem; store._discRunning = false; return; }
+    const ranges = plan.ranges.map(r => r.text);
+    const planNotes = _discPlanNotesHtml(plan);
+    _declareScanSubnetToVlan(ranges.length === 1 ? ranges[0] : '');   // declare-first: se una VLAN è indicata, dichiara la subnet nel pannello (solo con UNA rete)
 
     const btn = document.getElementById('disc-scan-btn');
     btn.disabled=true; btn.innerHTML=`<i class="fas fa-spinner fa-spin"></i> ${_dt('disc.scanning','Scansione…')}`;
@@ -382,26 +541,62 @@ async function runDiscovery(){
 
     let scanTimeout=null;
     try{
-        const scanAbort = new AbortController();
-        window._discScanAbort = scanAbort;
-        // Furtiva = serializzata + pause: molto piu' lenta → timeout client generoso (10 min)
-        // altrimenti abortirebbe su subnet non piccole.
-        scanTimeout = setTimeout(()=>scanAbort.abort(), stealth ? 600000 : (deepScan ? 180000 : 90000));
-        const r = await fetch('/api/discover',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({ subnet, driver, community, timeout, safeMode, stealth, deepScan, mdns, ignorePing,
-                dhcpLeases: Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [] }),
-            signal:scanAbort.signal});
-        clearTimeout(scanTimeout);
-        window._discScanAbort = null;
-        const data = await r.json();
-        if(!data.ok){ document.getElementById('disc-progress').innerHTML=`<span class="tm-err">${_dt('disc.error','Errore')}: ${escapeHTML(data.error)}</span>`; return; }
+        // Le reti si scansionano UNA DOPO L'ALTRA, mai in parallelo: la base sweep e' la fase con la firma di scansione (anti-IDS), e un
+        // timeout per rete (non uno per tutte) tiene vero il tetto di prima. Una richiesta a /api/discover per rete; i risultati si
+        // fondono (un indirizzo una volta sola) e una rete che fallisce si DICE, senza fermare le altre.
+        const merged = [];
+        const seenIps = new Set();
+        const warnings = [];
+        const failed = [];
+        let totalIps = 0;
+        const body0 = { driver, community, timeout, safeMode, stealth, deepScan, mdns, ignorePing,
+            dhcpLeases: Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [] };
+        for(let i = 0; i < ranges.length; i++){
+            if(!store._discRunning) break;   // dialogo chiuso: le altre reti non partono
+            if(ranges.length > 1) document.getElementById('disc-progress').innerHTML = _dt('disc.planOf','Rete {i} di {n} · {range}',{ i:i+1, n:ranges.length, range:escapeHTML(ranges[i]) });
+            const scanAbort = new AbortController();
+            window._discScanAbort = scanAbort;
+            // Furtiva = serializzata + pause: molto piu' lenta → timeout client generoso (10 min)
+            // altrimenti abortirebbe su subnet non piccole.
+            scanTimeout = setTimeout(()=>scanAbort.abort(), stealth ? 600000 : (deepScan ? 180000 : 90000));
+            let data;
+            try{
+                const r = await fetch('/api/discover',{method:'POST',headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({ ...body0, subnet: ranges[i] }),
+                    signal:scanAbort.signal});
+                data = await r.json();
+            }catch(e){
+                if(ranges.length === 1 || !store._discRunning) throw e;   // una rete sola (o dialogo chiuso): come sempre, il messaggio sta nel catch qui sotto
+                failed.push({ range: ranges[i], error: e.name==='AbortError' ? _dt('disc.aborted','Scansione interrotta: il server non ha risposto entro 90 secondi.') : e.message });
+                continue;
+            }finally{
+                clearTimeout(scanTimeout);
+                window._discScanAbort = null;
+            }
+            if(!data.ok){
+                if(ranges.length === 1){ document.getElementById('disc-progress').innerHTML=`<span class="tm-err">${_dt('disc.error','Errore')}: ${escapeHTML(data.error)}</span>`; return; }
+                failed.push({ range: ranges[i], error: data.error || '' });
+                continue;
+            }
+            totalIps += data.total || 0;
+            for(const row of (data.results || [])){
+                if(row && row.ip){ if(seenIps.has(row.ip)) continue; seenIps.add(row.ip); }
+                merged.push(row);
+            }
+            for(const w of (data.warnings || [])) if(!warnings.some(x => x.code === w.code && x.tool === w.tool)) warnings.push(w);
+        }
+        const failNote = _discFailedRangesHtml(failed);
+        if(!merged.length && failed.length && failed.length === ranges.length){
+            document.getElementById('disc-progress').innerHTML = `<span class="tm-err">${_dt('disc.rangesAllFailed','Nessuna rete scansionata.')}</span>${failNote}`;
+            return;
+        }
 
-        store._discResults = _discApplySameChassisFold((data.results || []).map(_discEnsureMeta));
+        store._discResults = _discApplySameChassisFold(merged.map(_discEnsureMeta));
         const found1 = store._discResults.filter(d=>d.alive).length;
 
         _discRenderTable();
-        const toolWarn = _discToolWarningsHtml(data.warnings);
-        const baseSummary = _discSummaryHtml(store._discResults) + toolWarn;
+        const toolWarn = _discToolWarningsHtml(warnings);
+        const baseSummary = _discSummaryHtml(store._discResults) + toolWarn + planNotes + failNote;
         if(found1===0){
             document.getElementById('disc-progress').innerHTML =
                 `<span class="tm-err">${_dt('disc.noHostsOn','Nessun host marcato On. Controlla firewall/ICMP o abilita SNMP/HTTP sui dispositivi.')}</span>` + baseSummary;
@@ -413,7 +608,7 @@ async function runDiscovery(){
                 + _discSnmpZeroHint(store._discResults);
         } else {
             document.getElementById('disc-progress').innerHTML =
-                `<span class="tm-ok">${_dt('disc.phase1','Fase 1 - Scansionati {total} IP · {n} trovati',{total:data.total,n:`<strong>${found1}</strong>`})}</span>` +
+                `<span class="tm-ok">${_dt('disc.phase1','Fase 1 - Scansionati {total} IP · {n} trovati',{total:totalIps,n:`<strong>${found1}</strong>`})}</span>` +
                 `<span style="color:var(--text-muted);margin-left:10px">${_dt('disc.phase2','Fase 2: espansione topologia LLDP/CDP…')}</span>${baseSummary}`;
 
             // Il crawl LLDP/CDP puo' durare decine di secondi (poll SNMP per switch +
@@ -421,13 +616,13 @@ async function runDiscovery(){
             // il progress fa da battito-cardiaco, cosi' NON sembra finito (l'utente stava
             // per chiudere la finestra). La label distinta dalla "Scansione…" della fase 1.
             btn.innerHTML=`<i class="fas fa-spinner fa-spin"></i> ${_dt('disc.expanding','Espansione…')}`;
-            await _runCrawlPhase(store._discResults.filter(d=>d.snmpReachable).map(d=>d.ip), driver, community, timeout, subnet);
+            await _runCrawlPhase(store._discResults.filter(d=>d.snmpReachable).map(d=>d.ip), driver, community, timeout, ranges.join(', '));   // il filtro dei vicini vale per TUTTE le reti scansionate
 
             const total = store._discResults.length;
             const newViaLldp = total - found1;
             document.getElementById('disc-progress').innerHTML =
                 `<span class="tm-ok">${_dt('disc.doneTotal','Completato - {n} dispositivi',{n:`<strong>${total}</strong>`})}` +
-                (newViaLldp > 0 ? ` ${_dt('disc.viaSplit','({scan} scan + {lldp} via LLDP/CDP)',{scan:found1,lldp:`<strong>${newViaLldp}</strong>`})}` : '') + `</span>${_discSummaryHtml(store._discResults)}${toolWarn}`
+                (newViaLldp > 0 ? ` ${_dt('disc.viaSplit','({scan} scan + {lldp} via LLDP/CDP)',{scan:found1,lldp:`<strong>${newViaLldp}</strong>`})}` : '') + `</span>${_discSummaryHtml(store._discResults)}${toolWarn}${planNotes}${failNote}`
                 + _discSnmpZeroHint(store._discResults);
         }
 
@@ -1643,7 +1838,15 @@ registerChangeActions({
     'disc-row':    (el) => _discOnRowToggle(el),
     'disc-type':   (el) => _discOnTypeChange(el),
     'disc-vlan':   (el) => _onDiscVlanChange(el),
+    // «Reti conosciute»: la casella aggiunge o toglie la voce DAL TESTO del campo (lib/scan-ranges.js), che resta l'unica fonte.
+    'disc-net':    (el) => {
+        const f = document.getElementById('disc-subnet'); if(!f) return;
+        f.value = toggleScanTarget(f.value, el.dataset.cidr, !!el.checked);
+        _discAfterRangesChange();
+    },
 });
+// Il testo del campo cambia mentre si digita: caselle, altezza e campo VLAN lo seguono.
+registerInputActions({ 'disc-subnet-edit': () => _discAfterRangesChange() });
 // ASSE B: bottone "Nuova ricerca" (fase RISULTATI → torna al SETUP) via data-act,
 // non onclick inline (tetto a cricchetto handler inline).
 registerClickActions({

@@ -158,8 +158,10 @@
         .tm-row { display:flex; gap:10px; margin-bottom:10px; align-items:flex-start; }
         .tm-field { display:flex; flex-direction:column; gap:4px; }
         .tm-field label { font-size:var(--fs-sm); color:var(--text-muted); }
-        .tm-field input,.tm-field select { background:var(--bg-color); border:1px solid var(--panel-border); color:var(--text-main); padding:5px 8px; border-radius:5px; font-family:inherit; font-size:var(--fs-md); }
-        .tm-field input:focus,.tm-field select:focus { outline:none; border-color:var(--accent); }
+        .tm-field input,.tm-field select,.tm-field textarea { background:var(--bg-color); border:1px solid var(--panel-border); color:var(--text-main); padding:5px 8px; border-radius:5px; font-family:inherit; font-size:var(--fs-md); }
+        .tm-field input:focus,.tm-field select:focus,.tm-field textarea:focus { outline:none; border-color:var(--accent); }
+        /* La lista di intervalli di «Scopri»: una riga che cresce fino a quattro (lo fa app-discovery.js), senza maniglia di ridimensionamento. */
+        #disc-subnet { resize:none; line-height:1.35; box-sizing:border-box; overflow-y:auto; min-height:32px; }   /* 32 = l'altezza degli altri campi della riga */
         .tm-field.grow { flex:1; }
         /* Discovery modal: layout robusto anche su larghezze ridotte */
         #disc-overlay .tm-row { flex-wrap:wrap; align-items:flex-end; }
@@ -197,6 +199,19 @@
         .disc-vlan-row { align-items:flex-end; }
         .disc-vlan-hint { flex:1; min-width:0; font-size:var(--fs-xs); color:var(--text-muted);
             padding-bottom:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        /* «Reti conosciute»: le reti della macchina e le subnet dichiarate nel progetto, una casella ciascuna. Scorre da sola oltre ~5 righe
+           (un NetBox importato porta anche un centinaio di prefissi). */
+        .disc-nets { margin:-2px 0 10px; }
+        .disc-nets[hidden] { display:none; }
+        .disc-nets-head { font-size:var(--fs-sm); color:var(--text-muted); margin-bottom:4px; }
+        .disc-nets-hint { opacity:.75; }
+        .disc-nets-list { max-height:132px; overflow-y:auto; border:1px solid var(--hairline); border-radius:var(--radius-md); padding:0 10px; }
+        .disc-net { display:flex; align-items:center; gap:8px; padding:5px 0; font-size:var(--fs-sm); cursor:pointer; }
+        .disc-net + .disc-net { border-top:1px solid var(--hairline); }
+        .disc-net input { accent-color:var(--accent); margin:0; flex-shrink:0; }
+        .disc-net-cidr { font-family:var(--font-mono); color:var(--text-main); flex-shrink:0; }
+        .disc-net-meta { margin-left:auto; min-width:0; text-align:right; color:var(--text-muted); font-size:var(--fs-xs); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .disc-net.off { opacity:.5; cursor:not-allowed; }
         /* Linea di separazione FULL-FRAME (edge-to-edge del modale: annulla il padding
            orizzontale 18px del corpo) fra il blocco "cosa/dove scansionare + VLAN" e il
            blocco "come scansionare" (velocità · profondità). */

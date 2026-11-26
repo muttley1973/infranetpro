@@ -249,7 +249,8 @@ header {
 .tool-modal-header,
 .tool-modal-footer { border-color: var(--hairline); }
 .tm-field input,
-.tm-field select { border-radius: var(--radius-md); border-color: var(--hairline); }
+.tm-field select,
+.tm-field textarea { border-radius: var(--radius-md); border-color: var(--hairline); }
 
 /* Occhio "mostra password" sui campi mascherati (src/app-pw-reveal.js).
    Il wrapper eredita il posto dell'input nel layout (flex/larghezza copiate inline);

@@ -918,11 +918,13 @@
     </div>
     <div class="tool-modal-body">
       <div id="disc-setup">
-      <div class="tm-hint" data-i18n="disc.hint">Indica un intervallo di rete: ogni indirizzo viene interrogato via SNMP e quelli che rispondono vengono importati.</div>
+      <div class="tm-hint" data-i18n="disc.hint">Indica una o più reti: ogni indirizzo viene interrogato via SNMP e quelli che rispondono vengono importati. Le reti si scansionano una dopo l'altra.</div>
       <div class="tm-row">
         <div class="tm-field grow">
-          <label data-i18n="disc.fieldRange">Intervallo di rete</label>
-          <input id="disc-subnet" placeholder="192.168.1.0/24  oppure  192.168.1.1-254" style="width:100%">
+          <label for="disc-subnet" data-i18n="disc.fieldRange">Intervalli di rete</label>
+          <!-- Una LISTA: «192.168.1.0/24, 10.0.5.0/24, 10.0.9.1-50». Le caselle «Reti conosciute» qui sotto aggiungono e tolgono voci da questo testo
+               (lib/scan-ranges.js, la stessa lettura del server). Cresce da una a quattro righe. -->
+          <textarea id="disc-subnet" rows="1" spellcheck="false" autocomplete="off" data-input="disc-subnet-edit" data-i18n-ph="disc.rangePh" placeholder="192.168.1.0/24, 10.0.5.1-254" style="width:100%"></textarea>
         </div>
         <div class="tm-field" style="width:140px;min-width:140px">
           <label data-i18n="disc.fieldCommunity">Community SNMP</label>
@@ -932,6 +934,13 @@
           <label data-i18n="disc.fieldTimeout">Attesa (s)</label>
           <input id="disc-timeout" type="number" value="2" min="1" max="10">
         </div>
+      </div>
+      <!-- Reti conosciute: quelle a cui il server e' collegato (netmask vera) e le subnet dichiarate nel progetto (prefissi/VLAN).
+           Una casella aggiunge o toglie la voce dal campo qui sopra; nessuna e' spuntata da sola (manual-first: nessuna scansione si
+           sceglie al posto tuo). Si riempie in JS (_discRenderNets); nascosto finche' non c'e' niente da proporre. -->
+      <div id="disc-nets" class="disc-nets" hidden>
+        <div class="disc-nets-head"><span data-i18n="disc.netsTitle">Reti conosciute</span> <span class="disc-nets-hint" data-i18n="disc.netsHint">— spunta per aggiungerle all'elenco</span></div>
+        <div id="disc-nets-list" class="disc-nets-list"></div>
       </div>
       <!-- Associazione VLAN ↔ subnet (declare-first, bidirezionale): la subnet dello
            scan è LO STESSO dato del pannello VLAN → si digita una volta sola. Scegli

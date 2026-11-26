@@ -62,6 +62,23 @@ server/scan-target.js  The ONE reading of an address that is about to become tra
                        checked and sent (`ping.exe` reads `010.8.8.8` as octal, i.e. 8.8.8.8, while the
                        project deliberately reads it as 10.8.8.8). Multicast, broadcast and 0.0.0.0/8
                        are never a host: a community sent to a group reaches the whole segment.
+server/scan-plan.js    The plan of a scan over SEVERAL networks (the «Scopri» dialog): for a list of ranges it
+                       calls `expandSubnet` once per entry — the ONE definition of a valid range — and says
+                       which entries are scanned, which are wrong (with `expandSubnet`'s own message), which
+                       are duplicates or sit inside another (a larger entry absorbs the smaller whatever the
+                       order), the overlaps that stay and the total of distinct addresses, with the ceilings
+                       (4,096 addresses, 32 entries) travelling in the answer so the page never keeps a copy.
+                       Also `expandScanTargets` (the union, for the crawl's neighbour filter) and
+                       `localNetworksFrom` (the machine's networks from `os.networkInterfaces()`: true netmask,
+                       no loopback, IPv6, 169.254 or /32; one network on two cards is one row). Routes:
+                       `POST /api/discover/plan` and `GET /api/discover/networks`, admin only. The page scans
+                       the networks ONE AFTER THE OTHER, one `/api/discover` request each — the base sweep is
+                       the phase with a scan's signature and is never parallelised.
+lib/scan-ranges.js     How the list of ranges is cut into entries (comma, semicolon, space, new line; a space
+                       around the hyphen of a range does not split it) and how a tick-box adds or removes an
+                       entry from the text. Pure, shared by the page and the server so that the two never
+                       disagree on what an entry is; it judges nothing — what an entry is worth is
+                       `expandSubnet`'s call.
 server/bind-warning.js The startup warning when `HOST` is not loopback: `isLoopbackHost` asks `addrScope`
                        (127.0.0.0/8, ::1, ::ffff:127.x, `localhost`), never a string compare; silent with
                        `INFRANET_TRUST_PROXY=1`. It warns, it does not forbid (a container needs 0.0.0.0).

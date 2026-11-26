@@ -377,7 +377,7 @@ The four `*_FILE` paths let a deployment keep every secret on one persistent vol
 1. **Create a project** — *New Project*; each one keeps its own devices, cables, VLANs and layout.
 2. **Add devices** — *Add Device* on the rack or the floor; set hostname, IP, icon and port count.
 3. **Poll via SNMP** — select a device → *Poll* → driver and credentials → *Poll*. It fills in hostname, interfaces (speed, state, duplex), LAG, VLANs and LLDP/CDP neighbours.
-4. **Auto-discover** — *Discover Subnet* on a CIDR block, then *Walk Topology* from a seed device to pull LLDP neighbours and draw the cables.
+4. **Auto-discover** — *Discover Subnet* on one or more CIDR blocks (a list, or ticked from the networks the server is connected to and the subnets you declared; scanned one after the other), then *Walk Topology* from a seed device to pull LLDP neighbours and draw the cables.
 5. **Manage cables and VLANs** — click a cable for its mode, native and allowed VLANs; click a port LED for the interface detail and its VLAN.
 6. **Verify** — compare the document with the live network and work through the rows.
 
@@ -456,7 +456,9 @@ Every endpoint needs an authenticated session; writes need the **admin** role. T
 | `POST` | `/api/poll-port` | admin | Read one interface live (counters, errors, state; two readings a few seconds apart, never stored) — `{ driver, host, community, port, timeout, ifName, gapMs }` |
 | `POST` | `/api/poll-health` | admin | Read the state, error counters and environmental sensors of one device — the Sync's health pass; the server stores nothing, the client sends the reading to the sidecar — `{ driver, host, community, port, timeout }` |
 | `GET` / `PUT` | `/api/projects/:id/history/health` · `/history/neighbors` | admin | The device-health and silent-neighbour sidecars of a project: flat scalar rows, never part of the project JSON |
-| `POST` | `/api/discover` | admin | Scan a subnet or range — `subnet`, `driver`, `community`, `concurrency`, `timeout`, `safeMode`, `deepScan` |
+| `POST` | `/api/discover` | admin | Scan one subnet or range — `subnet`, `driver`, `community`, `concurrency`, `timeout`, `safeMode`, `deepScan` (the dialog sends one request per network, one after the other) |
+| `POST` | `/api/discover/plan` | admin | The plan of a list of ranges before any packet goes out — `{ ranges }` → entries to scan, wrong entries with their reason, duplicates/contained, overlaps, total and the limits |
+| `GET` | `/api/discover/networks` | admin | The IPv4 networks the server is connected to (true netmask), each with whether one scan can cover it |
 | `POST` | `/api/topology` | admin | LLDP/CDP neighbours of one device |
 | `POST` | `/api/discover/topology` | admin | Topology crawl from one or more seeds, streamed as `text/event-stream` |
 | `POST` / `GET` | `/api/auth/login` · `/logout` · `/me` | — / any | Log in (rate-limited) / out / session info |
@@ -531,7 +533,7 @@ RUN_E2E=1 npm run e2e # headless end-to-end in a real Chrome — off by default
 - Coverage focuses on the pure logic that has historically broken: SNMP parsing, discovery and classification, the three engines, cable validation, IPAM and LAG audits — plus an app-wide smoke test that loads every script into a DOM stub and asserts rendering never throws.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **677** of them.
+- `npm run check` parses every JS source of the product — **682** of them.
 - `npm test` runs the full regression suite (currently **5,301 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **167 flows**).
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that lists something, and the test count measured against what the suite really prints.
 
