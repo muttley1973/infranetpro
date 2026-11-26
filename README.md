@@ -31,11 +31,11 @@
 <tr>
 <td align="center" width="50%">
 <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="26" alt=""><br><b>Manuale tecnico — Italiano</b></a><br>
-<sub>76 pagine illustrate · interfaccia, onboarding e manuale completi in italiano, con selettore IT/EN nell'app.</sub>
+<sub>77 pagine illustrate · interfaccia, onboarding e manuale completi in italiano, con selettore IT/EN nell'app.</sub>
 </td>
 <td align="center" width="50%">
 <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="26" alt=""><br><b>Technical manual — English</b></a><br>
-<sub>78 illustrated pages · fully bilingual UI, onboarding and manual, with an in-app IT/EN switcher.</sub>
+<sub>79 illustrated pages · fully bilingual UI, onboarding and manual, with an in-app IT/EN switcher.</sub>
 </td>
 </tr>
 </table>
@@ -121,7 +121,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
   <b>Full feature manual (PDF)</b> —
   <a href="MANUALE_TECNICO_IT.pdf"><img src="GitHub%20Images/flag-it.svg" width="20" alt=""> Italiano</a> ·
   <a href="TECHNICAL_MANUAL_EN.pdf"><img src="GitHub%20Images/flag-gb.svg" width="20" alt=""> English</a><br>
-  <sub>Dark cover, white printable interior, 22 illustrated chapters — 76 pages in Italian, 78 in English.</sub>
+  <sub>Dark cover, white printable interior, 22 illustrated chapters — 77 pages in Italian, 79 in English.</sub>
 </p>
 
 <p align="center">
@@ -257,7 +257,7 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 
 **🔒 Security & 🌍 Bilingual**
 - Session auth with admin and viewer roles, a rate-limited login, a loopback bind and secrets structurally excluded from every data surface. See [Security](#authentication--roles).
-- Complete Italian and English interface, onboarding and a ~76-page manual, guarded by an `it ↔ en` key-parity test.
+- Complete Italian and English interface, onboarding and a ~77-page manual, guarded by an `it ↔ en` key-parity test.
 
 ---
 
