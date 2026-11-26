@@ -123,13 +123,13 @@ test('E2E «Scopri» con piu\' reti: reti conosciute da spuntare, una dopo l\'al
 
     // 5) due reti (+ una voce che sta dentro la prima): UNA DOPO L'ALTRA, mai insieme, risultati fusi (un indirizzo una volta sola)
     const riga = (ip, nome, snmp) => ({ ip, alive: true, pingReachable: true, status: 'On', hostname: nome, descr: '', objectId: '', snmpReachable: !!snmp, snmpDriver: snmp ? 'snmp-v2c' : '', snmpVersions: snmp ? ['snmp-v2c'] : [], needsCredentials: false, mac: '', vendor: '', httpTitle: '', httpsTitle: '', services: [], netbiosName: '', netbiosGroup: '', smbShares: [], cast: false });
-    const log = []; let inFlight = 0, maxInFlight = 0;
+    const log = [], comms = []; let inFlight = 0, maxInFlight = 0;   // `comms`: la community con cui e' partita ogni richiesta, nello stesso ordine di `log`
     const falliscono = new Set();
     let conAvvisi = false;   // ogni rete risponde con lo stesso avviso («manca ping»): in fondo deve comparire UNA volta
     await page.route('**/api/discover', async (route) => {
       if (route.request().method() !== 'POST') return route.fallback();
       const b = JSON.parse(route.request().postData());
-      log.push(b.subnet); inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+      log.push(b.subnet); comms.push(b.community); inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
       await new Promise((r) => setTimeout(r, 120));
       inFlight--;
       if (falliscono.has(b.subnet)) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'rete irraggiungibile (prova)' }) });
@@ -196,6 +196,84 @@ test('E2E «Scopri» con piu\' reti: reti conosciute da spuntare, una dopo l\'al
     r = await scan('10.20.30.0/24, 192.168.77.0/24', false);
     assert.match(r.finale, /Nessuna rete scansionata/);
     assert.match(r.finale, /Reti non scansionate \(2\)/);
+
+    // 10) COMMUNITY PER RETE: la sua per ogni rete, e quella che gli apparati gia' documentati in QUELLA rete usano si propone — da confermare
+    // Apparati documentati con una community, a indirizzi che le scansioni finte NON restituiscono (non sono righe della tabella).
+    await page.evaluate(() => {
+      const mk = (id, ip, c) => state.nodes.push({ id, type: 'switch', name: id, ip, x: 50, y: 50, ports: 8, integration: { driver: 'snmp-v2c', community: c } });
+      mk('u1', '10.20.30.101', 'segreta-uffici'); mk('u2', '10.20.30.102', 'segreta-uffici'); mk('u3', '10.20.30.103', 'segreta-uffici');
+      mk('f1', '192.168.77.101', 'uno'); mk('f2', '192.168.77.102', 'due');
+      if (typeof _invalidateIdx === 'function') _invalidateIdx();
+    });
+    const SEGRETA = 'segreta-uffici';
+    const righeComm = () => page.evaluate(() => Array.from(document.querySelectorAll('#disc-comm-list .disc-comm-row')).map((x) => ({
+      rete: x.querySelector('.disc-comm-range').textContent, nota: (x.querySelector('.disc-comm-note') || {}).textContent || '', bottone: !!x.querySelector('button'),
+    })));
+    const scrivi = async (testo) => { await page.fill('#disc-subnet', testo); await page.waitForTimeout(700); };
+    await page.evaluate(() => { closeDiscovery(); openDiscovery(); });
+    assert.strictEqual(await page.inputValue('#disc-community'), 'public', 'il campo comune NON si precompila piu\' dal primo apparato del progetto (con piu\' community era un caso)');
+
+    // una rete sola, con apparati documentati: compare UNA riga col suggerimento
+    await scrivi('10.20.30.0/24');
+    await page.waitForFunction(() => document.querySelectorAll('#disc-comm-list .disc-comm-row').length === 1, null, { timeout: 10000 });
+    let rc = await righeComm();
+    assert.deepStrictEqual(rc, [{ rete: '10.20.30.0/24', nota: 'Documentati qui: 3', bottone: true }]);
+    assert.ok(!(await page.content()).includes(SEGRETA), 'la community suggerita NON sta nel markup: il valore non passa dalla pagina finche\' non lo scegli');
+    // se gli apparati documentati usano GIA' la community del campo comune non c'e' niente da proporre; con un'altra nel campo il suggerimento torna
+    await page.fill('#disc-community', SEGRETA);
+    await page.waitForFunction(() => document.getElementById('disc-comm').hidden, null, { timeout: 10000 });
+    await page.fill('#disc-community', 'public');
+    await page.waitForFunction(() => !document.getElementById('disc-comm').hidden, null, { timeout: 10000 });
+    // una rete senza apparati documentati: niente blocco
+    await scrivi('10.99.0.0/24');
+    await page.waitForFunction(() => document.getElementById('disc-comm').hidden, null, { timeout: 10000 });
+    // due reti: una con una community sola, una con community DIVERSE (non se ne sceglie una a caso: si dice e basta)
+    await scrivi('10.20.30.0/24, 192.168.77.0/24');
+    await page.waitForFunction(() => document.querySelectorAll('#disc-comm-list .disc-comm-row').length === 2, null, { timeout: 10000 });
+    rc = await righeComm();
+    assert.deepStrictEqual(rc[0], { rete: '10.20.30.0/24', nota: 'Documentati qui: 3', bottone: true });
+    assert.deepStrictEqual(rc[1], { rete: '192.168.77.0/24', nota: 'Documentati qui: 2, con 2 community diverse', bottone: false });
+    assert.ok(!(await page.content()).includes('>uno<') && !(await page.content()).includes(SEGRETA));
+
+    // con un clic il suggerimento va nel campo MASCHERATO della rete, e il suggerimento usato scompare
+    await page.click('#disc-comm-list .disc-comm-use');
+    const campoRete = await page.evaluate(() => { const i = Array.from(document.querySelectorAll('#disc-comm-list input[data-range]')).find((x) => x.dataset.range === '10.20.30.0/24'); return { v: i.value, t: i.type }; });
+    assert.deepStrictEqual(campoRete, { v: SEGRETA, t: 'password' });
+    assert.strictEqual(await page.evaluate(() => !!document.querySelector('#disc-comm-list .disc-comm-use')), false, 'usato: il suggerimento scompare');
+    assert.ok(!(await page.content()).includes(SEGRETA), 'nemmeno dopo l\'uso il valore e\' nel markup');
+
+    // la scansione manda a OGNI rete la SUA community: quella scelta per la prima, quella del campo comune per l'altra
+    log.length = 0; comms.length = 0; crawls.length = 0; falliscono.clear();
+    r = await scan('10.20.30.0/24, 192.168.77.0/24', false);
+    assert.deepStrictEqual(log, ['10.20.30.0/24', '192.168.77.0/24']);
+    assert.deepStrictEqual(comms, [SEGRETA, 'public'], 'la prima rete parte con la sua community, la seconda con quella del campo comune');
+
+    // e il crawl dei vicini parte UNA volta per community, coi semi delle SUE reti
+    log.length = 0; comms.length = 0; crawls.length = 0;
+    await scan('10.20.30.0/24, 192.168.77.0/24', true);
+    assert.deepStrictEqual(crawls.map((c) => c.community), [SEGRETA, 'public'], 'un crawl per community diversa, nell\'ordine delle reti');
+    assert.deepStrictEqual(crawls.map((c) => c.seeds), [['10.20.30.10'], ['192.168.77.10']], 'ognuno coi semi delle sue reti (un seme non esce con la credenziale di un\'altra rete)');
+    assert.ok(crawls.every((c) => c.scanCidr === '10.20.30.0/24, 192.168.77.0/24'), 'il filtro dei vicini vale per tutte le reti');
+
+    // una community scritta per una rete che NON si vede piu' non si usa di nascosto
+    await page.click('#disc-new-search');   // dopo una scansione il dialogo mostra i risultati: «Nuova ricerca» torna al modulo
+    await scrivi('10.98.0.0/24, 10.99.0.0/24');
+    await page.waitForFunction(() => document.querySelectorAll('#disc-comm-list .disc-comm-row').length === 2, null, { timeout: 10000 });
+    await page.fill('#disc-comm-list input[data-range="10.99.0.0/24"]', 'nascosta');
+    await scrivi('10.99.0.0/24');
+    await page.waitForFunction(() => document.getElementById('disc-comm').hidden, null, { timeout: 10000 });
+    log.length = 0; comms.length = 0; crawls.length = 0;
+    await scan('10.99.0.0/24', false);
+    assert.deepStrictEqual(comms, ['public'], 'il blocco non si vede: la community scritta prima per quella rete NON parte');
+
+    // chiudere il dialogo svuota le community per rete: non restano nella pagina
+    await page.click('#disc-new-search');
+    await scrivi('10.98.0.0/24, 10.99.0.0/24');
+    await page.waitForFunction(() => document.querySelectorAll('#disc-comm-list .disc-comm-row').length === 2, null, { timeout: 10000 });
+    assert.strictEqual(await page.evaluate(() => Array.from(document.querySelectorAll('#disc-comm-list input[data-range]')).find((x) => x.dataset.range === '10.99.0.0/24').value), 'nascosta', 'finche\' il dialogo e\' aperto il valore resta');
+    await page.evaluate(() => { closeDiscovery(); openDiscovery(); });
+    await page.waitForFunction(() => document.querySelectorAll('#disc-comm-list .disc-comm-row').length === 2, null, { timeout: 10000 });
+    assert.deepStrictEqual(await page.evaluate(() => Array.from(document.querySelectorAll('#disc-comm-list input[data-range]')).map((x) => x.value)), ['', ''], 'chiuso e riaperto: le community per rete sono vuote');
 
     await page.evaluate(() => closeDiscovery());
     assert.deepStrictEqual(errs, [], 'nessun errore di pagina: ' + errs.join(' | '));

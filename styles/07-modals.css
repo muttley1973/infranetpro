@@ -212,6 +212,17 @@
         .disc-net-cidr { font-family:var(--font-mono); color:var(--text-main); flex-shrink:0; }
         .disc-net-meta { margin-left:auto; min-width:0; text-align:right; color:var(--text-muted); font-size:var(--fs-xs); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .disc-net.off { opacity:.5; cursor:not-allowed; }
+        /* «Community per rete»: una riga per rete, il campo e' mascherato; il suggerimento (se c'e') sta a destra e si usa con un clic. */
+        .disc-comm { margin:-2px 0 10px; }
+        .disc-comm[hidden] { display:none; }
+        .disc-comm-list { border:1px solid var(--hairline); border-radius:var(--radius-md); padding:0 10px; max-height:132px; overflow-y:auto; }
+        .disc-comm-row { display:flex; align-items:center; gap:10px; padding:5px 0; font-size:var(--fs-sm); }
+        .disc-comm-row + .disc-comm-row { border-top:1px solid var(--hairline); }
+        .disc-comm-range { flex:0 0 150px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:var(--font-mono); color:var(--text-main); }
+        .disc-comm-in { flex:0 1 170px; min-width:0; background:var(--bg-color); border:1px solid var(--hairline); color:var(--text-main); padding:3px 8px; border-radius:var(--radius-md); font-family:inherit; font-size:var(--fs-sm); }
+        .disc-comm-in:focus { outline:none; border-color:var(--accent); }
+        .disc-comm-note { margin-left:auto; color:var(--text-muted); font-size:var(--fs-xs); white-space:nowrap; }
+        .disc-comm-use { font-size:var(--fs-xs); padding:2px 8px; }
         /* Linea di separazione FULL-FRAME (edge-to-edge del modale: annulla il padding
            orizzontale 18px del corpo) fra il blocco "cosa/dove scansionare + VLAN" e il
            blocco "come scansionare" (velocità · profondità). */

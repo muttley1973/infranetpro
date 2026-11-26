@@ -928,7 +928,7 @@
         </div>
         <div class="tm-field" style="width:140px;min-width:140px">
           <label data-i18n="disc.fieldCommunity">Community SNMP</label>
-          <input id="disc-community" type="password" autocomplete="new-password" value="public">
+          <input id="disc-community" type="password" autocomplete="new-password" value="public" data-input="disc-community-edit">
         </div>
         <div class="tm-field timeout">
           <label data-i18n="disc.fieldTimeout">Attesa (s)</label>
@@ -941,6 +941,13 @@
       <div id="disc-nets" class="disc-nets" hidden>
         <div class="disc-nets-head"><span data-i18n="disc.netsTitle">Reti conosciute</span> <span class="disc-nets-hint" data-i18n="disc.netsHint">— spunta per aggiungerle all'elenco</span></div>
         <div id="disc-nets-list" class="disc-nets-list"></div>
+      </div>
+      <!-- Community per rete: compare con piu' reti (o quando gli apparati gia' documentati in una rete ne usano una da proporre).
+           Una per rete, mascherata, SOLO in memoria (si svuota alla chiusura del dialogo, mai nel progetto); vuota = quella del campo
+           «Community SNMP». Il suggerimento viene da un dato che il progetto ha gia' e si usa solo con un clic (lib/scan-community-hints.js). -->
+      <div id="disc-comm" class="disc-comm" hidden>
+        <div class="disc-nets-head"><span data-i18n="disc.commTitle">Community per rete</span> <span class="disc-nets-hint" data-i18n="disc.commHint">— vuota = quella del campo «Community SNMP»; non si salva</span></div>
+        <div id="disc-comm-list" class="disc-comm-list"></div>
       </div>
       <!-- Associazione VLAN ↔ subnet (declare-first, bidirezionale): la subnet dello
            scan è LO STESSO dato del pannello VLAN → si digita una volta sola. Scegli

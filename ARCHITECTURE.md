@@ -79,6 +79,17 @@ lib/scan-ranges.js     How the list of ranges is cut into entries (comma, semico
                        entry from the text. Pure, shared by the page and the server so that the two never
                        disagree on what an entry is; it judges nothing — what an entry is worth is
                        `expandSubnet`'s call.
+lib/scan-community-hints.js
+                       The community PER NETWORK in the «Scopri» dialog. `communityHints(nodes, ranges)`: for
+                       each network, how many documented devices have a community there, how many distinct
+                       ones, and THE community only when it is one and one only (several different ones are
+                       never picked from — they are not even returned). A device counts where the poller
+                       reaches it (`snmpTargetHost`, the one definition) and only v1/v2c have a community.
+                       `communityFor` (its own if written, else the common field) and `groupRangesByCommunity`
+                       (the topology walk starts once per community, with the seeds of its networks). The
+                       value never goes through the markup: the page puts it in a masked field on a click and
+                       clears it when the dialog closes; a value left for a network no longer in the list
+                       is not used.
 server/bind-warning.js The startup warning when `HOST` is not loopback: `isLoopbackHost` asks `addrScope`
                        (127.0.0.0/8, ::1, ::ffff:127.x, `localhost`), never a string compare; silent with
                        `INFRANET_TRUST_PROXY=1`. It warns, it does not forbid (a container needs 0.0.0.0).

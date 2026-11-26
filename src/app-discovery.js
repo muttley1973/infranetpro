@@ -15,8 +15,8 @@ import { _discIndexNode, _discVendorFromMac, _discRememberVendor, _discIdentityS
 import { _findFreeU } from './app-topology-crawl.js';   // ritiro ponte: funzioni getter/label/props/disc (ex win.*)
 import { registerChangeActions, registerClickActions, registerInputActions } from './app-delegation.js';   // ASSE B: checkbox "seleziona tutti" Scopri via data-change; bottone "Nuova ricerca" via data-act; il campo delle reti via data-input
 import { splitScanTargets, hasScanTarget, toggleScanTarget } from '../lib/scan-ranges.js';   // la lista di intervalli: la STESSA lettura che il server usa per il piano
+import { communityHints, communityFor, groupRangesByCommunity } from '../lib/scan-community-hints.js';   // la community per rete e quella suggerita dagli apparati gia' documentati
 import { enableColumnResize } from './app-col-resize.js';   // colonne della tabella Scopri trascinabili + scorrimento orizzontale
-import { hasSnmpDriver } from '../lib/snmp-target.js';   // «ha un driver SNMP?»: la definizione sta in un posto solo
 import { macKey } from '../lib/mac-class.js';   // la chiave di un MAC: una definizione sola, la stessa del server
 import { isJunkHostName } from '../lib/host-name.js';   // «dc-01» e' un nome, un UUID/MAC no: la regola sta in un posto solo, testata
 
@@ -247,8 +247,10 @@ function _declareScanSubnetToVlan(rangeText){
 function openDiscovery(prefillCidr){
     // Il driver resta su 'auto' (rilevamento unificato v2c + v3): NON lo
     // sovrascriviamo col driver di un device esistente, altrimenti un solo
-    // device v2c già in mappa disabiliterebbe il rilevamento v3. Prefilliamo
-    // solo la community (usata dal tentativo v2c).
+    // device v2c già in mappa disabiliterebbe il rilevamento v3.
+    // ⚠️ La community NON si precompila piu' dal PRIMO apparato del progetto che ne ha una: con piu' community era un caso, e mandava
+    // a una rete nuova la credenziale di un'altra. Ora la propone, per rete e da confermare, chi sa dove sono gli apparati (v. «Community
+    // per rete» qui sotto): quelli gia' documentati NELLA rete che si scansiona.
     // prefillCidr (opzionale): quando l'utente lancia "Scopri rete" dalla sezione
     // "Reti del progetto" del report Verifica, la subnet arriva già compilata — resta
     // comunque una scansione ESPLICITA (l'utente preme Scansiona, con la sua cadenza
@@ -256,10 +258,6 @@ function openDiscovery(prefillCidr){
     if(prefillCidr){
         const sub = document.getElementById('disc-subnet');
         if(sub) sub.value = String(prefillCidr).trim();
-    }
-    const sample = store.state.nodes.find(n=>hasSnmpDriver(n));
-    if(sample && sample.integration.community){
-        document.getElementById('disc-community').value = sample.integration.community;
     }
     const rack = store.state.racks.find(r=>r.id===store.state.currentRack);
     document.getElementById('disc-rack-name').textContent = rack?.name || _dt('pnl.disc.noRackSelected','(nessun rack selezionato)');
@@ -309,6 +307,7 @@ function closeDiscovery(){
     if(window._discCrawlAbort){ window._discCrawlAbort.abort(); window._discCrawlAbort=null; }
     store._discRunning = false;
     store._discImporting = false;
+    _discClearCommunityState();   // la community per rete non sopravvive alla chiusura
 }
 
 // DUE FASI nello stesso modale (decisione utente: scan e risultati SEPARATI, non
@@ -487,6 +486,82 @@ function _discAfterRangesChange(){
         sel.disabled = multi;
     }
     _discRenderVlanHint();
+    _discSchedulePlan();   // le righe «Community per rete» seguono le reti del piano
+}
+
+// ── Community per rete ─────────────────────────────────────────────────────────────────────────────
+// La community e' una credenziale: ogni rete della scansione puo' avere la sua (campo mascherato) e, dove gli apparati GIA' documentati
+// in quella rete ne usano una, il dialogo la PROPONE (mai da sola: si usa con un clic). Il valore sta SOLO in memoria — si svuota alla
+// chiusura del dialogo, non va nel progetto, in un attributo o in un suggerimento. Vuota = quella del campo «Community SNMP».
+let _discRangeCommunity = Object.create(null);   // rete (testo della voce) → community scritta per quella rete
+let _discPlanView = null;                        // l'ultimo piano calcolato per il testo del campo: le righe seguono le sue reti
+let _discPlanTimer = null, _discPlanSeqV = 0, _discCommSig = '';
+
+function _discSchedulePlan(){
+    clearTimeout(_discPlanTimer);
+    _discPlanTimer = setTimeout(_discRefreshPlanView, 300);
+}
+async function _discRefreshPlanView(){
+    const f = document.getElementById('disc-subnet'); if(!f) return;
+    const seq = ++_discPlanSeqV;
+    if(!splitScanTargets(f.value).length){ _discPlanView = null; _discRenderCommunityRows(); return; }
+    let plan;
+    try{ plan = await _discFetchPlan(f.value); }catch(_){ plan = null; }
+    if(seq !== _discPlanSeqV) return;
+    _discPlanView = (plan && plan.ok && Array.isArray(plan.ranges)) ? plan : null;
+    _discRenderCommunityRows();
+}
+
+// Una riga per rete del piano. `canUse` = gli apparati documentati ne usano UNA sola e non e' gia' quella del campo (o quella scritta).
+function _discCommunityRowsData(){
+    const plan = _discPlanView;
+    if(!plan) return [];
+    const def = (document.getElementById('disc-community') || {}).value || '';
+    const hints = communityHints(store.state && store.state.nodes, plan.ranges);
+    return plan.ranges.map((r, i) => {
+        const h = hints[i];
+        const scritta = _discRangeCommunity[r.text] || '';
+        return { text: r.text, count: h.count, distinct: h.distinct, canUse: h.distinct === 1 && h.value !== def && h.value !== scritta };
+    });
+}
+
+function _discCommunityRowsHtml(rows){
+    return rows.map(r => {
+        const note = r.distinct > 1
+            ? `<span class="disc-comm-note">${escapeHTML(_dt('disc.commMixed','Documentati qui: {n}, con {k} community diverse',{ n: r.count, k: r.distinct }))}</span>`
+            : (r.canUse
+                ? `<span class="disc-comm-note">${escapeHTML(_dt('disc.commDocumented','Documentati qui: {n}',{ n: r.count }))}</span><button type="button" class="um-btn disc-comm-use" data-act="disc-comm-use" data-range="${escapeHTML(r.text)}">${escapeHTML(_dt('disc.commUse','Usa la loro community'))}</button>`
+                : '');
+        return `<div class="disc-comm-row"><span class="disc-comm-range">${escapeHTML(r.text)}</span><input type="password" class="disc-comm-in" autocomplete="new-password" data-no-pw-eye data-input="disc-comm" data-range="${escapeHTML(r.text)}" placeholder="${escapeHTML(_dt('disc.commSame','come sopra'))}" aria-label="${escapeHTML(_dt('disc.commAria','Community per {range}',{ range: r.text }))}">${note}</div>`;
+    }).join('');
+}
+
+// Il blocco compare con piu' reti, o con UNA rete quando c'e' qualcosa da dire sugli apparati documentati. Si ridisegna solo se cambia
+// qualcosa (chi sta scrivendo in un campo non ne perde il fuoco). Il valore scritto NON passa dal markup: si rimette a mano, dopo.
+function _discRenderCommunityRows(){
+    const box = document.getElementById('disc-comm'), list = document.getElementById('disc-comm-list');
+    if(!box || !list) return;
+    const rows = _discCommunityRowsData();
+    const show = rows.length >= 2 || rows.some(r => r.count > 0 && (r.distinct > 1 || r.canUse));
+    const sig = show ? rows.map(r => `${r.text}|${r.count}|${r.distinct}|${r.canUse ? 1 : 0}`).join(';') : '';
+    if(sig === _discCommSig){ box.hidden = !show; return; }
+    _discCommSig = sig;
+    if(!show){ box.hidden = true; list.innerHTML = ''; return; }
+    list.innerHTML = _discCommunityRowsHtml(rows);
+    list.querySelectorAll('input[data-range]').forEach(i => { i.value = _discRangeCommunity[i.dataset.range] || ''; });
+    box.hidden = false;
+}
+
+// Alla chiusura del dialogo la community scritta per rete se ne va: una credenziale non resta in una pagina piu' del bisogno.
+function _discClearCommunityState(){
+    _discRangeCommunity = Object.create(null);
+    _discPlanView = null;
+    _discCommSig = '';
+    clearTimeout(_discPlanTimer);
+    _discPlanSeqV++;
+    const box = document.getElementById('disc-comm'), list = document.getElementById('disc-comm-list');
+    if(list) list.innerHTML = '';
+    if(box) box.hidden = true;
 }
 
 async function runDiscovery(){
@@ -525,6 +600,10 @@ async function runDiscovery(){
     if(planProblem){ document.getElementById('disc-progress').innerHTML = planProblem; store._discRunning = false; return; }
     const ranges = plan.ranges.map(r => r.text);
     const planNotes = _discPlanNotesHtml(plan);
+    // La community vale PER RETE: la sua, se la persona ne ha scritta una per quella rete (e il blocco si vede: un valore rimasto in
+    // memoria per una rete che non compare non si usa di nascosto), altrimenti quella del campo «Community SNMP».
+    const overrides = (document.getElementById('disc-comm') || {}).hidden ? {} : _discRangeCommunity;
+    const communities = ranges.map(r => communityFor(r, overrides, community));
     _declareScanSubnetToVlan(ranges.length === 1 ? ranges[0] : '');   // declare-first: se una VLAN è indicata, dichiara la subnet nel pannello (solo con UNA rete)
 
     const btn = document.getElementById('disc-scan-btn');
@@ -549,7 +628,8 @@ async function runDiscovery(){
         const warnings = [];
         const failed = [];
         let totalIps = 0;
-        const body0 = { driver, community, timeout, safeMode, stealth, deepScan, mdns, ignorePing,
+        const rangeOf = new Map();   // indirizzo → indice della rete che lo ha trovato (per dare al crawl la community giusta)
+        const body0 = { driver, timeout, safeMode, stealth, deepScan, mdns, ignorePing,
             dhcpLeases: Array.isArray(store._dhcpLeases) ? store._dhcpLeases : [] };
         for(let i = 0; i < ranges.length; i++){
             if(!store._discRunning) break;   // dialogo chiuso: le altre reti non partono
@@ -562,7 +642,7 @@ async function runDiscovery(){
             let data;
             try{
                 const r = await fetch('/api/discover',{method:'POST',headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({ ...body0, subnet: ranges[i] }),
+                    body:JSON.stringify({ ...body0, community: communities[i], subnet: ranges[i] }),
                     signal:scanAbort.signal});
                 data = await r.json();
             }catch(e){
@@ -580,7 +660,7 @@ async function runDiscovery(){
             }
             totalIps += data.total || 0;
             for(const row of (data.results || [])){
-                if(row && row.ip){ if(seenIps.has(row.ip)) continue; seenIps.add(row.ip); }
+                if(row && row.ip){ if(seenIps.has(row.ip)) continue; seenIps.add(row.ip); rangeOf.set(row.ip, i); }
                 merged.push(row);
             }
             for(const w of (data.warnings || [])) if(!warnings.some(x => x.code === w.code && x.tool === w.tool)) warnings.push(w);
@@ -616,7 +696,13 @@ async function runDiscovery(){
             // il progress fa da battito-cardiaco, cosi' NON sembra finito (l'utente stava
             // per chiudere la finestra). La label distinta dalla "Scansione…" della fase 1.
             btn.innerHTML=`<i class="fas fa-spinner fa-spin"></i> ${_dt('disc.expanding','Espansione…')}`;
-            await _runCrawlPhase(store._discResults.filter(d=>d.snmpReachable).map(d=>d.ip), driver, community, timeout, ranges.join(', '));   // il filtro dei vicini vale per TUTTE le reti scansionate
+            // Il crawl parte UNA volta per gruppo di reti con la stessa community (senza community per rete: un gruppo solo, come prima),
+            // coi semi di quelle reti. Il filtro dei vicini vale per TUTTE le reti scansionate.
+            const groups = groupRangesByCommunity(ranges, communities);
+            for(const g of groups){
+                const seedRows = store._discResults.filter(d => d.snmpReachable && (groups.length === 1 || g.indexes.includes(rangeOf.has(d.ip) ? rangeOf.get(d.ip) : 0)));
+                await _runCrawlPhase(seedRows.map(d => d.ip), driver, g.community, timeout, ranges.join(', '));
+            }
 
             const total = store._discResults.length;
             const newViaLldp = total - found1;
@@ -1846,7 +1932,13 @@ registerChangeActions({
     },
 });
 // Il testo del campo cambia mentre si digita: caselle, altezza e campo VLAN lo seguono.
-registerInputActions({ 'disc-subnet-edit': () => _discAfterRangesChange() });
+registerInputActions({
+    'disc-subnet-edit': () => _discAfterRangesChange(),
+    // La community scritta per UNA rete: solo in memoria (si svuota alla chiusura del dialogo).
+    'disc-comm': (el) => { const r = el.dataset.range; if(el.value) _discRangeCommunity[r] = el.value; else delete _discRangeCommunity[r]; },
+    // La community del campo comune cambia: i suggerimenti uguali a lei non servono piu' (e quelli diversi tornano).
+    'disc-community-edit': () => _discRenderCommunityRows(),
+});
 // ASSE B: bottone "Nuova ricerca" (fase RISULTATI → torna al SETUP) via data-act,
 // non onclick inline (tetto a cricchetto handler inline).
 registerClickActions({
@@ -1858,4 +1950,14 @@ registerClickActions({
     'disc-run':       () => runDiscovery(),
     'disc-import':    () => importDiscovered(),
     'disc-fold-split':(el) => _discFoldSplit(el),
+    // «Usa la loro community»: la propone un dato che il progetto ha gia'; si usa SOLO con questo clic, e il valore va nel campo mascherato
+    // della rete (mai in un attributo o in un testo).
+    'disc-comm-use': (el) => {
+        const r = el.dataset.range;
+        const h = _discPlanView ? communityHints(store.state && store.state.nodes, _discPlanView.ranges).find(x => x.text === r) : null;
+        if(!h || h.distinct !== 1 || h.value == null) return;
+        _discRangeCommunity[r] = h.value;
+        _discCommSig = '';   // la riga si ridisegna: il suggerimento usato scompare e il campo si riempie
+        _discRenderCommunityRows();
+    },
 });
