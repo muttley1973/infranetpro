@@ -266,7 +266,7 @@ lib/                   Shared browser + test modules (the heart of the app)
                     that wins. A segment key is only comparable against one built from
                     the SAME prefix list — producer and consumer must be handed it  (pure)
   netnames.js linkstate.js correlate.js cabling.js
-  app-version.js    The version under the logo and where its click goes: `versionLabel` ("v2.16.0" or '' —
+  app-version.js    The version under the logo and where its click goes: `versionLabel` ("v2.17.0" or '' —
                     never "vundefined") and the changelog URL. The server says the version
                     (`/api/auth/me`, from package.json): not a fifth place to touch at a release  (pure)
   topo-lines.js frontpanel.js stack.js ha-pair.js
@@ -1953,7 +1953,7 @@ with an X button and a `*-title` id.
 ## 7. Testing
 
 - **Pure-lib tests** (`test/*.test.js`, `node --test`): the safety net for all
-  logic. Fast, zero-dep. **5,301 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
+  logic. Fast, zero-dep. **5,640 tests** at the time of writing. Includes the AI assistant's **anti-leak guard**
   (`test/ai-context.test.js`): asserts no SNMP community / credential / secret-named
   field can ever reach the AI context (data-security paletto, build-failing). Also
   covers the previously-untested **auth surface** end-to-end (`test/auth-api.test.js`

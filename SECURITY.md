@@ -26,8 +26,8 @@ are no long-term branches.
 
 | Version | Security fixes |
 |---|---|
-| 2.16.x | yes |
-| 2.15.x and older | no — upgrade |
+| 2.17.x | yes |
+| 2.16.x and older | no — upgrade |
 
 ## What the threat model already assumes
 

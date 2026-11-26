@@ -10,7 +10,7 @@
   <a href="#docker"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white"></a>
 </p>
 <p>
-  <a href="#testing"><img alt="5,301 tests, 0 failing" src="https://img.shields.io/badge/tests-5%2C301%20%C2%B7%200%20failing-3fb950"></a>
+  <a href="#testing"><img alt="5,640 tests, 0 failing" src="https://img.shields.io/badge/tests-5%2C640%20%C2%B7%200%20failing-3fb950"></a>
   <a href="#testing"><img alt="163 real-browser end-to-end flows" src="https://img.shields.io/badge/e2e-163%20real--browser%20flows-3fb950"></a>
   <a href="#snmp-integration"><img alt="SNMP v1, v2c and v3" src="https://img.shields.io/badge/SNMP-v1%20%C2%B7%20v2c%20%C2%B7%20v3-00b3d6"></a>
   <a href="#discovery--classification-engines"><img alt="About 57,000 IEEE OUI entries" src="https://img.shields.io/badge/IEEE%20OUI-~57k-8957e5"></a>
@@ -99,17 +99,17 @@ Open **http://localhost:8421**. An **admin** account is created on first start w
 - 🖥️ **Windows:** double-click `avvia.bat`. Details in [Installation](#installation) and [Configuration](#configuration).
 - **Your first five minutes:** *New project* → **Add device** → give it an IP → **Properties → Integration** → community → **Poll**. Then **Discover subnet** on your LAN, and press **Verify** to see your document compared against the live network, row by row.
 
-> 📰 **What's new (v2.16.0) — Click a switch port and read its traffic, errors and state live.**
+> 📰 **What's new (v2.17.0) — See how your devices are doing, and scan several networks in one go.**
 >
-> - A new fold in the port's properties asks the device over SNMP when you open it: bytes and packets with the current rate, errors and discards with the detail only where it is not zero, and how long the port has been in its state. Nothing is saved in the project, and a column the device does not publish is "not read", never zero.
-> - The port's properties follow one order — Add to LAG, description, VLAN as a fold, live reading — and the expand-all / collapse-all chevrons are now in every properties panel that has folds.
+> - Every Sync now reads each device's interface errors, environmental sensors and the neighbours it stopped reporting. They show in two folds of the device and in the verification, with the tolerances set in one table — and what a device does not publish is "not read", never zero.
+> - Discover takes a list of networks, ticked from the ones the server is connected to and the subnets you declared, scanned one after the other; each can have its own community, and the one your documented devices already use is offered for you to confirm.
 >
 > Earlier:
+> - **v2.16.0** — click a switch port and read its traffic, errors and state live, in one panel order every properties panel shares.
 > - **v2.15.0** — Multi-site is a view of the workspace: the map takes the place of the floor plan, and the search finds the jack, the interface and the serial number.
 > - **v2.14.0** — what NetBox declares now comes in as fields: virtual machines, Wi-Fi, port speed, duplex and PoE.
 > - **v2.13.0** — a fiber drawer you can compose slot by slot, sites on a real map, spanning-tree read and shown, and a FortiGate cluster read as evidence.
 > - **v2.12.0** — the Verify run looks at your virtual machines, a VM's state is the colour of its icon, and Undo and Redo keep what you did.
-> - **v2.11.19** — the dossier lives inside Export PDF, the catalogue update works again, and the manuals describe the interface as it is.
 >
 > Every release, in detail: [CHANGELOG.md](CHANGELOG.md).
 
@@ -534,7 +534,7 @@ RUN_E2E=1 npm run e2e # headless end-to-end in a real Chrome — off by default
 
 Current local quality baseline:
 - `npm run check` parses every JS source of the product — **684** of them.
-- `npm test` runs the full regression suite (currently **5,301 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **167 flows**).
+- `npm test` runs the full regression suite (currently **5,640 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **174 flows**).
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that lists something, and the test count measured against what the suite really prints.
 
 **CI** ([GitHub Actions](.github/workflows/ci.yml)) runs `npm run check`, `npm run lint`, `npm run typecheck`, `npm test` and the browser end-to-end suite (`npm run e2e`) on every push and pull request to `main`, on Node 18, 20, 22 and 24.
