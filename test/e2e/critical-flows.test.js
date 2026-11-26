@@ -2123,6 +2123,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const rep = _driftComputeFromDoc(_driftBuildDocSnapshot());
         return {
           chiamate,
+          sezioni: Array.from(document.querySelectorAll('#props-panel details[data-section]')).map((x) => x.dataset.section),
           card: d ? { aperta: d.open, anteprima: prev ? prev.textContent.trim() : '', testo: d.textContent, tip: Array.from(d.querySelectorAll('.pl-item')).map((e) => e.getAttribute('data-tip') || '').join(' | ') } : null,
           drift: { n: rep.counts.ifHealth, azionabile: driftActionable(rep.counts),
                    righe: (rep.ifHealth || []).map((x) => ({ nodeId: x.nodeId, ifName: x.ifName, grew: x.grew, deltas: x.deltas, source: x.source, oids: x.oids })) },
@@ -2147,6 +2148,12 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.ok(r.card, 'la scheda c\'e\' dopo la prima lettura');
       assert.equal(r.card.aperta, false, 'chiusa di default: una rete sana e\' quasi tutta a zero');
       assert.equal(r.card.anteprima, 'prima lettura');
+      // L'ordine del pannello di un apparato da rack: Salute interfacce e Sensori ambientali stanno SOPRA Stacking (non in fondo, dentro Integrazione).
+      const _sez = r.sezioni, _iH = _sez.indexOf('if-health'), _iS = _sez.indexOf('stacking'), _iI = _sez.indexOf('integration');
+      assert.ok(_iH >= 0 && _iS >= 0 && _iI >= 0, 'nel pannello dello switch ci sono salute, stacking e integrazione: ' + _sez.join(', '));
+      assert.ok(_iH < _iS, 'Salute interfacce sta sopra Stacking: ' + _sez.join(', '));
+      if (_sez.includes('sensors-health')) assert.ok(_iH < _sez.indexOf('sensors-health') && _sez.indexOf('sensors-health') < _iS, 'Sensori ambientali sta fra Salute interfacce e Stacking: ' + _sez.join(', '));
+      assert.ok(_iS < _iI, 'e Stacking resta prima di Integrazione: ' + _sez.join(', '));
       assert.match(r.card.testo, /Prima lettura di 3 interfacce/);
       assert.equal(r.drift.n, 0, 'senza una lettura precedente non c\'e\' nessuna differenza da dire');
       let sc = await sidecar();
