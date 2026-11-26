@@ -280,6 +280,27 @@ lib/                   Shared browser + test modules (the heart of the app)
                     counters change every second, so a saved figure would look current without being
                     (`pollPort` in drivers/snmp.js, `POST /api/poll-port`, admin only, like every SNMP
                     route; src/app-port-live.js draws the fold in the port's properties)  (pure)
+  health-store.js   the health of the devices — interfaces and environmental sensors — as FLAT SCALAR
+                    ROWS (one interface = one row; `HEALTH_IF_COLUMNS` is the only list of columns and
+                    will be the SQL table's), the merge of a new reading into the saved one, and what
+                    two readings become: «N errors between reading A and reading B», never a rate and
+                    never a threshold; a restart (`sysUpTime` down), the device's own discontinuity
+                    mark or a counter that went down give NO difference. A column the device does not
+                    publish is `null` = «not read», never zero. Sensors: ENTITY-SENSOR-MIB scaled by
+                    the sensor's own scale and precision (±1000000000 is RFC 3433's underflow or
+                    overflow = «unavailable», not a number); a vendor MIB only as DATA
+                    (`HEALTH_SENSOR_FAMILIES`, read by one generic reader and gated by the same
+                    `_baseApplies` as the main walk — no vendor name in the driver, and a test reads
+                    the driver to enforce it); the severity is the device's own, and a threshold of
+                    the user's only where the device is silent (`user_default`). The user's thresholds
+                    — project defaults plus per-device exceptions, inherited field by field — are
+                    sanitised and applied here (`healthSanitizeThresholds`, `healthThresholdsFor`,
+                    `healthThresholdsApply`: the one definition behind both the preview and the write;
+                    `healthScaleModel`: the scale the panel draws)  (pure)
+  neighbor-store.js the LLDP/CDP neighbours each device reports, kept with when they were last heard
+                    and for how many healthy reads in a row they were missing: «silent» after three; a
+                    failed read never counts, a neighbour heard on another port has only moved, and a
+                    device that reports none any more is ONE fact, not one row each  (pure)
   field-provenance.js  where a value came from: the `copiedFromRead` mark, `fieldSource`
                     (what a panel asks to draw "Measured" or "Declared") and the registry
                     of every field that a reading and a person can both write, each with
@@ -1085,6 +1106,83 @@ interface address, status, speed, duplex), *VLAN* — a fold like the cable's, w
 closed — and the live reading last. Every properties panel that draws folds carries the expand-all / collapse-all
 / reset buttons in its header, all from `_propsToggleButtonsHtml` (a passive stage, which has no fold, has none);
 `test/props-header-toggles.test.js` requires it.
+
+### Device health: read at every Sync, kept outside the project, and the device speaks first
+
+The Sync reads three more things from a network device and shows them without ever claiming more than the
+device said: the state and the error, discard and FCS counters of every interface, the environmental sensors
+(temperature, fans, power supplies, voltages), and the LLDP/CDP neighbours it reports.
+
+The path: after the main read of every Sync, `pollHealthForNodes` in `src/app-health.js` asks each node that
+answered and is a network type with an SNMP target (`_eligible`) → `POST /api/poll-health` (admin only, like
+every SNMP route; the server keeps nothing) → `pollHealth` in `drivers/snmp.js` reads the interfaces, then the
+sensors — first only the value column of ENTITY-SENSOR-MIB and the other four columns only if it has rows (on a
+real Zyxel that took the pass from 16.7 s to 2.5 s) — → the client merges the reading into the saved one
+(`healthFold` in `lib/health-store.js`) and sends the result with `PUT /api/projects/:id/history/health`. The
+neighbours come from the topology step the full Sync already runs: `src/app-neighbors.js` takes what
+`store._topoNeighborsCache` holds (no extra read) and `neighborFold` keeps it in `neighbors.json`.
+
+**Why none of it is in the project.** It is a measurement: it changes at every Sync and grows with the devices
+(about 100 bytes per interface; a hundred 48-port switches would add about 460 KB, when the largest real project
+measured at the time was 224 KB), and every save, snapshot and load would carry it. So it lives in the history sidecars
+`history/<id>/health.json` and `neighbors.json`, behind the `historyStore` interface (`saveHealth` / `readHealth`
+and `saveNeighbors` / `readNeighbors` are the only functions a database replaces; the rows are flat and scalar,
+one interface per row). It is read lazily (`ensureHealthLoaded`) and never reaches `state`: no PUT of the
+project, no snapshot, no export, no undo step. The one health fact saved with the project is the user's own
+declaration, `state.healthThresholds` (class `document` in `lib/project-schema.js`).
+
+**What the readings never do.**
+
+- **Not read is not zero.** A column or a sensor the device does not publish is `null` / «not published», and the
+  card says so; «all fine» is said only where the device itself says «ok». A scalar that answers 0 with no state
+  (a MikroTik CHR answered 0 on a temperature it does not have) is not a measurement, and a sensor value of
+  ±1000000000 is the standard's way of saying «no reading» (a recording of a real switch answers it on 29
+  optical modules without light): both become «unavailable».
+- **A difference is an interval between two readings**, «N errors between A and B» — not a rate, and with no
+  threshold of the app's own: by default every rise shows. A restart, a counters-restart the device reports, or
+  cleared counters give no difference instead of an invented one.
+- **The device speaks first.** A sensor's severity is its own state or declared limits; only where it is silent
+  does a threshold the user wrote apply, and it carries `severitySource: user_default` — the row's hover says
+  who decided it. Vendor MIBs are only a fallback for the kinds the standard did not give, written as data
+  (`HEALTH_SENSOR_FAMILIES`) and asked only of a device whose `sysObjectID` belongs to that vendor. What could
+  not be verified from a source is not read: the Juniper FRU table, the MikroTik gauge table and power states,
+  HP/Aruba, Cisco's threshold table.
+- **Silence is not contradiction.** A neighbour is silent after three healthy reads without it; it never says a
+  cable was removed. It shows only in the Verification (`neighborLost`), with the protocol, the OID and the
+  date in its hover — there is no fold for it on the device.
+
+**In the Verification** (`lib/drift-report.js`): `ifHealth`, `sensorWarn` and `neighborLost` are informational
+(there is no document to correct and no threshold to cross); `sensorHealth` — a critical sensor — enters the
+actionable queue and the banner stops reading «aligned». The overview keeps «sensors» as a read-and-shown-elsewhere
+blind spot: it does not judge them.
+
+**Tolerances.** `state.healthThresholds` is
+`{ temperature: {warn, crit}, ifErrors: {min}, nodes: { <nodeId>: { temperature, ifErrors } } }`: the project's
+defaults and, per device, an exception. Rules that live in `lib/health-store.js`, once:
+
+- a device inherits **field by field** (`healthThresholdsFor`): its own warning with the project's critical is
+  fine, and an empty field means «as the project»;
+- **a value equal to the project's is not an exception** — the device keeps following the project if it changes
+  (`healthThresholdsApply` drops it);
+- `healthThresholdsApply(raw, scope, nodeId, fields, known)` is the **only definition of a change**: the panel's
+  preview («SW-CORE changes: was in warning, becomes fine») and the write call the same function, so they cannot
+  diverge; a project value of «errors from» is valid from 2, a device's from 1 («every rise»);
+- the file is capped (5000 devices), a key such as `__proto__` is skipped, and the exceptions of a device that no
+  longer exists are dropped at the next write.
+
+Where they are set: the compact section of the project panel and the panel «Tolerance» that opens under a
+warning row (`src/app-health.js`: `applyHealthTolerances`, `clearHealthTolerances`, `setHealthThreshold` — each
+change is ONE undo step and writing the same value does not dirty the project), and the table window
+(`src/app-tolerances.js`, shell `#tol-overlay`): one row per device with its reading, in two groups — *With their
+own threshold* and *As the project* — with no checkbox and no status label: an own number has a blue border and its
+own ↺ inside the field, and *Set for all (N)…* / *All back to the project* sit in the group header and act on the
+rows the filters show. A row is patched **in place** and, when a change moves the device to the other group, the
+same element is moved (a moved element loses the focus, so `_patchAll` gives it back to the field that had it).
+
+Two traps this cost: the e2e flows share the client's health memory of the open project, so each flow that reads
+health uses devices and addresses of its own (two readings with the same counters on the same device say «no
+rise»); and a new section of an existing panel takes the class of its **sisters** (`props-primary` in the project
+panel), not the one of a device card.
 
 ### Spanning-tree: a reading that is valid as a whole, or does not exist
 
