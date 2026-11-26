@@ -3023,9 +3023,13 @@ function extractEntitySensors(vbs, names) {
     const t = HEALTH.healthEntityType(_asInt(types[idx]));
     const status = HEALTH.healthEntityStatus(_asInt(stats[idx]));
     // Il valore conta solo se l'apparato dice che e' operativo: con «unavailable» il numero non vuol dire niente.
-    let value = status === 'ok' ? HEALTH.healthEntityValue(_asInt(vals[idx]), _asInt(scales[idx]), _asInt(precs[idx])) : null;
+    const rawV = _asInt(vals[idx]);
+    let value = status === 'ok' ? HEALTH.healthEntityValue(rawV, _asInt(scales[idx]), _asInt(precs[idx])) : null;
     let state = status;
-    if (status === 'ok' && value === null) state = 'unknown';   // scala o precisione fuori dallo standard: non si indovina
+    // RFC 3433: ±1000000000 e' un errore di lettura (underflow/overflow), non una misura: l'apparato dice «ok» ma non ha un valore.
+    // Un apparato vero (29 moduli ottici senza luce) risponde cosi': «non disponibile», mai un numero.
+    if (status === 'ok' && (rawV === 1000000000 || rawV === -1000000000)) state = 'unavailable';
+    else if (status === 'ok' && value === null) state = 'unknown';   // scala o precisione fuori dallo standard: non si indovina
     rows.push({
       sid: 'ent:' + idx, kind: t.kind, label: (names && names[idx]) || ('Sensor ' + idx), value, unit: t.unit, state,
       mib: 'ENTITY-SENSOR-MIB', oid: `${C.value}.${idx}`, limLo: null, limHi: null,

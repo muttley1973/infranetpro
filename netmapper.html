@@ -805,6 +805,26 @@
   </div>
 </div>
 
+<!-- ===== MODAL TOLLERANZE DI SALUTE (tabella di tutti gli apparati) ===== -->
+<div id="tol-overlay" class="tool-modal-overlay" data-act="tol-backdrop">
+  <div id="tol-modal" class="tool-modal" role="dialog" aria-modal="true" aria-labelledby="tol-title">
+    <div class="tool-modal-header">
+      <h3 id="tol-title"><i class="fas fa-sliders"></i> <span data-i18n="tol.t.title">Tolleranze di salute</span><small class="tol-sub" id="tol-sub"></small></h3>
+      <button class="toolbar-btn" data-act="tol-close" style="padding:4px 8px" data-tip="Chiudi"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="tol-tools">
+      <label class="tol-search"><i class="fas fa-search"></i><input type="search" id="tol-q" data-input="tol-search" data-i18n-ph="tol.t.search" placeholder="Cerca un apparato…" autocomplete="off"></label>
+      <div id="tol-chips" class="tol-chips"></div>
+      <select id="tol-type" class="tol-select" data-change="tol-type" aria-label="Tipo"></select>
+    </div>
+    <div class="tool-modal-body tol-body" id="tol-body"></div>
+    <div class="tool-modal-footer tol-foot">
+      <span class="tol-hint" data-i18n="tol.t.hint">Azzurro = tolleranza propria · grigio = come il progetto. Scrivi un numero e l'apparato passa nel primo gruppo. 1 = ogni aumento di errori.</span>
+      <button class="toolbar-btn primary" data-act="tol-close" data-i18n="tol.t.close">Chiudi</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== MODAL TOPOLOGY CRAWL ===== -->
 <!-- ===== MODAL EDITOR PROTOCOLLI MANAGEMENT ===== -->
 <div id="mgmt-proto-overlay" class="tool-modal-overlay" style="display:none" data-act="mgmt-proto-backdrop">

@@ -272,3 +272,19 @@ test('riepilogo: DUE vicini diversi silenziosi sulla stessa porta locale (un hub
   assert.equal(s.groups.length, 2);
   assert.deepEqual(s.groups.map(g => g.remoteName).sort(), ['B', 'C']);
 });
+
+// ── La riga della Verifica e' il SOLO posto dei vicini silenziosi ───────────────────────────
+// Il pannello dell'apparato non ha piu' una scheda (decisione dell'utente: «lo lasciamo solo dentro a dashboard»): quello che la scheda
+// diceva — che il silenzio non e' una contraddizione — deve stare nel suggerimento della riga, altrimenti la Verifica direbbe «vicino
+// non riferito» senza dire che NON e' un cavo tolto.
+test('il suggerimento della riga della Verifica dice da dove viene e che il silenzio non e\' una contraddizione (IT e EN)', () => {
+  const I = require('../lib/i18n.js');
+  try {
+    for (const [lang, re] of [['it', /Silenzio non è contraddizione: non dice che il cavo sia stato tolto/], ['en', /Silence is not contradiction: it does not say a cable was removed/]]) {
+      I.setLang(lang);
+      const tip = I.t('nb.drift.tip', { proto: 'LLDP', oid: '1.0.8802.1.1.2.1.4.1', when: 'x', n: '3', port: 'p' });
+      assert.match(tip, re, lang);
+      assert.match(tip, /1\.0\.8802\.1\.1\.2\.1\.4\.1/, lang + ': dice da quale OID lo sa');
+    }
+  } finally { I.setLang('it'); }
+});

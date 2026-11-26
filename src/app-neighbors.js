@@ -1,11 +1,15 @@
 // ============================================================
-// VICINI NON PIU' RIFERITI — la memoria dei vicini LLDP/CDP, il sidecar, la scheda e l'ingresso del Drift
+// VICINI NON PIU' RIFERITI — la memoria dei vicini LLDP/CDP, il sidecar e l'ingresso del Drift
 // ============================================================
 // Ogni Sync completo legge dai dispositivi i vicini che dichiarano LLDP/CDP (la fase topologia) e li lascia in
 // `store._topoNeighborsCache`, che si RISCRIVE a ogni giro. Qui si prende QUELLA cache (nessuna lettura SNMP in piu', nessun
 // cambio alla scoperta o alla fusione), si manda al sidecar `history/<id>/neighbors.json` e si dice quali vicini noti non si sentono
 // piu' da N letture sane di fila. La logica (cosa conta come silenzio, spostato, porta giu', apparato muto) e' in
-// lib/neighbor-store.js e ha i suoi test; qui c'e' la raccolta e il disegno.
+// lib/neighbor-store.js e ha i suoi test; qui c'e' la raccolta e l'ingresso del Drift.
+//
+// I vicini silenziosi si vedono SOLO nella Verifica (la Panoramica): nel pannello dell'apparato non c'e' una scheda (decisione
+// dell'utente, 25/11: «lo lasciamo solo dentro a dashboard»). La riga della Verifica dice cosa sa — quando l'ha sentito l'ultima
+// volta, da quale protocollo e OID — e che il silenzio non e' una contraddizione.
 //
 // ── Cosa NON fa, di proposito ──────────────────────────────────────────────────
 //   • non scrive NIENTE nel documento (la cache di sessione resta `derived`, il sidecar e' una misura fuori dal progetto);
@@ -14,22 +18,16 @@
 //   • non conta un silenzio dove la lettura non e' riuscita: entrano solo gli apparati riletti IN QUESTO giro (`ts` della cache);
 //   • non rifa quello che gia' fanno le porte giu' e il cavo fantasma: una porta locale giu' non genera una riga;
 //   • non guarda l'ARP: lo stato ARP lo pubblica un apparato su sei, e l'ARP mancante e' il lavoro del motore di presenza.
-// Solo amministratori, come lo storico. Foglia: non importa app.js ne' app-properties.js; il pannello importa lui questo, e per
-// ridisegnarsi a dati arrivati si registra una funzione da fuori (`setNeighborsRepaint`).
+// Solo amministratori, come lo storico. Foglia: non importa app.js ne' app-properties.js.
 
-import { t, getLang } from './_bridge.js';
 import { store } from './store.js';
-import { escapeHTML } from './app-util.js';
-import { hasSnmpTarget } from '../lib/snmp-target.js';
 import { neighborFold, neighborDecodeFile, neighborSanitizePut, neighborSummarize, NEIGHBOR_PROTOCOLS } from '../lib/neighbor-store.js';
-import { ifOperOf, healthRowHtml, healthNoteHtml, healthMarkHtml } from './app-health.js';
+import { ifOperOf } from './app-health.js';
 
 const STALE_MS = 24 * 3600 * 1000;   // le letture dei vicini seguono i giri COMPLETI, piu' radi: oltre un giorno non e' lo stato di adesso
-const LIST_MAX = 12;
 
-let _pid = null, _file = null, _decoded = null, _loading = null, _retryAt = 0, _repaint = null;
+let _pid = null, _file = null, _decoded = null, _loading = null, _retryAt = 0;
 const _isViewer = () => !!(store._currentUser && store._currentUser.role === 'viewer');
-export function setNeighborsRepaint(fn) { _repaint = typeof fn === 'function' ? fn : null; }
 
 function _sync() {
     if (_pid !== store.currentProjectId) { _pid = store.currentProjectId; _file = null; _decoded = null; _loading = null; _retryAt = 0; }
@@ -47,7 +45,7 @@ export function ensureNeighborsLoaded() {
         .then(r => (r.ok ? r.json() : null))
         .then(j => {
             if (pid !== _pid) return null;
-            if (j && j.neighbors && typeof j.neighbors === 'object') { _setFile(j.neighbors); if (_repaint) _repaint(); return _file; }
+            if (j && j.neighbors && typeof j.neighbors === 'object') { _setFile(j.neighbors); return _file; }
             _retryAt = Date.now() + 30000;
             return null;
         })
@@ -93,38 +91,6 @@ function _summary(node) {
     return { slot, sum: neighborSummarize(slot, { portState: (ifName) => ifOperOf(node.id, ifName) }) };
 }
 
-const _when = (ms) => new Date(ms).toLocaleString(getLang());
-const _num = (n) => Number(n).toLocaleString(getLang());
-
-function _bodyHtml(sum) {
-    const lines = [];
-    if (sum.deviceSilent) {
-        lines.push(healthNoteHtml(t('nb.deviceSilent', { n: _num(sum.silentCount), when: _when(sum.lastHeardAt) })));
-    } else {
-        for (const g of sum.groups.slice(0, LIST_MAX)) {
-            const via = g.protos.join('/') + (g.ports.length ? ' · ' + g.ports.join(', ') : '');
-            const port = g.portState === 'up' ? t('nb.port.up') : t('nb.port.unknown');
-            lines.push(healthRowHtml(g.remoteName || g.remoteId, g.localIf, { warn: true, sub: `${t('nb.lastHeard', { when: _when(g.lastAt), n: _num(g.misses) })} · ${port}`, tip: via }));
-        }
-        if (sum.groups.length > LIST_MAX) lines.push(healthNoteHtml(t('ifh.more', { n: _num(sum.groups.length - LIST_MAX) })));
-    }
-    lines.push(healthNoteHtml(t('nb.src')));
-    return `<div class="pl-stack"><div class="pl-grp"><div class="pl-gt">${healthMarkHtml('derived')}${escapeHTML(t('nb.grp'))}</div>${lines.join('')}</div></div>`;
-}
-
-// La scheda «Vicini non riferiti»: compare SOLO se c'e' qualcosa da dire (un apparato con tutti i vicini che tacciono, o singoli
-// vicini silenziosi). In una rete a posto non occupa il pannello. `open` = lo stato della fisarmonica, deciso dal pannello.
-export function neighborsCardHtml(node, open) {
-    if (!node || !hasSnmpTarget(node)) return '';
-    _sync();
-    if (!_file) { ensureNeighborsLoaded(); return ''; }
-    const r = _summary(node);
-    if (!r || (!r.sum.deviceSilent && !r.sum.groups.length)) return '';
-    const sum = r.sum;
-    const prev = sum.deviceSilent ? t('nb.prev.device') : t('nb.prev.n', { n: _num(sum.groups.length) });
-    return `<details class="props-collapsible props-secondary pl-section" ${open ? 'open' : ''} data-toggle="props-section" data-section="neighbors-health" data-ifh-nid="${escapeHTML(node.id)}"><summary class="props-collapsible-head"><span><i class="fas fa-link-slash"></i> ${escapeHTML(t('nb.title'))}</span><span class="props-collapsible-preview pl-warn">${escapeHTML(prev)}</span><i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body"><div class="pl-body">${_bodyHtml(sum)}</div></div></details>`;
-}
-
 // Per il Drift: i vicini silenziosi (e gli apparati che non ne riferiscono piu') degli apparati letti di recente. Ingresso
 // `snmp.neighborLost` di buildDriftReport. Ogni riga dice da quale protocollo, da quale OID e quando.
 export function neighborDriftInput(nodes) {
@@ -150,4 +116,4 @@ export function neighborDriftInput(nodes) {
 }
 
 // Solo per i test.
-export function _neighborsReset() { _pid = null; _file = null; _decoded = null; _loading = null; _retryAt = 0; _repaint = null; }
+export function _neighborsReset() { _pid = null; _file = null; _decoded = null; _loading = null; _retryAt = 0; }

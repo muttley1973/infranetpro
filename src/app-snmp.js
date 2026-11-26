@@ -35,7 +35,7 @@ import { registerClickActions } from './app-delegation.js';   // ASSE B: azione 
 import { snmpReadBudgetMs } from '../lib/auto-monitor.js';   // quanto aspettare UNA lettura prima di abbandonarla (lib pura)
 import { postJsonWithDeadline } from './app-util.js';   // POST con scadenza lato client (foglia: nessun ciclo)
 import { pollHealthForNodes, setHealthRepaint } from './app-health.js';
-import { recordNeighbors, setNeighborsRepaint } from './app-neighbors.js';   // vicini LLDP/CDP: la memoria del giro prima (foglia)   // salute delle interfacce: un passo a parte dopo la lettura principale (foglia)
+import { recordNeighbors } from './app-neighbors.js';   // vicini LLDP/CDP: la memoria del giro prima (foglia)   // salute delle interfacce: un passo a parte dopo la lettura principale (foglia)
 import { hasSnmpDriver, hasSnmpTarget, snmpTargetHost } from '../lib/snmp-target.js';   // «si interroga con SNMP?» e «a quale indirizzo?»: la definizione sta in un posto solo
 
 // POST di UNA lettura SNMP (`/api/poll`, `/api/poll-power`) con scadenza lato CLIENT.
@@ -61,7 +61,6 @@ export async function postSnmpRead(url, body){
 // La scheda «Salute interfacce» legge il suo file dal server una volta e, arrivato, chiede al pannello di ridisegnarsi.
 // La funzione si registra da qui (e non dentro app-health.js) perche' quel modulo e' una foglia: non importa il pannello.
 setHealthRepaint(() => { try { renderProps(); } catch(_) { /* pannello non ancora pronto */ } });
-setNeighborsRepaint(() => { try { renderProps(); } catch(_) { /* pannello non ancora pronto */ } });
 
 // Tipi per cui richiedere HOST-RESOURCES-MIB standard (CPU/RAM/dischi). Oltre agli
 // host generici, includiamo gli apparati di rete spesso Linux-based (MikroTik,

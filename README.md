@@ -526,7 +526,7 @@ RUN_E2E=1 npm run e2e # headless end-to-end in a real Chrome — off by default
 - Coverage focuses on the pure logic that has historically broken: SNMP parsing, discovery and classification, the three engines, cable validation, IPAM and LAG audits — plus an app-wide smoke test that loads every script into a DOM stub and asserts rendering never throws.
 
 Current local quality baseline:
-- `npm run check` parses every JS source of the product — **676** of them.
+- `npm run check` parses every JS source of the product — **677** of them.
 - `npm test` runs the full regression suite (currently **5,301 tests, 0 failing**) plus a real‑browser E2E suite (`RUN_E2E=1`, **167 flows**).
 - `npm run release -- check` is the gate before a tag: the version in its four places, a CHANGELOG section that lists something, and the test count measured against what the suite really prints.
 

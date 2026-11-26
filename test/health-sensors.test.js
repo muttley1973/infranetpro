@@ -141,6 +141,14 @@ test('scala: precisione NEGATIVA = cifre accurate, NON sposta la virgola', () =>
 test('scala: valori negativi (temperatura sotto zero)', () => {
   assert.equal(H.healthEntityValue(-35, 9, 1), -3.5);
 });
+test('scala: ±1000000000 e\' un ERRORE di lettura (RFC 3433: underflow/overflow), non una misura — gli ultimi valori validi restano', () => {
+  // Misurato su una registrazione vera: 29 moduli ottici senza luce rispondevano -1000000000 con stato «ok» e la scheda mostrava «-100 W».
+  assert.equal(H.healthEntityValue(-1000000000, 8, 4), null);
+  assert.equal(H.healthEntityValue(1000000000, 9, 0), null);
+  assert.equal(H.healthEntityValue(-1000000001, 9, 0), null, 'fuori dal tipo: nemmeno quello');
+  assert.equal(H.healthEntityValue(999999999, 9, 0), 999999999, 'l\'ultimo valore valido resta un valore');
+  assert.equal(H.healthEntityValue(-999999999, 9, 0), -999999999);
+});
 test('scala: fuori dagli intervalli dello standard → null, non si indovina', () => {
   for (const [s, p] of [[0, 0], [18, 0], [9, -9], [9, 10], [9.5, 0], [9, 1.5], [null, 0], [9, null], ['x', 0]]) {
     assert.equal(H.healthEntityValue(100, s, p), null, `scala ${s} precisione ${p}`);
@@ -327,7 +335,7 @@ test('riepilogo: passo non fatto → not_read; apparato che non pubblica sensori
   assert.deepEqual(na.items, []);
   assert.equal(na.counts.total, 0);
 });
-test('riepilogo: i sensori ci sono, ordinati per gravita\' e poi per tipo e nome; conteggi onesti', () => {
+test('riepilogo: i sensori ci sono, ordinati per gravita\' e poi per tipo (temperatura prima) e caldo; conteggi onesti', () => {
   const rd = H.healthReading(reading([
     sens({ sid: 'a:1', label: 'Zeta', value: 40 }),
     sens({ sid: 'a:2', label: 'Alfa', value: 90, state: 'warning' }),
@@ -337,10 +345,65 @@ test('riepilogo: i sensori ci sono, ordinati per gravita\' e poi per tipo e nome
   ]));
   const s = H.healthSummarizeSensors(rd);
   assert.equal(s.state, 'read');
-  assert.deepEqual(s.items.map(i => i.sid), ['a:3', 'a:2', 'a:5', 'a:4', 'a:1'].sort((x, y) => s.items.map(i => i.sid).indexOf(x) - s.items.map(i => i.sid).indexOf(y)));
+  // critico, avviso; poi la temperatura (la letta prima di quella non letta), poi l'alimentatore
+  assert.deepEqual(s.items.map(i => i.sid), ['a:3', 'a:2', 'a:1', 'a:4', 'a:5']);
   assert.equal(s.items[0].sid, 'a:3', 'prima il critico');
   assert.equal(s.items[1].sid, 'a:2', 'poi l\'avviso');
   assert.deepEqual(s.counts, { total: 5, crit: 1, warn: 1, unavailable: 3, absent: 1 });
+});
+
+// ── L'ordine dei sensori: serve a chi guarda una lista di 226 ─────────────────────────────────
+// Misurato su una registrazione SNMP vera (uno switch con 226 sensori): l'ordine alfabetico dei TIPI metteva le correnti dei moduli ottici
+// prima delle temperature dell'apparato. Ogni caso sta perche' un ordine sbagliato direbbe una cosa plausibile: «40 sensori, nessuna
+// temperatura».
+const ids = (items) => items.map(i => i.sid);
+const sumOf = (list, thr) => H.healthSummarizeSensors(H.healthReading(reading(list)), thr);
+test('ordine: senza gravita\' i tipi vanno nell\'ordine di HEALTH_SENSOR_KINDS (temperatura, ventole, alimentatori, tensioni, correnti, potenze, altro)', () => {
+  const list = H.HEALTH_SENSOR_KINDS.slice().reverse().map((kind, i) => sens({ sid: 'k:' + kind, kind, label: 'Z' + i, value: 5, unit: '' }));
+  assert.deepEqual(ids(sumOf(list).items), H.HEALTH_SENSOR_KINDS.map(k => 'k:' + k));
+});
+test('ordine: dentro la temperatura il piu\' CALDO prima, il non letto in fondo; a parita\' per nome', () => {
+  const s = sumOf([
+    sens({ sid: 't:fresco', label: 'Fresco', value: 22.4 }),
+    sens({ sid: 't:nl', label: 'Aaa non letto', value: null, state: 'unavailable' }),
+    sens({ sid: 't:caldo', label: 'Zzz caldo', value: 64.8 }),
+    sens({ sid: 't:b', label: 'B pari', value: 40 }),
+    sens({ sid: 't:a', label: 'A pari', value: 40 }),
+  ]);
+  assert.deepEqual(ids(s.items), ['t:caldo', 't:a', 't:b', 't:fresco', 't:nl']);
+});
+test('ordine: dentro gli altri tipi per nome, e i numeri contano come numeri (Fan 2 prima di Fan 10)', () => {
+  const s = sumOf([
+    sens({ sid: 'f:10', kind: 'fan', label: 'Fan 10', value: 4000, unit: 'rpm' }),
+    sens({ sid: 'f:2', kind: 'fan', label: 'Fan 2', value: 9000, unit: 'rpm' }),
+    sens({ sid: 'f:1', kind: 'fan', label: 'Fan 1', value: 1000, unit: 'rpm' }),
+  ]);
+  assert.deepEqual(ids(s.items), ['f:1', 'f:2', 'f:10'], 'per nome, NON per giri: una ventola lenta non e\' «piu\' importante» se l\'apparato non lo dice');
+});
+test('ordine: la gravita\' viene sempre prima del tipo — un avviso di corrente sta sopra una temperatura a posto', () => {
+  const s = sumOf([
+    sens({ sid: 'ok:t', label: 'CPU', value: 99 }),
+    sens({ sid: 'warn:c', kind: 'current', label: 'Corrente', value: 3, unit: 'A', state: 'warning' }),
+    sens({ sid: 'crit:v', kind: 'voltage', label: 'Tensione', value: 11, unit: 'V', state: 'critical' }),
+  ]);
+  assert.deepEqual(ids(s.items), ['crit:v', 'warn:c', 'ok:t']);
+});
+test('ordine: uno switch con tanti moduli ottici — le temperature dell\'apparato (le piu\' calde) stanno in cima, le correnti in fondo', () => {
+  const list = [];
+  for (let i = 1; i <= 35; i++) list.push(sens({ sid: 'dom:t' + i, label: 'DOM Temperature Sensor for Ethernet' + i, value: 22 + (i % 18) }));   // 22-39
+  for (let i = 1; i <= 39; i++) list.push(sens({ sid: 'dom:c' + i, kind: 'current', label: 'DOM Current for Ethernet' + i, value: 0.006, unit: 'A' }));
+  const caldi = [64.8, 64, 53.3, 52, 48, 47];
+  caldi.forEach((v, i) => list.push(sens({ sid: 'dev:t' + i, label: 'Sensore dell\'apparato ' + i, value: v })));
+  const s = sumOf(list);
+  assert.deepEqual(ids(s.items).slice(0, 6), caldi.map((v, i) => 'dev:t' + i), 'le sei piu\' calde sono le dell\'apparato, senza guardare nessun nome');
+  const firstCurrent = ids(s.items).findIndex(x => x.startsWith('dom:c'));
+  assert.equal(firstCurrent, 35 + 6, 'le correnti vengono dopo TUTTE le temperature');
+});
+test('ordine: un tipo che l\'elenco non conosce va in fondo, e l\'ordine e\' lo stesso a ogni lettura', () => {
+  const list = [sens({ sid: 'x:1', kind: 'altro-tipo', label: 'A', value: 1, unit: '' }), sens({ sid: 'x:2', label: 'B', value: 9 }), sens({ sid: 'x:3', kind: 'other', label: 'C', value: 2, unit: '' })];
+  const a = ids(sumOf(list).items), b = ids(sumOf(list.slice().reverse()).items);
+  assert.deepEqual(a, b, 'non dipende dall\'ordine in cui l\'apparato li ha elencati');
+  assert.equal(a[0], 'x:2');
 });
 test('riepilogo: le soglie dell\'utente entrano nel conteggio, e dicono da chi vengono', () => {
   const rd = H.healthReading(reading([sens({ value: 80 })]));

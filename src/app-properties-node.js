@@ -40,7 +40,6 @@ import { _deviceTypeApplyHtml } from './app-device-types.js';   // "Applica mode
 import { registerClickActions, registerChangeActions, registerInputActions } from './app-delegation.js';   // ASSE B (Blocco 4): event delegation degli handler inline del pannello NODE
 import { updateIntegration, pollSNMP } from './app-snmp.js';   // ritiro ponte: integrazione SNMP (ex win.*)
 import { ifHealthCardHtml, sensorsCardHtml } from './app-health.js';
-import { neighborsCardHtml } from './app-neighbors.js';   // vicini LLDP/CDP non piu' riferiti: scheda solo se c'e' qualcosa da dire   // salute delle interfacce (errori/scarti/stato): scheda dell'apparato, letta dal sidecar, mai dal documento
 import { toggleRoomLock, _liveStructColor, _liveStructOpacity, moveNodeToRack } from './app-search-zoom-rack.js';   // ritiro ponte: lock stanza · colore/opacita' live · sposta rack (ex win.*)
 
 // Le due tendine della fibra — connettore e classe — di un patch panel in fibra/misto E di un cassetto ottico: UNA
@@ -1129,7 +1128,7 @@ ${_fdRow1Html}${_fdRow2Html}${_fdOverHtml}${_fdModulesBlock}${_fdComposeHtml}
                   return `<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;padding:8px 9px;background:rgba(139,148,158,.07);border:1px solid rgba(139,148,158,.25);border-radius:5px;font-size:var(--fs-2xs)">${rows.join('')}</div>`;
                 })() : '';
                 // Salute delle interfacce: la scheda esiste solo se c'e' una lettura (il Sync la fa); sta nel sidecar, non nel documento.
-                const snmpIfHealthBlock = showSnmp ? ifHealthCardHtml(n, _propsSectionIsOpen('if-health')) + sensorsCardHtml(n, _propsSectionIsOpen('sensors-health')) + neighborsCardHtml(n, _propsSectionIsOpen('neighbors-health')) : '';
+                const snmpIfHealthBlock = showSnmp ? ifHealthCardHtml(n, _propsSectionIsOpen('if-health')) + sensorsCardHtml(n, _propsSectionIsOpen('sensors-health')) : '';
                 const snmpImportBlock = showSnmp ? `<div style="margin-top:10px"><button class="toolbar-btn primary" style="width:100%;font-size:0.78rem;padding:5px 6px" id="snmp-poll-btn" data-act="snmp-poll" data-nid="${n.id}"><i class="fas fa-network-wired"></i> ${t('snmp.import')}</button></div>` : '';
                 // Avviso: device SNMPv3 rilevato dalla discovery senza credenziali.
                 const snmpV3CredWarn = v3NeedsCreds ? `<div style="display:flex;align-items:center;gap:6px;margin-top:10px;padding:6px 8px;background:rgba(210,153,34,.10);border:1px solid rgba(210,153,34,.35);border-radius:5px;font-size:var(--fs-2xs)"><i class="fas fa-key" style="color:#d29922;flex-shrink:0"></i><span style="color:#d29922;font-weight:600">${t('intg.v3NeedsCreds')}</span></div>` : '';

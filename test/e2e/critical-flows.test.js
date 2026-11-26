@@ -2123,7 +2123,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const rep = _driftComputeFromDoc(_driftBuildDocSnapshot());
         return {
           chiamate,
-          card: d ? { aperta: d.open, anteprima: prev ? prev.textContent.trim() : '', testo: d.textContent } : null,
+          card: d ? { aperta: d.open, anteprima: prev ? prev.textContent.trim() : '', testo: d.textContent, tip: Array.from(d.querySelectorAll('.pl-item')).map((e) => e.getAttribute('data-tip') || '').join(' | ') } : null,
           drift: { n: rep.counts.ifHealth, azionabile: driftActionable(rep.counts),
                    righe: (rep.ifHealth || []).map((x) => ({ nodeId: x.nodeId, ifName: x.ifName, grew: x.grew, deltas: x.deltas, source: x.source, oids: x.oids })) },
           nelloStato: JSON.stringify(state).includes('inErrors'),
@@ -2160,7 +2160,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       assert.match(r.card.testo, /Gi1/);
       assert.match(r.card.testo, /\+4 errori in/);
       assert.match(r.card.testo, /\+2 FCS/);
-      assert.match(r.card.testo, /intervallo 60 min \(tempo dell'apparato\)/,'l\'intervallo e\' quello DELL\'APPARATO (sysUpTime), e lo dice');
+      // L'intervallo (e l'orologio su cui e' misurato) sta nel SUGGERIMENTO della riga, non in un paragrafo della scheda.
+      assert.match(r.card.tip, /intervallo 60 min \(tempo dell'apparato\)/, 'l\'intervallo e\' quello DELL\'APPARATO (sysUpTime), e lo dice');
+      assert.doesNotMatch(r.card.testo, /Confronto con la lettura|Letto via SNMP/, 'sulla scheda niente paragrafi: il come si sa passando sulla riga');
       assert.doesNotMatch(r.card.testo, /Gi2|Gi3/, 'le interfacce a zero non si elencano');
       assert.equal(r.drift.n, 1);
       assert.deepEqual(r.drift.righe[0].grew, ['inErrors', 'fcs']);
@@ -2222,9 +2224,12 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const prev = d && d.querySelector('summary .props-collapsible-preview');
         const warn = d ? Array.from(d.querySelectorAll('.pl-item.warn')).map(e => e.textContent) : [];
         const crit = d ? Array.from(d.querySelectorAll('.pl-item.crit')).map(e => e.textContent) : [];
+        const ok = d ? Array.from(d.querySelectorAll('.pl-item.ok')).map(e => e.textContent) : [];
+        const tip = d ? Array.from(d.querySelectorAll('.pl-item')).map(e => e.getAttribute('data-tip') || '').join(' | ') : '';
+        const segni = d ? d.querySelectorAll('.pl-item .cty-mark.cty-measured').length : 0;
         const rep = _driftComputeFromDoc(_driftBuildDocSnapshot());
         return {
-          card: d ? { aperta: d.open, anteprima: prev ? prev.textContent.trim() : '', testo: d.textContent, warn, crit } : null,
+          card: d ? { aperta: d.open, anteprima: prev ? prev.textContent.trim() : '', testo: d.textContent, warn, crit, ok, tip, segni } : null,
           drift: { crit: rep.counts.sensorHealth, warn: rep.counts.sensorWarn, azionabile: driftActionable(rep.counts), banner: driftBannerKind(rep.counts, rep),
                    righe: (rep.sensorHealth || []).concat(rep.sensorWarn || []).map((x) => ({ sid: x.sid, severity: x.severity, severitySource: x.severitySource, oid: x.oid, mib: x.mib })) },
         };
@@ -2241,6 +2246,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         await conSalvataggio(lettura({ rows: [
           sens('ent:1001', 'temperature', 'CPU Temp', 62, '°C', 'ok'),
           sens('ent:1002', 'fan', 'Fan 1', 4200, 'rpm', 'ok'),
+          sens('ent:1004', 'other', 'Ingresso X', 7, '', 'unknown'),
+          sens('ent:1005', 'psu', 'PSU 3', null, '', 'unknown'),
           sens('cisco-envmon:supply:1', 'psu', 'PSU 1', null, '', 'critical', { mib: 'CISCO-ENVMON-MIB', oid: '1.3.6.1.4.1.9.9.13.1.5.1.3.1' }),
         ], via: ['entity-sensor'], pen: null, partial: false }));
         let r = await leggi();
@@ -2248,7 +2255,27 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         assert.equal(r.card.aperta, false, 'chiusa di default');
         assert.equal(r.card.anteprima, '1 critici');
         assert.match(r.card.testo, /PSU 1/);
-        assert.match(r.card.testo, /critico — lo dice l'apparato/, 'la gravita\' dice DA CHI viene');
+        // Un sensore solo-stato mostra come VALORE la parola della gravita' in MAIUSCOLO, colorata; sotto la riga non resta niente, e DA CHI viene
+        // la gravita' sta nel suggerimento (non scritto sulla riga).
+        assert.match(r.card.crit[0], /PSU 1/);
+        assert.match(r.card.crit[0], /CRITICO/);
+        assert.doesNotMatch(r.card.crit[0], /lo dice l'apparato/, 'la riga non ripete DA CHI viene la gravita\'');
+        assert.match(r.card.tip, /Gravità: lo dice l'apparato\./, 'la gravita\' dice DA CHI viene, nel suggerimento della riga');
+        assert.equal((r.card.crit[0].match(/CRITICO/g) || []).length, 1, 'la parola «CRITICO» e\' il valore: la sottoriga non la ripete');
+        assert.equal(r.card.segni, 5, 'ogni sensore porta il segno «misurato» (cinque righe, cinque segni)');
+        assert.equal(r.card.ok.length, 2, 'verdi: la CPU (l\'apparato dice «ok») e la ventola');
+        // Di un sensore l'apparato non dice «ok» (stato sconosciuto): resta NEUTRO, mai verde. E un solo-stato senza stato e' «—», non un «ok» inventato.
+        assert.match(r.card.testo, /Ingresso X/);
+        assert.match(r.card.testo, /PSU 3\s*—/);
+        assert.equal(r.card.ok.concat(r.card.warn, r.card.crit).filter((x) => /Ingresso X|PSU 3/.test(x)).length, 0, 'nessuno dei due e\' colorato per stato');
+        assert.doesNotMatch(r.card.testo, /Letti via SNMP: ENTITY-SENSOR-MIB|Valori letti/i, 'niente titolo e niente frase finale: stanno nel suggerimento');
+        assert.match(r.card.tip, /Misurato — Letto via SNMP: CISCO-ENVMON-MIB, OID 1\.3\.6\.1\.4\.1\.9\.9\.13\.1\.5\.1\.3\.1/, 'il suggerimento dice da quale MIB e OID');
+        assert.match(r.card.tip, /ENTITY-SENSOR-MIB, poi le MIB dei fornitori/, 'e COME si legge (la frase che prima chiudeva la scheda)');
+        // Una lettura VECCHIA (oltre 6 ore): l'orario si dice a vista; con una recente sta solo nel suggerimento.
+        assert.doesNotMatch(r.card.testo, /Letto \d/, 'lettura recente: l\'orario non occupa la scheda');
+        await page.evaluate(() => { window.__dateNowVero = Date.now; const adesso = Date.now(); Date.now = () => adesso + 7 * 3600 * 1000; });
+        try { assert.match((await leggi()).card.testo, /Letto \d/, 'lettura di 7 ore fa: l\'orario e\' a vista'); }
+        finally { await page.evaluate(() => { Date.now = window.__dateNowVero; }); }
         assert.match(r.card.testo, /62 °C/);
         assert.match(r.card.testo, /4\.?200 rpm/);
         assert.equal(r.card.crit.length, 1, 'una sola riga rossa');
@@ -2273,8 +2300,11 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         r = await leggi();
         assert.equal(r.card.anteprima, '1 critici', 'il critico resta il piu\' grave');
         assert.equal(r.card.warn.length, 1, 'la temperatura a 62 supera la soglia dell\'utente');
+        assert.equal(r.card.ok.length, 1, 'la temperatura non e\' piu\' verde: la soglia tua l\'ha fatta avviso; resta verde la ventola');
         assert.match(r.card.warn[0], /CPU Temp/);
-        assert.match(r.card.warn[0], /avviso — soglia tua/, 'DICHIARATA come soglia dell\'utente, non dell\'apparato');
+        assert.match(r.card.warn[0], /ATTENZIONE/, 'la parola della gravita\' e\' ATTENZIONE, in maiuscolo');
+        assert.doesNotMatch(r.card.warn[0], /soglia tua|avviso/, 'DA CHI viene non si scrive sulla riga');
+        assert.match(r.card.tip, /Gravità: soglia tua\./, 'DICHIARATA come soglia dell\'utente, non dell\'apparato: nel suggerimento della riga');
         assert.equal(r.drift.warn, 1);
         assert.deepEqual(r.drift.righe.filter(x => x.severity === 'warn').map(x => x.severitySource), ['user_default']);
         // una soglia non valida non si inventa: si cancella
@@ -2301,14 +2331,810 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         // 5) MAI nel documento, tranne la soglia dell'utente (una dichiarazione): nessun sensore nello stato.
         const stato = await page.evaluate(() => JSON.stringify(state));
         assert.doesNotMatch(stato, /ent:1001|cisco-envmon|CPU Temp|PSU 1/, 'nessun sensore nello stato del client');
+
+        // 6) Uno switch con TANTI sensori (come una registrazione vera: temperature dell'apparato e dei moduli ottici, ventole, correnti e
+        //    potenze dei moduli). La scheda elenca prima chi ha una gravita' (sempre), poi per tipo nell'ordine temperatura, ventole,
+        //    alimentatori, tensioni, correnti, potenze, con al massimo SEI per tipo (le temperature: le piu' calde), e dice quanti ne tace.
+        //    Senza il limite per tipo i 40 posti si riempivano di correnti e le temperature dell'apparato finivano in «altri N».
+        await page.evaluate(() => { delete state.healthThresholds; });
+        const tanti = [];
+        [64.8, 64, 53.3, 52, 48, 47, 43, 42, 41.4, 40.8, 36.5, 24.6].forEach((v, i) => tanti.push(sens('ent:' + (1100 + i), 'temperature', 'Apparato T' + i, v, '°C', 'ok')));
+        for (let i = 1; i <= 35; i++) tanti.push(sens('ent:' + (2000 + i), 'temperature', 'Modulo temp ' + i, 22 + (i % 18), '°C', 'ok'));
+        for (let i = 1; i <= 6; i++) tanti.push(sens('ent:' + (3000 + i), 'fan', 'Ventola ' + i, 3000 + i, 'rpm', 'ok'));
+        for (let i = 1; i <= 39; i++) tanti.push(sens('ent:' + (4000 + i), 'current', 'Modulo corrente ' + i, 0.006, 'A', 'ok'));
+        for (let i = 1; i <= 70; i++) tanti.push(sens('ent:' + (5000 + i), 'power', 'Modulo potenza ' + i, 0.0007, 'W', 'ok'));
+        tanti.push(sens('ent:9001', 'psu', 'Alimentatore guasto', null, '', 'critical'));
+        await conSalvataggio(lettura({ rows: tanti, via: ['entity-sensor'], pen: null, partial: false }));
+        const el = await page.evaluate(() => {
+          selType = 'node'; selId = 'swz'; window._propsExplicit = true; renderProps();
+          const d = document.querySelector('details[data-section="sensors-health"]');
+          return { etichette: d ? Array.from(d.querySelectorAll('.pl-item .pl-k')).map((e) => e.textContent.trim()) : [], note: d ? Array.from(d.querySelectorAll('.pl-note')).map((e) => e.textContent.trim()) : [] };
+        });
+        assert.deepEqual(el.etichette, [
+          'Alimentatore guasto',
+          'Apparato T0', 'Apparato T1', 'Apparato T2', 'Apparato T3', 'Apparato T4', 'Apparato T5',
+          'Ventola 1', 'Ventola 2', 'Ventola 3', 'Ventola 4', 'Ventola 5', 'Ventola 6',
+          'Modulo corrente 1', 'Modulo corrente 2', 'Modulo corrente 3', 'Modulo corrente 4', 'Modulo corrente 5', 'Modulo corrente 6',
+          'Modulo potenza 1', 'Modulo potenza 2', 'Modulo potenza 3', 'Modulo potenza 4', 'Modulo potenza 5', 'Modulo potenza 6',
+        ], 'prima il guasto, poi le temperature DELL\'APPARATO (le piu\' calde), le ventole, le correnti, le potenze: sei per tipo');
+        assert.equal(el.note.filter((n) => /138/.test(n)).length, 1, 'e dice quanti ne tace: 163 sensori, 25 elencati, 138 no (' + JSON.stringify(el.note) + ')');
+
+        // 7) Il limite per tipo NON vale per chi ha una gravita': con la soglia dell'utente a 40 °C dieci temperature dell'apparato sono in
+        //    avviso, e si elencano TUTTE e dieci (piu' di sei), subito dopo il critico.
+        const caldi = await page.evaluate(() => {
+          state.healthThresholds = { temperature: { warn: 40, crit: null } };
+          selType = 'node'; selId = 'swz'; window._propsExplicit = true; renderProps();
+          const d = document.querySelector('details[data-section="sensors-health"]');
+          return Array.from(d.querySelectorAll('.pl-item .pl-k')).map((e) => e.textContent.trim()).slice(0, 12);
+        });
+        assert.deepEqual(caldi, ['Alimentatore guasto', 'Apparato T0', 'Apparato T1', 'Apparato T2', 'Apparato T3', 'Apparato T4', 'Apparato T5', 'Apparato T6', 'Apparato T7', 'Apparato T8', 'Apparato T9', caldi[11]],
+          'chi ha una gravita\' si elenca sempre, anche oltre i sei per tipo');
+        assert.match(caldi[11], /^Modulo temp /, 'e solo dopo vengono le temperature senza gravita\': le piu\' calde dei moduli');
+
+        // 8) Si lascia com'era: il passo dei sensori «non letto». La memoria dei sensori e' del PROGETTO aperto e vive fra i flussi: se restasse
+        //    una lettura con 163 sensori, il flusso dopo (il campo della temperatura compare solo se qualche apparato ha pubblicato un sensore)
+        //    vedrebbe un campo che non si aspetta.
+        await conSalvataggio(lettura({ rows: null, via: [], pen: null, partial: true }));
       } finally {
         await page.evaluate(() => { selType = null; selId = null; window._propsExplicit = false; if (state) delete state.healthThresholds; });
       }
     });
 
-    await t.test('Vicini: un vicino LLDP che non si sente piu\' dopo 3 letture SANE, mai per una lettura fallita, apparato muto = UN fatto, e riga informativa nel Drift', async () => {
+    await t.test('Soglia sugli errori d\'interfaccia: la scrive l\'utente nel progetto, quelle sotto soglia non si segnalano (e la scheda lo dice), svuotata torna ogni aumento', async () => {
+      // Due Sync recitati come nel flusso «Salute interfacce» (window.fetch): +9 errori su Gi1 e +40 scarti su Gi2. Sidecar e progetto sono
+      // quelli VERI. La soglia si scrive dal campo VERO del pannello del progetto (change → setHealthThreshold), e si legge quello che la
+      // scheda dell'apparato e il Drift ne fanno SENZA rileggere l'apparato: la soglia cambia il giudizio, non la misura.
+      const ora = Date.now();
+      const riga = (ifName, o) => Object.assign({ ifName, oper: 1, admin: 1, inErrors: 0, outErrors: 0, inDiscards: 0, outDiscards: 0, fcs: 0, disc: 0 }, o || {});
+      const salute = (at, upCs, gi1, gi2) => ({ ok: true, at, upCs, rows: [riga('Gi1', gi1), riga('Gi2', gi2), riga('Gi3')] });
+      const giro = (risposta) => page.evaluate(async (risposta) => {
+        setLang('it');
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push({ id: 'swi', type: 'switch', name: 'SWI', x: 100, y: 100, ports: 8, ip: '10.8.8.11', integration: { driver: 'snmp-v2c', host: '10.8.8.11', community: 'x' } });
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const orig = window.fetch;
+        window.fetch = (url, opts) => {
+          const u = String(url);
+          if (u.includes('/api/poll-health')) return Promise.resolve({ json: () => Promise.resolve(risposta) });
+          if (u.includes('/api/poll')) return Promise.resolve({ json: () => Promise.resolve({ ok: true, hostname: 'h', system: { sysDescr: 'x' }, interfaces: [] }) });
+          return orig(url, opts);
+        };
+        try { await pollAllSNMP({ silent: true, dataOnly: true }); } finally { window.fetch = orig; }
+        return true;
+      }, risposta);
+      const conSalvataggio = async (risposta) => {
+        const [resp] = await Promise.all([
+          page.waitForResponse((x) => x.url().includes('/history/health') && x.request().method() === 'PUT'),
+          giro(risposta),
+        ]);
+        assert.equal(resp.status(), 200);
+      };
+      const leggi = () => page.evaluate(() => {
+        selType = 'node'; selId = 'swi'; window._propsExplicit = true; renderProps();
+        const d = document.querySelector('details[data-section="if-health"]');
+        const prev = d && d.querySelector('summary .props-collapsible-preview');
+        const rep = _driftComputeFromDoc(_driftBuildDocSnapshot());
+        return {
+          card: d ? { anteprima: prev ? prev.textContent.trim() : '', testo: d.textContent } : null,
+          drift: { n: rep.counts.ifHealth, righe: (rep.ifHealth || []).map((x) => x.ifName).sort(), azionabile: driftActionable(rep.counts) },
+          stato: state.healthThresholds,
+        };
+      });
+      const scrivi = (valore) => page.evaluate((valore) => {
+        selType = null; selId = null; window._propsExplicit = false; renderProps();
+        const sez = document.querySelector('details[data-section="floor-health"]');
+        const inp = sez && sez.querySelector('input[data-key="ifmin"]');
+        if (!inp) return { sezione: !!sez, input: false };
+        inp.value = valore; inp.dispatchEvent(new Event('change', { bubbles: true }));
+        return { sezione: true, input: true, temperatura: !!sez.querySelector('input[data-key="warn"]'), stato: state.healthThresholds };
+      }, valore);
+      try {
+        await conSalvataggio(salute(ora - 7200000, 1000000, {}, {}));
+        await conSalvataggio(salute(ora - 3600000, 1360000, { inErrors: 9 }, { outDiscards: 40 }));
+
+        // 1) Senza soglia ogni aumento segnala: due interfacce. La sezione del progetto offre il campo degli errori, NON quello della
+        //    temperatura (nessun apparato ha pubblicato un sensore: un campo morto non si disegna).
+        let r = await leggi();
+        assert.equal(r.card.anteprima, '2 con errori in aumento');
+        assert.equal(r.drift.n, 2);
+        assert.deepEqual(r.drift.righe, ['Gi1', 'Gi2']);
+        let w = await scrivi('');
+        assert.equal(w.sezione, true, 'la sezione compare: c\'e\' una lettura d\'interfacce');
+        assert.equal(w.input, true, 'il campo degli errori c\'e\'');
+        assert.equal(w.temperatura, false, 'senza sensori non c\'e\' il campo della temperatura');
+        assert.equal(w.stato, undefined, 'vuoto = nessuna soglia: nel progetto non c\'e\' niente');
+
+        // 2) Soglia 10: Gi1 (+9) sta SOTTO e non si segnala, Gi2 (+40) si. La scheda dice quante ne ha taciute, e non dice «nessuna».
+        w = await scrivi('10');
+        assert.deepEqual(w.stato, { ifErrors: { min: 10 } }, 'la soglia e\' del progetto, nella forma pulita');
+        r = await leggi();
+        assert.equal(r.card.anteprima, '1 con errori in aumento');
+        assert.match(r.card.testo, /Gi2/);
+        assert.doesNotMatch(r.card.testo, /Gi1/, 'quella sotto soglia non si elenca');
+        assert.match(r.card.testo, /1 interfacce con un aumento sotto la tua soglia \(meno di 10\): non segnalate/, 'ma la scheda lo DICE');
+        assert.equal(r.drift.n, 1);
+        assert.deepEqual(r.drift.righe, ['Gi2']);
+        assert.equal(r.drift.azionabile, 0, 'resta informativa');
+
+        // 3) Soglia 50: nessuna delle due la raggiunge. Non si scrive «nessuna interfaccia ha visto errori nuovi»: e' falso, sono salite.
+        await scrivi('50');
+        r = await leggi();
+        assert.equal(r.card.anteprima, '2 sotto la tua soglia');
+        assert.doesNotMatch(r.card.testo, /Nessuna delle/, 'sono salite: la frase «nessun errore nuovo» sarebbe una bugia');
+        assert.match(r.card.testo, /2 interfacce con un aumento sotto la tua soglia \(meno di 50\)/);
+        assert.equal(r.drift.n, 0);
+
+        // 4) Svuotata torna ogni aumento. E «1» e un numero con la virgola non sono soglie: il campo si cancella, non si inventa.
+        await scrivi('');
+        r = await leggi();
+        assert.equal(r.card.anteprima, '2 con errori in aumento');
+        assert.equal(r.drift.n, 2);
+        for (const v of ['1', '2.5']) {
+          w = await scrivi('10');
+          assert.deepEqual(w.stato, { ifErrors: { min: 10 } });
+          w = await scrivi(v);
+          assert.equal(w.stato, undefined, v + ' non e\' una soglia: la chiave sparisce');
+        }
+
+        // 5) Le due soglie convivono nello stesso oggetto del progetto: scrivere l'una non cancella l'altra.
+        await page.evaluate(() => { state.healthThresholds = { temperature: { warn: 60, crit: null } }; });
+        w = await scrivi('10');
+        assert.deepEqual(w.stato, { temperature: { warn: 60, crit: null }, ifErrors: { min: 10 } }, 'la temperatura gia\' scritta resta');
+        assert.equal(w.temperatura, true, 'una soglia di temperatura gia\' scritta si mostra sempre, anche senza sensori: va potuta cambiare o togliere');
+        const cambiata = await page.evaluate(() => {
+          const inp = document.querySelector('details[data-section="floor-health"] input[data-key="warn"]');
+          inp.value = '65'; inp.dispatchEvent(new Event('change', { bubbles: true }));
+          return state.healthThresholds;
+        });
+        assert.deepEqual(cambiata, { temperature: { warn: 65, crit: null }, ifErrors: { min: 10 } }, 'scrivere la temperatura non cancella gli errori');
+        w = await scrivi('');
+        assert.deepEqual(w.stato, { temperature: { warn: 65, crit: null } }, 'svuotare gli errori non cancella la temperatura');
+      } finally {
+        await page.evaluate(() => { selType = null; selId = null; window._propsExplicit = false; if (state) delete state.healthThresholds; });
+      }
+    });
+
+    // Le tolleranze di salute: il pannello del progetto (compatto), la TABELLA di tutti gli apparati (finestra) e il pannello «Tolleranza»
+    // che si apre sulla riga che avvisa. Due Sync recitati (window.fetch, la risposta sceglie dall'IP dell'apparato): sidecar e progetto sono
+    // quelli VERI; le tolleranze si scrivono dai campi VERI (change/input → app-health.js) e il giudizio si legge dal DOM e dal Drift.
+    const _tolHelpers = () => {
+      const ora = Date.now();
+      const riga = (ifName, o) => Object.assign({ ifName, oper: 1, admin: 1, inErrors: 0, outErrors: 0, inDiscards: 0, outDiscards: 0, fcs: 0, disc: 0 }, o || {});
+      const sens = (sid, kind, label, value, unit) => ({ sid, kind, label, value, unit, state: 'ok', mib: 'ENTITY-SENSOR-MIB', oid: '1.3.6.1.2.1.99.1.1.1.4.' + sid.replace(/\D/g, ''), limLo: null, limHi: null });
+      const sensori = () => [sens('ent:1001', 'temperature', 'CPU', 68, '°C'), sens('ent:1002', 'fan', 'Ventola 1', 4200, 'rpm')];
+      const lettura = (at, upCs, gi1, gi2, conSensori) => ({ ok: true, at, upCs, rows: [riga('Gi1', gi1), riga('Gi2', gi2)], sensors: conSensori ? { rows: sensori(), via: ['entity-sensor'], pen: null, partial: false } : undefined });
+      const giro = (risposte, nodi) => page.evaluate(async ([risposte, nodi]) => {
+        setLang('it');
+        const soglie = state && state.healthThresholds;
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        if (soglie) state.healthThresholds = soglie;   // le soglie sono del PROGETTO: un giro non le butta
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        for (const n of nodi) state.nodes.push(Object.assign({ x: 100, y: 100, ports: 8 }, n));
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const orig = window.fetch;
+        window.fetch = (url, opts) => {
+          const u = String(url);
+          if (u.includes('/api/poll-health')) { const host = JSON.parse(opts.body).host; return Promise.resolve({ json: () => Promise.resolve(risposte[host]) }); }
+          if (u.includes('/api/poll')) return Promise.resolve({ json: () => Promise.resolve({ ok: true, hostname: 'h', system: { sysDescr: 'x' }, interfaces: [] }) });
+          return orig(url, opts);
+        };
+        try { await pollAllSNMP({ silent: true, dataOnly: true }); } finally { window.fetch = orig; }
+        return true;
+      }, [risposte, nodi]);
+      const conSalvataggio = async (risposte, nodi) => {
+        const [resp] = await Promise.all([
+          page.waitForResponse((x) => x.url().includes('/history/health') && x.request().method() === 'PUT'),
+          giro(risposte, nodi),
+        ]);
+        assert.equal(resp.status(), 200);
+      };
+      const snmp = (id, name, host, extra) => Object.assign({ id, type: 'switch', name, ip: host, integration: { driver: 'snmp-v2c', host, community: 'x' } }, extra || {});
+      const doppio = async (nodi, lista) => {
+        const prima = {}, dopo = {};
+        for (const h of lista) {
+          prima[h.host] = lettura(ora - 7200000, 1000000, {}, {}, h.sensore);
+          dopo[h.host] = lettura(ora - 3600000, 1360000, { inErrors: 9 }, { outDiscards: 40 }, h.sensore);
+        }
+        await conSalvataggio(prima, nodi);
+        await conSalvataggio(dopo, nodi);
+      };
+      // Il pannello del progetto, come lo apre l'utente.
+      const progetto = (ridisegna = true) => page.evaluate((ridisegna) => {
+        if (ridisegna) { selType = null; selId = null; window._propsExplicit = false; renderProps(); }
+        const sez = document.querySelector('details[data-section="floor-health"]');
+        if (!sez) return { sezione: false };
+        return {
+          sezione: true,
+          righe: Array.from(sez.querySelectorAll('.tol-fr')).map((r) => ({ nome: r.querySelector('.tol-lb').firstChild.textContent.trim(), chiave: r.querySelector('input').dataset.key, valore: r.querySelector('input').value, unita: r.querySelector('.tol-un').textContent.trim(), spiega: (r.querySelector('.tol-info') || { getAttribute: () => '' }).getAttribute('data-tip') || '' })),
+          eccezioni: Array.from(sez.querySelectorAll('.tol-ex')).map((e) => ({ id: e.querySelector('[data-act="tol-open"]').dataset.nid, nome: e.querySelector('b').textContent, sintesi: e.querySelector('small').textContent })),
+          titoloEcc: (sez.querySelector('.tol-ex-h') || { textContent: '' }).textContent,
+          bottone: (sez.querySelector('.tol-open-btn') || { textContent: '' }).textContent.trim(),
+          anteprima: sez.querySelector('[data-ifh-prev="top"]').textContent,
+          annidate: sez.querySelectorAll('details details').length,
+          paragrafi: sez.querySelectorAll('.pl-note').length,
+        };
+      }, ridisegna);
+      return { ora, riga, sens, lettura, giro, conSalvataggio, snmp, doppio, progetto };
+    };
+
+    await t.test('Tolleranze · pannello del progetto compatto e TABELLA di tutti gli apparati in DUE GRUPPI: letture accanto ai numeri, modifica sul posto (la riga cambia gruppo), filtri, azioni di gruppo, ↺ dentro il campo', async () => {
+      const H = _tolHelpers();
+      const { snmp, doppio, progetto } = H;
+      const tabella = () => page.evaluate(() => {
+        const q = (s, r) => (r || document).querySelector(s);
+        const riga = (r) => ({
+          id: r.dataset.nid, gruppo: r.closest('.tol-sec').dataset.grp, nome: q('.tol-nm b', r).textContent, sotto: q('.tol-nm small', r).textContent,
+          campi: Array.from(r.querySelectorAll('input.tol-in')).map((i) => i.dataset.key + '=' + i.value + '|' + i.placeholder),
+          proprio: Array.from(r.querySelectorAll('.tol-fl')).map((w) => w.classList.contains('own')),
+          ritorni: Array.from(r.querySelectorAll('.tol-rs')).map((b) => !b.hidden),
+          temp: q('.tol-c-temp', r).textContent.trim(), tempClasse: (q('.tol-c-temp span:last-child', r) || { className: '' }).className,
+          ifc: q('.tol-c-if', r).textContent.trim(),
+        });
+        const righe = Array.from(document.querySelectorAll('#tol-body .tol-row')).map(riga).sort((a, b) => (a.id < b.id ? -1 : 1));
+        const gruppi = {};
+        for (const sec of document.querySelectorAll('#tol-body .tol-sec')) {
+          const back = q('[data-act="tol-grp-back"]', sec), fo = q('[data-tol-follow]', sec);
+          gruppi[sec.dataset.grp] = {
+            ids: Array.from(sec.querySelectorAll('.tol-row')).map((r) => r.dataset.nid), titolo: q('.tol-sh b', sec).textContent, n: q('[data-tol-n]', sec).textContent,
+            vuoto: !q('.tol-sempty', sec).hidden, segue: fo ? fo.textContent : null,
+            imposta: q('[data-act="tol-grp-set"]', sec).textContent, impostaVisibile: !q('[data-act="tol-grp-set"]', sec).hidden,
+            tornano: back ? !back.hidden : null, form: !q('.tol-sform', sec).hidden, applica: q('[data-act="tol-grp-apply"]', sec).textContent,
+          };
+        }
+        const pj = q('#tol-body .tol-pj');
+        return {
+          aperta: document.getElementById('tol-overlay').classList.contains('open'),
+          righe, gruppi,
+          senzaSpunteNeBadge: document.querySelectorAll('#tol-body input[type="checkbox"], #tol-body .tol-chip-st, #tol-body .tol-reset, #tol-bulk').length === 0,
+          progetto: pj ? { campi: Array.from(pj.querySelectorAll('input.tol-in')).map((i) => i.dataset.key + '=' + i.value) } : null,
+          chip: Array.from(document.querySelectorAll('#tol-chips .tol-chip')).map((c) => ({ k: c.dataset.chip, n: Number(q('i', c).textContent), on: c.classList.contains('on') })),
+          sub: document.getElementById('tol-sub').textContent,
+          tipi: Array.from(document.querySelectorAll('#tol-type option')).map((o) => o.value),
+        };
+      });
+      const apri = async () => { await page.evaluate(() => document.querySelector('details[data-section="floor-health"] .tol-open-btn').click()); await page.waitForFunction(() => document.querySelectorAll('#tol-body .tol-row').length > 0, null, { timeout: 5000 }); await new Promise((r) => setTimeout(r, 80)); };
+      const scrivi = (sel, id, chiave, valore) => page.evaluate(([sel, id, chiave, valore]) => {
+        const r = sel === 'riga' ? Array.from(document.querySelectorAll('#tol-body .tol-row')).find((x) => x.dataset.nid === id) : document.querySelector('#tol-body .tol-pj');
+        const inp = r.querySelector('input[data-key="' + chiave + '"]');
+        window.__tolInp = inp; inp.focus(); inp.value = valore; inp.dispatchEvent(new Event('change', { bubbles: true }));
+        return { stessoCampo: document.contains(inp) && window.__tolInp === inp, focoRestato: document.activeElement === inp, valoreDopo: inp.value, stato: state.healthThresholds };
+      }, [sel, id, chiave, valore]);
+      const clic = (sel) => page.evaluate((sel) => document.querySelector(sel).click(), sel);
+      const modulo = (grp, campi) => page.evaluate(([grp, campi]) => { const sec = document.querySelector('#tol-body .tol-sec[data-grp="' + grp + '"]'); for (const [k, v] of Object.entries(campi)) sec.querySelector('.tol-gin[data-key="' + k + '"]').value = v; }, [grp, campi]);
+      const moduloValore = (grp, k) => page.evaluate(([grp, k]) => document.querySelector('#tol-body .tol-sec[data-grp="' + grp + '"] .tol-gin[data-key="' + k + '"]').value, [grp, k]);
+      const cerca = (v) => page.evaluate((v) => { const q = document.getElementById('tol-q'); q.value = v; q.dispatchEvent(new Event('input', { bubbles: true })); }, v);
+      const stato = () => page.evaluate(() => state.healthThresholds);
+      try {
+        // 0) Tre apparati di rete (swa e swc con un sensore a 68 °C, swb senza) e un server che non e' un apparato di rete (messi in ordine INVERSO).
+        const nodi = [{ id: 'srv', type: 'server', name: 'SRV', ip: '10.8.8.24' }, snmp('swc', 'SWC', '10.8.8.23'), snmp('swb', 'SWB', '10.8.8.22'), snmp('swa', 'SWA', '10.8.8.21')];
+        await doppio(nodi, [{ host: '10.8.8.21', sensore: true }, { host: '10.8.8.22', sensore: false }, { host: '10.8.8.23', sensore: true }]);
+        await page.evaluate(() => { state.healthThresholds = { temperature: { warn: 60, crit: null }, ifErrors: { min: 10 } }; });
+
+        // 1) Il pannello del progetto: TRE righe (nome con il «?», campo, unita'), niente fisarmoniche annidate e niente due paragrafi di
+        //    spiegazione prima del primo campo (la spiegazione sta nel «?»), nessuna eccezione, il bottone che apre la tabella.
+        let p = await progetto();
+        assert.equal(p.sezione, true);
+        assert.deepEqual(p.righe.map((r) => [r.chiave, r.valore, r.unita]), [['warn', '60', '°C'], ['crit', '', '°C'], ['ifmin', '10', 'in più']]);
+        assert.ok(p.righe.every((r) => r.spiega.length > 40), 'ogni voce ha la sua spiegazione nel «?»');
+        assert.equal(p.annidate, 0, 'niente elenco annidato nel pannello: gli apparati stanno nella tabella');
+        assert.equal(p.paragrafi, 1, 'una riga di introduzione, non due paragrafi');
+        assert.deepEqual(p.eccezioni, []);
+        assert.equal(p.bottone, 'Tabella delle tolleranze (3)');
+        assert.equal(p.anteprima, 'avviso 60 °C · errori da 10', 'il riassunto dice solo i numeri dichiarati: senza critica non scrive «—»');
+
+        // 2) La tabella: solo gli apparati con una lettura (il server non c'e'), la lettura di adesso accanto ai numeri, il numero del progetto in
+        //    grigio dentro i campi vuoti, la prima riga e' il progetto, e SOTTO due gruppi: nessuna eccezione, quindi tutti «Come il progetto».
+        //    Niente spunte, niente etichetta in fondo alla riga, niente icona di ritorno fuori dai campi.
+        await apri();
+        let b = await tabella();
+        assert.equal(b.aperta, true);
+        assert.equal(b.senzaSpunteNeBadge, true, 'la tabella non ha caselle, etichette di stato ne\' barra di selezione');
+        assert.deepEqual(b.righe.map((r) => r.id), ['swa', 'swb', 'swc']);
+        assert.deepEqual(b.gruppi.own.ids, []);
+        assert.deepEqual(b.gruppi.proj.ids, ['swa', 'swb', 'swc'], 'in ordine alfabetico');
+        assert.equal(b.gruppi.own.titolo, 'Con tolleranza propria');
+        assert.equal(b.gruppi.proj.titolo, 'Come il progetto');
+        assert.equal(b.gruppi.own.n, 'apparati: 0');
+        assert.equal(b.gruppi.proj.n, 'apparati: 3');
+        assert.equal(b.gruppi.own.vuoto, true, 'un gruppo vuoto lo dice');
+        assert.equal(b.gruppi.own.impostaVisibile, false, 'senza apparati non c\'e\' niente da impostare');
+        assert.equal(b.gruppi.own.tornano, false);
+        assert.equal(b.gruppi.proj.segue, 'seguono 60 · — · 10', 'i numeri del progetto, per chi non ne ha di propri');
+        assert.equal(b.gruppi.proj.imposta, 'Imposta per tutti (3)…');
+        assert.deepEqual(b.righe[0].campi, ['warn=|60', 'crit=|—', 'ifmin=|10']);
+        assert.deepEqual(b.righe[0].proprio, [false, false, false]);
+        assert.deepEqual(b.righe[0].ritorni, [false, false, false], 'il ↺ c\'e\' solo dove il numero e\' proprio');
+        assert.equal(b.righe[0].temp, '68 °C');
+        assert.match(b.righe[0].tempClasse, /tol-w/, '68 °C > avviso 60: ambra');
+        assert.equal(b.righe[0].ifc, '1 con errori in aumento', '+9 su Gi1 sotto 10, +40 su Gi2 si');
+        assert.equal(b.righe[1].temp, 'non pubblica sensori', 'senza sensori lo dice, non scrive «a posto»');
+        assert.deepEqual(b.progetto.campi, ['warn=60', 'crit=', 'ifmin=10']);
+        assert.match(b.sub, /Apparati: 3 · con eccezione: 0 · ultima lettura \d\d:\d\d/);
+        assert.deepEqual(b.chip.map((c) => [c.k, c.n]), [['all', 3], ['own', 0], ['alert', 3], ['unread', 0]]);
+
+        // 3) Un'eccezione di swa (avviso 70) si scrive SUL POSTO: il campo e' lo stesso e il fuoco resta li' anche se la riga CAMBIA GRUPPO
+        //    (sale tra le eccezioni), la lettura non e' piu' ambra, il numero diventa «proprio» col suo ↺; il progetto non cambia.
+        let w = await scrivi('riga', 'swa', 'warn', '70');
+        assert.equal(w.stessoCampo, true, 'la tabella non si ridisegna: il campo, il Tab e lo scorrimento restano');
+        assert.equal(w.focoRestato, true, 'spostata la riga, chi stava scrivendo ritrova il fuoco');
+        assert.deepEqual(w.stato, { temperature: { warn: 60, crit: null }, ifErrors: { min: 10 }, nodes: { swa: { temperature: { warn: 70, crit: null } } } });
+        b = await tabella();
+        assert.match(b.righe[0].tempClasse, /tol-ok/, '68 < 70: non e\' piu\' in avviso');
+        assert.equal(b.righe[0].gruppo, 'own');
+        assert.deepEqual(b.gruppi.own.ids, ['swa']);
+        assert.deepEqual(b.gruppi.proj.ids, ['swb', 'swc']);
+        assert.equal(b.gruppi.own.n, 'apparati: 1');
+        assert.equal(b.gruppi.proj.n, 'apparati: 2');
+        assert.equal(b.gruppi.own.vuoto, false);
+        assert.equal(b.gruppi.own.tornano, true);
+        assert.equal(b.gruppi.proj.imposta, 'Imposta per tutti (2)…');
+        assert.deepEqual(b.righe[0].campi, ['warn=70|60', 'crit=|—', 'ifmin=|10']);
+        assert.deepEqual(b.righe[0].proprio, [true, false, false]);
+        assert.deepEqual(b.righe[0].ritorni, [true, false, false]);
+        assert.equal(b.righe[1].gruppo, 'proj');
+        assert.match(b.sub, /con eccezione: 1/);
+        assert.deepEqual(b.chip.map((c) => c.n), [3, 1, 3, 0]);
+
+        // 4) Un valore UGUALE a quello del progetto non e' un'eccezione (segue il progetto): 60 su swb non scrive niente e la riga resta dov'e'.
+        w = await scrivi('riga', 'swb', 'warn', '60');
+        assert.equal(w.stato.nodes.swb, undefined);
+        assert.equal(w.valoreDopo, '', 'il campo torna «come il progetto»: il 60 e\' in grigio');
+        b = await tabella();
+        assert.equal(b.righe[1].gruppo, 'proj');
+
+        // 5) Annulla: UN passo per scrittura, e riscrivere lo stesso valore non sporca il progetto.
+        const premi = (id) => page.evaluate((id) => { document.getElementById(id).click(); return state.healthThresholds; }, id);
+        await page.evaluate(() => { _isDirty = false; });
+        await scrivi('riga', 'swa', 'warn', '70');
+        assert.equal(await page.evaluate(() => !!_isDirty), false, 'lo stesso valore non segna il progetto come modificato');
+        let u = await premi('btn-undo');
+        assert.equal(u.nodes, undefined, 'Annulla toglie l\'eccezione appena scritta');
+        u = await premi('btn-redo');
+        assert.deepEqual(u.nodes.swa, { temperature: { warn: 70, crit: null } });
+
+        // 6) Un campo del PROGETTO (prima riga): cambia il numero in grigio di tutte le righe e quello scritto nel titolo del gruppo; le eccezioni restano.
+        w = await scrivi('progetto', null, 'warn', '65');
+        assert.equal(w.stato.temperature.warn, 65);
+        assert.deepEqual(w.stato.nodes.swa, { temperature: { warn: 70, crit: null } });
+        b = await tabella();
+        assert.equal(b.righe[1].campi[0], 'warn=|65', 'il segnaposto segue il progetto');
+        assert.equal(b.righe[2].campi[0], 'warn=|65');
+        assert.deepEqual(b.progetto.campi, ['warn=65', 'crit=', 'ifmin=10']);
+        assert.equal(b.gruppi.proj.segue, 'seguono 65 · — · 10');
+
+        // 7) Filtri: «In avviso» (la temperatura sopra la sua tolleranza o interfacce in aumento), «Con eccezione», la ricerca per nome e per IP.
+        //    I gruppi seguono i filtri: quello che non ha righe lo dice.
+        await scrivi('riga', 'swb', 'ifmin', '100');   // +40 sotto 100: swb non e' piu' in avviso (senza sensori); ed e' un'eccezione: sale
+        b = await tabella();
+        assert.deepEqual(b.gruppi.own.ids, ['swa', 'swb'], 'sale al suo posto, in ordine');
+        assert.deepEqual(b.gruppi.proj.ids, ['swc']);
+        await clic('#tol-chips [data-chip="alert"]');
+        b = await tabella();
+        assert.deepEqual(b.righe.map((r) => r.id), ['swa', 'swc'], 'swb non ha niente in avviso');
+        await clic('#tol-chips [data-chip="own"]');
+        b = await tabella();
+        assert.deepEqual(b.righe.map((r) => r.id), ['swa', 'swb']);
+        assert.deepEqual(b.gruppi.proj.ids, []);
+        assert.equal(b.gruppi.proj.vuoto, true);
+        assert.equal(b.gruppi.proj.n, 'apparati: 0');
+        await clic('#tol-chips [data-chip="all"]');
+        await cerca('SWC');
+        b = await tabella();
+        assert.deepEqual(b.righe.map((r) => r.id), ['swc'], 'la ricerca ignora le maiuscole');
+        await cerca('8.22');
+        b = await tabella();
+        assert.deepEqual(b.righe.map((r) => r.id), ['swb'], 'si cerca anche per IP');
+        await cerca('non-esiste');
+        assert.equal(await page.evaluate(() => document.querySelector('#tol-body .tol-empty').textContent), 'Nessun apparato con questi filtri.');
+        assert.equal(await page.evaluate(() => document.querySelectorAll('#tol-body .tol-sec').length), 0, 'senza righe non restano gruppi vuoti');
+        await cerca('');
+        b = await tabella();
+        assert.equal(b.righe.length, 3);
+        assert.deepEqual(b.tipi, ['', 'switch'], 'i tipi sono quelli degli apparati in elenco');
+
+        // 8) Azioni di gruppo, nell'intestazione: «Imposta per tutti (N)…» apre UN modulo alla volta (un secondo clic lo richiude); «Applica a N»
+        //    scrive SOLO i campi riempiti, per tutti gli apparati del gruppo, in UN passo di Annulla; con niente di riempito non fa nulla.
+        await clic('[data-act="tol-grp-set"][data-grp="proj"]');
+        b = await tabella();
+        assert.equal(b.gruppi.proj.form, true);
+        assert.equal(b.gruppi.own.form, false);
+        assert.equal(b.gruppi.proj.imposta, 'Imposta per tutti (1)…');
+        assert.equal(b.gruppi.proj.applica, 'Applica a 1');
+        await clic('[data-act="tol-grp-set"][data-grp="own"]');
+        b = await tabella();
+        assert.deepEqual([b.gruppi.own.form, b.gruppi.proj.form], [true, false], 'se ne apre uno alla volta');
+        await clic('[data-act="tol-grp-set"][data-grp="own"]');
+        b = await tabella();
+        assert.equal(b.gruppi.own.form, false, 'un secondo clic sullo stesso bottone lo richiude');
+        await clic('[data-act="tol-grp-set"][data-grp="proj"]');
+        await clic('[data-act="tol-grp-apply"][data-grp="proj"]');   // niente di riempito
+        b = await tabella();
+        assert.equal(b.gruppi.proj.form, true, 'senza numeri il modulo resta aperto');
+        assert.equal((await stato()).nodes.swc, undefined);
+        await modulo('proj', { ifmin: '1' });
+        await clic('[data-act="tol-grp-apply"][data-grp="proj"]');
+        b = await tabella();
+        assert.deepEqual(b.righe[2].campi, ['warn=|65', 'crit=|—', 'ifmin=1|10'], 'swc: «ogni aumento»');
+        assert.equal(b.righe[2].gruppo, 'own', 'chi riceve un numero proprio sale tra le eccezioni');
+        assert.deepEqual(b.gruppi.proj.ids, []);
+        assert.equal(b.gruppi.proj.form, false, 'applicato, il modulo si chiude');
+        assert.equal(await moduloValore('proj', 'ifmin'), '', 'e i suoi campi si svuotano');
+        assert.equal((await stato()).nodes.swc.temperature, undefined, 'un campo lasciato vuoto non scrive e non cancella');
+        // sul gruppo delle eccezioni: tutti e tre; la temperatura di swa (70) resta intatta
+        await clic('[data-act="tol-grp-set"][data-grp="own"]');
+        b = await tabella();
+        assert.equal(b.gruppi.own.applica, 'Applica a 3');
+        await modulo('own', { ifmin: '1' });
+        await clic('[data-act="tol-grp-apply"][data-grp="own"]');
+        b = await tabella();
+        assert.deepEqual(b.righe[0].campi, ['warn=70|65', 'crit=|—', 'ifmin=1|10'], 'swa: «errori da» scritto, la sua temperatura (70) intatta');
+        assert.deepEqual(b.righe[1].campi, ['warn=|65', 'crit=|—', 'ifmin=1|10'], 'swb: da 100 a «ogni aumento»');
+        // «Annulla» chiude il modulo senza scrivere
+        await clic('[data-act="tol-grp-set"][data-grp="own"]');
+        await modulo('own', { warn: '99' });
+        await clic('[data-act="tol-grp-cancel"][data-grp="own"]');
+        b = await tabella();
+        assert.equal(b.gruppi.own.form, false);
+        assert.equal(await moduloValore('own', 'warn'), '', 'annullare svuota i campi: la prossima volta non resta un 99 dimenticato');
+        assert.equal((await stato()).nodes.swa.temperature.warn, 70);
+        // «Tutti tornano al progetto» vale per le righe MOSTRATE: cercando swb, solo lui torna al progetto
+        await cerca('SWB');
+        await clic('[data-act="tol-grp-back"]');
+        await cerca('');
+        b = await tabella();
+        assert.deepEqual(b.gruppi.own.ids, ['swa', 'swc'], 'swa e swc non erano mostrati: tengono la loro eccezione');
+        assert.equal(b.righe[1].gruppo, 'proj');
+        assert.equal((await stato()).nodes.swb, undefined);
+
+        // 9) Il ↺ dentro il campo: toglie QUEL numero dell'apparato (torna al progetto), gli altri restano; quando non ne resta nessuno la riga scende.
+        await clic('#tol-body .tol-row[data-nid="swa"] .tol-rs[data-key="warn"]');
+        b = await tabella();
+        assert.deepEqual(b.righe[0].campi, ['warn=|65', 'crit=|—', 'ifmin=1|10']);
+        assert.deepEqual(b.righe[0].ritorni, [false, false, true]);
+        assert.equal(b.righe[0].gruppo, 'own', 'ha ancora «errori da»: resta tra le eccezioni');
+        await clic('#tol-body .tol-row[data-nid="swa"] .tol-rs[data-key="ifmin"]');
+        b = await tabella();
+        assert.equal(b.righe[0].gruppo, 'proj', 'senza numeri propri torna a «Come il progetto»');
+        assert.deepEqual(b.gruppi.own.ids, ['swc']);
+        await clic('#tol-body .tol-row[data-nid="swc"] .tol-rs[data-key="ifmin"]');
+        b = await tabella();
+        assert.deepEqual(b.gruppi.own.ids, []);
+        assert.equal(b.gruppi.own.vuoto, true);
+        assert.equal((await stato()).nodes, undefined, 'tolta l\'ultima eccezione non resta niente');
+
+        // 10) Chiusa la finestra il pannello del progetto mostra le eccezioni (con la tolleranza in chiaro), e il ritorno al progetto sta li' accanto.
+        await scrivi('riga', 'swa', 'warn', '75');
+        await scrivi('riga', 'swa', 'crit', '90');
+        await scrivi('riga', 'swc', 'ifmin', '1');
+        await clic('#tol-modal [data-act="tol-close"]');
+        assert.equal(await page.evaluate(() => document.getElementById('tol-overlay').classList.contains('open')), false);
+        p = await progetto(false);   // SENZA ridisegnarlo: e' la chiusura della finestra a riportare nel pannello quello che e' cambiato
+        assert.deepEqual(p.eccezioni.map((e) => [e.id, e.nome, e.sintesi]), [['swa', 'SWA', 'avviso 75 · critica 90 °C'], ['swc', 'SWC', 'errori da 1 (ogni aumento)']]);
+        assert.equal(p.titoloEcc, 'Eccezioni · 2apparati: 3');
+        assert.equal(p.anteprima, 'eccezioni: 2 · avviso 65 °C · errori da 10', 'le eccezioni per prime: se la riga si taglia, si taglia in fondo');
+        await page.evaluate(() => document.querySelector('details[data-section="floor-health"] .tol-ex-reset').click());
+        p = await progetto();
+        assert.deepEqual(p.eccezioni.map((e) => e.id), ['swc'], 'il ritorno al progetto toglie SOLO quella riga');
+        // un clic sul nome apre la tabella sulla riga dell'apparato
+        await page.evaluate(() => document.querySelector('details[data-section="floor-health"] .tol-ex-main').click());
+        await new Promise((r) => setTimeout(r, 100));
+        assert.equal(await page.evaluate(() => { const f = document.querySelector('#tol-body .tol-row.focus'); return f ? f.dataset.nid : null; }), 'swc');
+        await clic('#tol-modal');   // un clic sulla finestra stessa
+        assert.equal(await page.evaluate(() => document.getElementById('tol-overlay').classList.contains('open')), true, 'un clic DENTRO la finestra non la chiude');
+        await page.evaluate(() => document.getElementById('tol-overlay').dispatchEvent(new MouseEvent('click', { bubbles: true })));
+        assert.equal(await page.evaluate(() => document.getElementById('tol-overlay').classList.contains('open')), false, 'un clic sul fondo la chiude');
+
+        // 11) Nessuna soglia orfana: un apparato cancellato perde la sua eccezione alla prossima scrittura.
+        await page.evaluate(() => { state.nodes = state.nodes.filter((n) => n.id !== 'swc'); });
+        await progetto();
+        await apri();
+        await scrivi('riga', 'swb', 'ifmin', '3');
+        assert.deepEqual(Object.keys((await page.evaluate(() => state.healthThresholds)).nodes), ['swb'], 'swc non c\'e\' piu\': la sua eccezione non resta (swa era gia\' tornata al progetto)');
+        await clic('#tol-modal [data-act="tol-close"]');
+      } finally {
+        await page.evaluate(() => { document.getElementById('tol-overlay').classList.remove('open'); selType = null; selId = null; window._propsExplicit = false; if (state) delete state.healthThresholds; });
+      }
+    });
+
+    // (Questo flusso ha apparati SUOI — xa, xc — e IP suoi: la memoria della salute e' del progetto aperto e vive fra i flussi, e due letture con gli
+    //  stessi contatori sullo stesso apparato direbbero «nessun aumento».)
+    await t.test('Tolleranze · pannello «Tolleranza» sulla riga che avvisa: lettura su una scala, effetto scritto prima di applicare, portata (solo l\'apparato / il progetto), interfacce e riquadro della porta', async () => {
+      const H = _tolHelpers();
+      const { snmp, doppio } = H;
+      const nodi = [snmp('xc', 'SWC', '10.8.7.23'), snmp('xa', 'SWA', '10.8.7.21')];
+      const apriScheda = (id, sezione) => page.evaluate(([id, sezione]) => {
+        selType = 'node'; selId = id; window._propsExplicit = true; renderProps();
+        const d = document.querySelector('details[data-section="' + sezione + '"]');
+        if (d && !d.open) d.open = true;
+        return !!d;
+      }, [id, sezione]);
+      const pannello = () => page.evaluate(() => {
+        const p = document.querySelector('[data-tolp]');
+        if (!p) return null;
+        const prev = p.previousElementSibling;
+        return {
+          titolo: p.querySelector('.tolp-h span').textContent,
+          sotto: prev ? prev.textContent.replace(/\s+/g, ' ').trim() : '',
+          ora: p.querySelector('.tolp-now').textContent.replace(/\s+/g, ' ').trim(),
+          campi: Array.from(p.querySelectorAll('input')).map((i) => i.dataset.field + '=' + i.value + '|' + i.placeholder + '|min' + i.min),
+          portata: Array.from(p.querySelectorAll('.tolp-seg button')).map((b) => b.textContent + (b.classList.contains('on') ? '*' : '')),
+          eredita: p.querySelector('.tolp-mu').textContent,
+          effetto: p.querySelector('[data-tolp-fx]').textContent,
+          zone: Array.from(p.querySelectorAll('.tolp-z')).map((z) => z.className.replace('tolp-z ', '')),
+          segni: Array.from(p.querySelectorAll('.tolp-lb')).map((l) => l.textContent),
+          scala: !!p.querySelector('.tolp-bar'),
+        };
+      });
+      const scrivi = (campo, valore) => page.evaluate(([campo, valore]) => {
+        const inp = document.querySelector('[data-tolp] input[data-field="' + campo + '"]');
+        inp.focus(); inp.value = valore; inp.dispatchEvent(new Event('input', { bubbles: true }));
+        return document.activeElement === inp;
+      }, [campo, valore]);
+      const clic = (sel) => page.evaluate((sel) => { document.querySelector(sel).click(); }, sel);
+      const stato = () => page.evaluate(() => state.healthThresholds);
+      try {
+        await doppio(nodi, [{ host: '10.8.7.21', sensore: true }, { host: '10.8.7.23', sensore: true }]);
+        await page.evaluate(() => { state.healthThresholds = { temperature: { warn: 60, crit: null }, ifErrors: { min: 10 } }; state.ports['xa-1'] = { status: 'active', ifName: 'Gi1' }; state.ports['xa-2'] = { status: 'active', ifName: 'Gi2' }; if (typeof _invalidateIdx === 'function') _invalidateIdx(); });
+
+        // 1) Il bottone sta SOLO sulle righe di temperatura con un valore (non sulla ventola), e non apre niente da solo.
+        assert.equal(await apriScheda('xa', 'sensors-health'), true);
+        let r = await page.evaluate(() => Array.from(document.querySelectorAll('details[data-section="sensors-health"] .pl-item')).map((i) => [i.querySelector('.pl-k').textContent.trim(), !!i.querySelector('.tol-btn')]));
+        assert.deepEqual(r, [['CPU', true], ['Ventola 1', false]]);
+        assert.equal(await pannello(), null);
+
+        // 2) Si apre SOTTO la riga: lettura di adesso su una scala, i due campi con il numero del progetto in grigio, la portata «solo questo apparato»,
+        //    e l'effetto scritto PRIMA di applicare («68 sopra l'avviso 60: resta in avviso»).
+        await clic('details[data-section="sensors-health"] .tol-btn');
+        let p = await pannello();
+        assert.equal(p.titolo, 'Tolleranza per SWA');
+        assert.match(p.sotto, /^CPU/, 'sta sotto la riga che l\'ha aperto');
+        assert.match(p.ora, /^CPU · ora 68 °C\s+letta alle \d\d:\d\d$/);
+        assert.deepEqual(p.campi, ['warn=60|60|min-50', 'crit=|—|min-50']);
+        assert.deepEqual(p.portata, ['Solo SWA*', 'Tutto il progetto']);
+        assert.equal(p.eredita, 'Vuoto = come il progetto (avviso 60, critica —)');
+        assert.equal(p.effetto, 'Effetto: SWA resta in avviso. Gli altri apparati non cambiano.');
+        assert.deepEqual(p.zone, ['ok', 'warn'], 'a posto fino all\'avviso, poi avviso (nessuna critica)');
+        assert.ok(p.segni.includes('ora 68') && p.segni.includes('60'));
+        assert.equal(await page.evaluate(() => !!document.querySelector('details[data-section="sensors-health"] .tol-btn.on')), true, 'il bottone della riga aperta e\' acceso');
+
+        // 3) Si scrive e l'effetto e la scala seguono SENZA ridisegnare (il campo tiene il fuoco): avviso 70 → «cambia: era in avviso, diventa a posto».
+        assert.equal(await scrivi('warn', '70'), true, 'il campo tiene il fuoco');
+        p = await pannello();
+        assert.equal(p.effetto, 'Effetto: SWA cambia: era in avviso, diventa a posto. Gli altri apparati non cambiano.');
+        assert.ok(p.segni.includes('70') && p.segni.includes('progetto 60'), 'sulla scala compare l\'avviso nuovo e quello del progetto');
+        await scrivi('crit', '65');
+        p = await pannello();
+        assert.equal(p.effetto, 'Effetto: SWA cambia: era in avviso, diventa critico. Gli altri apparati non cambiano.', 'la critica (65) vince sull\'avviso (70)');
+        assert.deepEqual(p.zone, ['ok', 'warn', 'crit']);
+        assert.deepEqual(await stato(), { temperature: { warn: 60, crit: null }, ifErrors: { min: 10 } }, 'finche\' non si applica non si scrive niente');
+        await scrivi('crit', '');
+        await scrivi('warn', '70');
+
+        // 4) La portata «Tutto il progetto»: la bozza resta, e l'effetto dice quanti apparati toccherebbe (swa e swc, senza tolleranza propria).
+        await clic('[data-act="tolp-scope"][data-scope="project"]');
+        p = await pannello();
+        assert.deepEqual(p.portata, ['Solo SWA', 'Tutto il progetto*']);
+        assert.deepEqual(p.campi, ['warn=70|60|min-50', 'crit=|—|min-50'], 'la bozza non si perde cambiando portata');
+        assert.equal(p.effetto, 'Effetto: Vale per gli apparati senza tolleranza propria: 2. Con questi numeri, con un sensore sopra l\'avviso: 0.');
+        await scrivi('warn', '65');
+        p = await pannello();
+        assert.equal(p.effetto, 'Effetto: Vale per gli apparati senza tolleranza propria: 2. Con questi numeri, con un sensore sopra l\'avviso: 2.', '68 supera 65: tutti e due i sensori sarebbero in avviso');
+        await clic('[data-act="tolp-scope"][data-scope="node"]');
+
+        // 5) Applica «solo SWA» con avviso 70: SWA ha la sua eccezione, SWC resta col progetto. Il pannello si chiude, la riga non e' piu' ambra.
+        await scrivi('warn', '70');
+        await clic('[data-act="tolp-apply"]');
+        assert.equal(await pannello(), null);
+        assert.deepEqual(await stato(), { temperature: { warn: 60, crit: null }, ifErrors: { min: 10 }, nodes: { xa: { temperature: { warn: 70, crit: null } } } });
+        r = await page.evaluate(() => { const i = document.querySelector('details[data-section="sensors-health"] .pl-item'); return { avviso: i.classList.contains('warn'), testo: i.textContent.replace(/\s+/g, ' ') }; });
+        assert.equal(r.avviso, false, '68 < 70: SWA non e\' piu\' in avviso');
+        await apriScheda('xc', 'sensors-health');
+        assert.equal(await page.evaluate(() => document.querySelector('details[data-section="sensors-health"] .pl-item').classList.contains('warn')), true, 'SWC ha ancora quella del progetto');
+
+        // 6) Annulla: la bozza si butta e non si scrive niente. Cambiando apparato la bozza non lo segue.
+        await clic('details[data-section="sensors-health"] .tol-btn');
+        await scrivi('warn', '99');
+        await clic('[data-act="tolp-close"].toolbar-btn');
+        assert.equal(await pannello(), null);
+        assert.equal((await stato()).nodes.xc, undefined);
+        await clic('details[data-section="sensors-health"] .tol-btn');
+        assert.notEqual(await pannello(), null);
+        await apriScheda('xa', 'sensors-health');
+        assert.equal(await pannello(), null, 'il pannello di SWC non segue la selezione su SWA');
+        await apriScheda('xc', 'sensors-health');
+        assert.equal(await pannello(), null, 'e tornando su SWC la bozza non c\'e\' piu\': si e\' chiusa cambiando apparato');
+        await apriScheda('xa', 'sensors-health');
+
+        // 7) Un valore UGUALE a quello del progetto, applicato a un apparato, TOGLIE la sua eccezione (torna a seguire il progetto).
+        await clic('details[data-section="sensors-health"] .tol-btn');
+        p = await pannello();
+        assert.deepEqual(p.campi, ['warn=70|60|min-50', 'crit=|—|min-50'], 'la bozza parte dai numeri che valgono adesso per SWA');
+        await scrivi('warn', '60');
+        await clic('[data-act="tolp-apply"]');
+        assert.equal((await stato()).nodes, undefined, 'warn 60 e\' quello del progetto: nessuna eccezione');
+
+        // 8) Annulla (storia): UN passo per «Applica».
+        await clic('details[data-section="sensors-health"] .tol-btn');
+        await scrivi('warn', '72');
+        await clic('[data-act="tolp-apply"]');
+        assert.equal((await stato()).nodes.xa.temperature.warn, 72);
+        await page.evaluate(() => document.getElementById('btn-undo').click());
+        assert.equal((await stato()).nodes, undefined, 'un solo Annulla toglie l\'eccezione appena applicata');
+        await page.evaluate(() => document.getElementById('btn-redo').click());
+
+        // 9) Sull'INTERFACCIA: «Errori da» con il limite da 1 per l'apparato; l'effetto dice se la riga comparirebbe ancora.
+        await apriScheda('xa', 'if-health');
+        await clic('details[data-section="if-health"] .tol-btn');
+        p = await pannello();
+        assert.equal(p.titolo, 'Tolleranza per SWA');
+        assert.match(p.ora, /^Gi2 · ora \+40 scarti out/);
+        assert.deepEqual(p.campi, ['ifmin=10|10|min1']);
+        assert.equal(p.scala, false, 'la scala e\' solo della temperatura');
+        assert.equal(p.effetto, 'Effetto: Gi2 resta in elenco (+40 ≥ 10). Gli altri apparati non cambiano.');
+        await scrivi('ifmin', '50');
+        assert.equal((await pannello()).effetto, 'Effetto: Gi2 non comparirebbe più (+40 < 50). Gli altri apparati non cambiano.');
+        await scrivi('ifmin', '1');
+        assert.equal((await pannello()).effetto, 'Effetto: Gi2 comparirebbe a ogni aumento. Gli altri apparati non cambiano.');
+        await clic('[data-act="tolp-scope"][data-scope="project"]');
+        p = await pannello();
+        assert.deepEqual(p.campi, ['ifmin=1|10|min2'], 'per il progetto «1» non e\' una soglia: il limite e\' 2');
+        assert.equal(p.effetto, 'Effetto: Vale per gli apparati senza tolleranza propria: 2.');
+        await clic('[data-act="tolp-scope"][data-scope="node"]');
+        await clic('[data-act="tolp-apply"]');
+        assert.deepEqual((await stato()).nodes.xa.ifErrors, { min: 1 });
+        assert.equal(await page.evaluate(() => document.querySelector('details[data-section="if-health"] summary .props-collapsible-preview').textContent.trim()), '2 con errori in aumento', 'con «ogni aumento» compare anche Gi1 (+9)');
+
+        // 10) Il riquadro della PORTA: la riga «Errori» ha lo stesso bottone, e il pannello si apre dentro il riquadro.
+        await page.evaluate(() => { selType = 'port'; selId = 'xa-1'; window._propsExplicit = true; renderProps(); });
+        await clic('#props-panel .if-health-port .tol-btn');
+        p = await pannello();
+        assert.equal(p.titolo, 'Tolleranza per SWA');
+        assert.match(p.ora, /^Gi1 · ora \+9 errori in/);
+        assert.equal(await page.evaluate(() => !!document.querySelector('#props-panel .if-health-port [data-tolp]')), true, 'sta DENTRO il riquadro della porta');
+        await clic('[data-act="tolp-close"].toolbar-btn');
+        assert.equal(await pannello(), null);
+
+        // 11) «Tutti gli apparati…» apre la tabella sulla riga di QUELL'apparato.
+        await apriScheda('xa', 'sensors-health');
+        await clic('details[data-section="sensors-health"] .tol-btn');
+        await clic('[data-tolp] [data-act="tol-open"]');
+        await new Promise((x) => setTimeout(x, 150));
+        assert.equal(await page.evaluate(() => { const f = document.querySelector('#tol-body .tol-row.focus'); return f ? f.dataset.nid : null; }), 'xa');
+        assert.equal(await page.evaluate(() => document.getElementById('tol-overlay').classList.contains('open')), true);
+        await clic('#tol-modal [data-act="tol-close"]');
+      } finally {
+        await page.evaluate(() => { document.getElementById('tol-overlay').classList.remove('open'); selType = null; selId = null; window._propsExplicit = false; if (state) delete state.healthThresholds; });
+      }
+    });
+
+    await t.test('Salute nel pannello della PORTA: due righe corte col segno (dedotto, misurato), ambra solo se segnalata, nessuna per una porta pulita, e dalla scheda dell\'apparato un clic apre la porta', async () => {
+      // Due Sync recitati (window.fetch): +9 errori in e +2 FCS su Gi1, +40 scarti out su Gi2, Gi3 pulita. Sidecar e progetto sono quelli VERI.
+      // Il pannello della porta si apre come lo apre l'utente (selType/selId + renderProps) e si legge il DOM.
+      const ora = Date.now();
+      const riga = (ifName, o) => Object.assign({ ifName, oper: 1, admin: 1, inErrors: 0, outErrors: 0, inDiscards: 0, outDiscards: 0, fcs: 0, disc: 0 }, o || {});
+      // Gi7 non e' una porta del progetto (nessun `swp-7`): sale, ma la sua riga non puo' essere un collegamento.
+      const salute = (at, upCs, gi1, gi2, gi7) => ({ ok: true, at, upCs, rows: [riga('Gi1', gi1), riga('Gi2', gi2), riga('Gi3'), riga('Gi7', gi7)] });
+      const giro = (risposta) => page.evaluate(async (risposta) => {
+        setLang('it');
+        state = _buildDefaultState(); if (typeof _migrateState === 'function') _migrateState(state);
+        state.nodes.length = 0; state.links.length = 0; state.ports = {};
+        state.nodes.push({ id: 'swp', type: 'switch', name: 'SWP', x: 100, y: 100, ports: 8, ip: '10.8.8.12', integration: { driver: 'snmp-v2c', host: '10.8.8.12', community: 'x' } });
+        state.ports['swp-1'] = { status: 'active', ifName: 'Gi1' };
+        state.ports['swp-2'] = { status: 'active', ifName: 'Gi2' };
+        state.ports['swp-3'] = { status: 'active', ifName: 'Gi3' };
+        state.ports['swp-4'] = { status: 'active' };                   // nessun nome d'interfaccia: non si abbina a niente
+        state.ports['swp-5'] = { status: 'active', ifName: 'Gi9' };    // un nome che la lettura non ha
+        if (typeof _invalidateIdx === 'function') _invalidateIdx();
+        const orig = window.fetch;
+        window.fetch = (url, opts) => {
+          const u = String(url);
+          if (u.includes('/api/poll-health')) return Promise.resolve({ json: () => Promise.resolve(risposta) });
+          if (u.includes('/api/poll')) return Promise.resolve({ json: () => Promise.resolve({ ok: true, hostname: 'h', system: { sysDescr: 'x' }, interfaces: [] }) });
+          return orig(url, opts);
+        };
+        try { await pollAllSNMP({ silent: true, dataOnly: true }); } finally { window.fetch = orig; }
+        return true;
+      }, risposta);
+      const conSalvataggio = async (risposta) => {
+        const [resp] = await Promise.all([
+          page.waitForResponse((x) => x.url().includes('/history/health') && x.request().method() === 'PUT'),
+          giro(risposta),
+        ]);
+        assert.equal(resp.status(), 200);
+      };
+      const porta = (pid) => page.evaluate((pid) => {
+        selType = 'port'; selId = pid; window._propsExplicit = true; renderProps();
+        const b = document.querySelector('#props-panel .if-health-port');
+        if (!b) return null;
+        const righe = Array.from(b.querySelectorAll('.pl-item')).map((e) => ({
+          k: e.querySelector('.pl-k').textContent.trim(), v: e.querySelector('.pl-v').textContent.trim(), warn: e.classList.contains('warn'),
+          tip: e.getAttribute('data-tip') || '', segni: Array.from(e.querySelectorAll('.cty-mark')).map((m) => m.className.replace('cty-mark ', '')),
+          segnoConTip: Array.from(e.querySelectorAll('.cty-mark')).some((m) => m.hasAttribute('data-tip')),
+        }));
+        return { righe, testo: b.textContent, dentro: !!b.closest('details[data-section="port-live"]') };
+      }, pid);
+      const scheda = () => page.evaluate(() => {
+        selType = 'node'; selId = 'swp'; window._propsExplicit = true; renderProps();
+        const d = document.querySelector('details[data-section="if-health"]');
+        if (!d) return null;
+        const prova = document.createElement('span'); prova.style.color = 'var(--accent)'; document.body.appendChild(prova);
+        const accento = getComputedStyle(prova).color; prova.remove();
+        return {
+          testo: d.textContent, accento,
+          vaiA: Array.from(d.querySelectorAll('.pl-item[data-act="ifh-open-port"]')).map((e) => e.getAttribute('data-pid')).sort(),
+          righe: Array.from(d.querySelectorAll('.pl-item')).map((e) => ({ nome: e.querySelector('.pl-k').textContent.trim(), link: e.getAttribute('data-act') === 'ifh-open-port', colore: getComputedStyle(e.querySelector('.pl-k')).color })),
+        };
+      });
+      try {
+        await conSalvataggio(salute(ora - 7200000, 1000000, {}, {}, {}));
+        await conSalvataggio(salute(ora - 3600000, 1360000, { inErrors: 9, fcs: 2 }, { outDiscards: 40 }, { inErrors: 12 }));
+
+        // 1) La porta Gi1: «Errori» (dedotto, ambra) e «Dall'avvio» (misurato). Il segno non ha un suggerimento SUO: lo ha la riga, e
+        //    comincia dal grado; li' dentro c'e' tutto cio' che prima era scritto in paragrafi (intervallo dell'apparato, MIB).
+        const p1 = await porta('swp-1');
+        assert.ok(p1, 'il riquadro c\'e\': la porta ha un nome d\'interfaccia letto e un aumento');
+        assert.equal(p1.dentro, true, 'la tile sta DENTRO la fisarmonica «Lettura dal vivo», non in un riquadro a parte');
+        assert.equal(p1.righe.length, 2);
+        assert.deepEqual([p1.righe[0].k, p1.righe[0].v, p1.righe[0].warn], ['Errori', '+9 errori in · +2 FCS', true]);
+        assert.deepEqual([p1.righe[1].k, p1.righe[1].v, p1.righe[1].warn], ['Dall\'avvio', '9 errori in · 2 FCS', false]);
+        assert.deepEqual(p1.righe[0].segni, ['cty-derived'], 'la differenza e\' DEDOTTA da due misure');
+        assert.deepEqual(p1.righe[1].segni, ['cty-measured'], 'i totali sono MISURATI');
+        assert.equal(p1.righe[0].segnoConTip || p1.righe[1].segnoConTip, false, 'un solo suggerimento per riga: il segno non ne ha uno dentro quello della riga');
+        assert.match(p1.righe[0].tip, /^Dedotto — /);
+        assert.match(p1.righe[0].tip, /intervallo 60 min \(tempo dell'apparato\)/, 'il confronto dice quanto e\' durato e su quale orologio');
+        assert.match(p1.righe[0].tip, /IF-MIB/, 'e da dove viene');
+        assert.match(p1.righe[1].tip, /^Misurato — /);
+        assert.doesNotMatch(p1.testo, /Letto via SNMP|Confronto con la lettura|intervallo/, 'sulla porta niente frasi: stanno nel suggerimento');
+
+        // 2) Una porta PULITA (Gi3), una senza nome d'interfaccia e una il cui nome la lettura non ha: nessuna riga, e nessuno «zero».
+        for (const pid of ['swp-3', 'swp-4', 'swp-5']) assert.equal(await porta(pid), null, pid + ': niente riquadro');
+
+        // 3) La soglia dell'utente (10): Gi1 (+9) resta visibile ma SPENTA — nel pannello della porta non si nasconde niente — e dice
+        //    perche'; Gi2 (+40) e' ambra.
+        await page.evaluate(() => { state.healthThresholds = { ifErrors: { min: 10 } }; });
+        const sotto = await porta('swp-1');
+        assert.equal(sotto.righe[0].warn, false, 'sotto soglia: non e\' ambra');
+        assert.match(sotto.righe[0].tip, /Sotto la tua soglia \(meno di 10\): non segnalata/);
+        assert.equal((await porta('swp-2')).righe[0].warn, true, 'sopra soglia: ambra');
+
+        // 4) La scheda dell'apparato: solo le interfacce segnalate, una riga ciascuna, senza paragrafi; la riga e' un collegamento alla porta.
+        let sc = await scheda();
+        assert.deepEqual(sc.vaiA, ['swp-2'], 'con la soglia 10 il collegamento c\'e\' per Gi2 (Gi1 e\' sotto soglia, Gi7 non e\' una porta del progetto)');
+        // Il nome dell'interfaccia si LEGGE come un collegamento (colore d'accento) solo dove lo e': Gi7 salita ma senza porta resta una riga semplice.
+        const gi2 = sc.righe.find((r) => r.nome === 'Gi2'), gi7 = sc.righe.find((r) => r.nome === 'Gi7');
+        assert.equal(gi2.link, true);
+        assert.equal(gi2.colore, sc.accento, 'il nome di una riga che apre la porta e\' nel colore d\'accento');
+        assert.ok(gi7, 'anche Gi7 e\' in elenco (e\' salita sopra soglia)');
+        assert.equal(gi7.link, false, 'senza una porta nel progetto la riga non finge di aprire niente');
+        assert.notEqual(gi7.colore, sc.accento, 'e non ha il colore di un collegamento');
+        assert.doesNotMatch(sc.testo, /Confronto con la lettura|Letto via SNMP|Totali dall'avvio|Letto 2/, 'niente frasi sulla scheda: stanno nel suggerimento della riga');
+        assert.match(sc.testo, /1 interfacce con un aumento sotto la tua soglia/, 'la nota sulle taciute resta: e\' un fatto, non una descrizione');
+        await page.evaluate(() => { delete state.healthThresholds; });
+        sc = await scheda();
+        assert.deepEqual(sc.vaiA, ['swp-1', 'swp-2']);
+        await page.evaluate(() => { document.querySelector('details[data-section="if-health"] .pl-item[data-act="ifh-open-port"][data-pid="swp-1"]').click(); });
+        await page.waitForTimeout(400);   // renderAll() ridisegna al frame successivo (requestAnimationFrame), non subito
+        const aperta = await page.evaluate(() => ({ tipo: selType, id: selId, riquadro: !!document.querySelector('#props-panel .if-health-port') }));
+        assert.deepEqual(aperta, { tipo: 'port', id: 'swp-1', riquadro: true }, 'un clic sulla riga apre la porta, e la porta mostra le sue righe');
+
+        // 5) Una lettura VECCHIA (oltre 6 ore) non e' lo stato di adesso: il riquadro della porta sparisce, e la scheda dell'apparato dice
+        //    A VISTA quando e' stato letto (il resto, intervallo e totali, sta nei suggerimenti).
+        await page.evaluate(() => { window.__dateNowVero = Date.now; const adesso = Date.now(); Date.now = () => adesso + 7 * 3600 * 1000; });
+        try {
+          assert.equal(await porta('swp-1'), null, 'lettura di 7 ore fa: niente riquadro sulla porta');
+          const vecchia = await scheda();
+          assert.match(vecchia.testo, /Letto \d/, 'la scheda dice quando e\' stato letto');
+        } finally { await page.evaluate(() => { Date.now = window.__dateNowVero; }); }
+      } finally {
+        await page.evaluate(() => { selType = null; selId = null; window._propsExplicit = false; if (state) delete state.healthThresholds; });
+      }
+    });
+
+    await t.test('Vicini: un vicino LLDP che non si sente piu\' dopo 3 letture SANE, mai per una lettura fallita, apparato muto = UN fatto, e riga informativa SOLO nella Verifica (nessuna scheda sull\'apparato)', async () => {
       // /api/poll, /api/poll-health e /api/topology si recitano (window.fetch); sidecar e progetto sono quelli VERI. La colla vera:
-      // pollAllSNMP (Sync completo) → fase topologia → cache dei vicini → recordNeighbors → PUT nel sidecar → scheda → Drift.
+      // pollAllSNMP (Sync completo) → fase topologia → cache dei vicini → recordNeighbors → PUT nel sidecar → Drift. I vicini silenziosi si
+      // vedono SOLO nella Verifica (decisione dell'utente: «lo lasciamo solo dentro a dashboard»): il pannello dell'apparato non ha una scheda.
       const AP ={ localPort: 'Gi1', remoteDevice: 'AP-1', remotePort: 'eth0', remoteMac: 'aa:bb:cc:00:00:01', remoteIP: '', protocol: 'LLDP' };
       const SW = { localPort: 'Gi2', remoteDevice: 'SW-X', remotePort: 'Gi0/24', remoteMac: 'aa:bb:cc:00:00:02', remoteIP: '', protocol: 'LLDP' };
       const giro = (topologia) => page.evaluate(async ([topologia]) => {
@@ -2339,10 +3165,9 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
       const leggi = () => page.evaluate(() => {
         selType = 'node'; selId = 'swn'; window._propsExplicit = true; renderProps();
         const d = document.querySelector('details[data-section="neighbors-health"]');
-        const prev = d && d.querySelector('summary .props-collapsible-preview');
         const rep = _driftComputeFromDoc(_driftBuildDocSnapshot());
         return {
-          card: d ? { aperta: d.open, anteprima: prev ? prev.textContent.trim() : '', testo: d.textContent } : null,
+          card: !!d,
           drift: { n: rep.counts.neighborLost, azionabile: driftActionable(rep.counts),
                    righe: (rep.neighborLost || []).map((x) => ({ kind: x.kind, localIf: x.localIf, remoteName: x.remoteName, misses: x.misses, oid: x.oid, source: x.source, portState: x.portState })) },
         };
@@ -2352,8 +3177,8 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         // 1) Prima lettura: due vicini. Niente da confrontare: nessuna scheda, nessuna riga.
         await conSalvataggio(topo([AP, SW]));
         let r = await leggi();
-        assert.equal(r.card, null, 'il primo giro non produce mai «spariti»');
-        assert.equal(r.drift.n, 0);
+        assert.equal(r.card, false, 'il pannello dell\'apparato non ha una scheda dei vicini');
+        assert.equal(r.drift.n, 0, 'il primo giro non produce mai «spariti»');
         let sc = await sidecar();
         assert.equal(sc.nodes.swn.r.length, 2, 'due vicini nel sidecar');
         assert.ok(sc.nodes.swn.r.every(t => Array.isArray(t)), 'righe in tuple');
@@ -2362,7 +3187,7 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         await conSalvataggio(topo([SW]));
         await conSalvataggio(topo([SW]));
         r = await leggi();
-        assert.equal(r.card, null, 'due mancati non bastano');
+        assert.equal(r.card, false);
         assert.equal(r.drift.n, 0);
 
         // 3) UNA lettura che NON riesce non e' un silenzio: il conto dei mancati non si muove.
@@ -2371,33 +3196,24 @@ test('E2E flussi critici nel browser reale (Chrome headless)', { skip: SKIP }, a
         const ap = (f) => f.nodes.swn.r.find(t => t[3] === 'AP-1');
         assert.equal(ap(sc)[7], 2, 'mancati ancora 2: la lettura fallita non conta');
 
-        // 4) La terza lettura sana senza l'AP: scheda e riga nel Drift, INFORMATIVA, che non dice cosa e' successo al cavo.
+        // 4) La terza lettura sana senza l'AP: una riga nella Verifica, INFORMATIVA, che non dice cosa e' successo al cavo.
         await conSalvataggio(topo([SW]));
         r = await leggi();
-        assert.ok(r.card, 'la scheda «Vicini non riferiti» compare');
-        assert.equal(r.card.aperta, true, 'una scheda che c\'e\' perche\' c\'e\' qualcosa da dire e\' aperta');
-        assert.equal(r.card.anteprima, '1 non riferiti');
-        assert.match(r.card.testo, /AP-1/);
-        assert.match(r.card.testo, /Gi1/);
-        assert.match(r.card.testo, /3 letture sane senza sentirlo/);
-        assert.match(r.card.testo, /Silenzio non è contraddizione/, 'e lo dice: non e\' un cavo tolto');
-        assert.doesNotMatch(r.card.testo, /SW-X/, 'il vicino che c\'e\' ancora non e\' elencato');
+        assert.equal(r.card, false, 'i vicini silenziosi stanno SOLO nella Verifica: nessuna scheda sul pannello dell\'apparato');
         assert.equal(r.drift.n, 1);
         assert.equal(r.drift.azionabile, 0, 'informativa: non entra nel «da verificare»');
         assert.deepEqual(r.drift.righe.map(x => [x.kind, x.localIf, x.remoteName, x.misses, x.source, x.oid]), [['neighbor', 'Gi1', 'AP-1', 3, 'LLDP', '1.0.8802.1.1.2.1.4.1']]);
 
-        // 5) Il vicino TORNA: la scheda sparisce.
+        // 5) Il vicino TORNA: la riga sparisce.
         await conSalvataggio(topo([AP, SW]));
         r = await leggi();
-        assert.equal(r.card, null);
+        assert.equal(r.card, false);
         assert.equal(r.drift.n, 0);
 
         // 6) L'apparato smette di riferire TUTTI i suoi vicini: dopo 3 letture sane e' UN fatto, non due righe.
         for (let i = 0; i < 3; i++) await conSalvataggio(topo([]));
         r = await leggi();
-        assert.ok(r.card);
-        assert.equal(r.card.anteprima, 'non riferisce vicini');
-        assert.match(r.card.testo, /Non riferisce più nessuno dei 2 vicini/);
+        assert.equal(r.card, false);
         assert.equal(r.drift.n, 1, 'UNA riga');
         assert.equal(r.drift.righe[0].kind, 'device');
 

@@ -385,3 +385,309 @@ test('differenze: solo FCS pubblicato basta per «letto» (IF-MIB puo\' tacere d
   const s = summ(null, [{ ifName: 'p', oper: 1, admin: 1, inErrors: null, outErrors: null, inDiscards: null, outDiscards: null, fcs: 0, disc: null }]);
   assert.equal(s.state, 'read');
 });
+
+// ── La soglia dell'UTENTE sugli errori d'interfaccia ───────────────────────────────────────
+// `state.healthThresholds.ifErrors.min` = di quanto deve salire ALMENO UN contatore fra due letture perche' l'interfaccia si
+// segnali. E' una dichiarazione di chi usa l'app: senza, ogni aumento segnala (come prima). Ogni caso qui sotto sta perche' una
+// versione sbagliata direbbe una cosa plausibile e FALSA: «non e' salito niente» quando e' salito poco, la somma che conta due
+// volte lo stesso errore, una soglia che cambia cosa significa un riavvio.
+function summThr(prevRows, curRows, thr, o) {
+  o = o || {};
+  const prev = prevRows ? H.healthReading(reading(T0, o.prevUp === undefined ? 100000 : o.prevUp, prevRows)) : null;
+  const cur = H.healthReading(reading(T0 + HOUR, o.curUp === undefined ? 460000 : o.curUp, curRows));
+  return H.healthSummarizeIf(prev, cur, H.healthSanitizeThresholds(thr));
+}
+
+test('soglia errori: senza soglia ogni aumento segnala, come prima, e il risultato dice min = 1', () => {
+  for (const thr of [undefined, {}, { temperature: { warn: 60, crit: null } }]) {
+    const s = summThr([row('p')], [row('p', { inErrors: 1 })], thr);
+    const p = portOf(s, 'p');
+    assert.equal(s.min, 1);
+    assert.deepEqual(p.grew, ['inErrors']);
+    assert.equal(p.below, false);
+    assert.equal(s.counts.grew, 1);
+    assert.equal(s.counts.below, 0);
+  }
+});
+
+test('soglia errori: SOTTO la soglia l\'interfaccia non si segnala, ma resta contata «below» (la scheda non finge che non sia salito niente)', () => {
+  const s = summThr([row('p')], [row('p', { inErrors: 9 })], { ifErrors: { min: 10 } });
+  const p = portOf(s, 'p');
+  assert.equal(s.min, 10);
+  assert.deepEqual(p.grew, []);
+  assert.equal(p.below, true);
+  assert.equal(p.deltas.inErrors, 9, 'la differenza resta quella vera: la soglia decide cosa si SEGNALA, non cosa e\' successo');
+  assert.equal(s.counts.grew, 0);
+  assert.equal(s.counts.below, 1);
+});
+
+test('soglia errori: ALLA soglia si segnala (>=), e la riga porta TUTTI i contatori saliti, anche quelli sotto soglia', () => {
+  const s = summThr([row('p')], [row('p', { inErrors: 10, outDiscards: 2 })], { ifErrors: { min: 10 } });
+  const p = portOf(s, 'p');
+  assert.deepEqual(p.grew.slice().sort(), ['inErrors', 'outDiscards']);
+  assert.equal(p.below, false);
+  assert.equal(s.counts.grew, 1);
+  assert.equal(s.counts.below, 0);
+});
+
+test('soglia errori: si guarda UN contatore alla volta, MAI la somma (gli FCS stanno gia\' dentro gli errori in: sommarli conterebbe due volte)', () => {
+  // 6 + 6 = 12 ≥ 10, ma nessun contatore da solo ci arriva: non si segnala.
+  const a = portOf(summThr([row('p')], [row('p', { inErrors: 6, fcs: 6 })], { ifErrors: { min: 10 } }), 'p');
+  assert.deepEqual(a.grew, []);
+  assert.equal(a.below, true);
+  const b = portOf(summThr([row('p')], [row('p', { inErrors: 6, outErrors: 6, inDiscards: 6 })], { ifErrors: { min: 10 } }), 'p');
+  assert.deepEqual(b.grew, []);
+  assert.equal(b.below, true);
+});
+
+test('soglia errori: la soglia vale per interfaccia — una sopra e una sotto stanno ciascuna dalla sua parte', () => {
+  const s = summThr([row('a'), row('b'), row('c')], [row('a', { inErrors: 50 }), row('b', { inErrors: 3 }), row('c')], { ifErrors: { min: 10 } });
+  assert.deepEqual(portOf(s, 'a').grew, ['inErrors']);
+  assert.deepEqual(portOf(s, 'b').grew, []);
+  assert.equal(portOf(s, 'b').below, true);
+  assert.equal(portOf(s, 'c').below, false, 'una che non e\' salita per niente non e\' «sotto soglia»');
+  assert.equal(s.counts.grew, 1);
+  assert.equal(s.counts.below, 1);
+});
+
+test('soglia errori: non cambia cio\' che NON e\' un aumento — riavvio, prima lettura e contatore azzerato restano come erano', () => {
+  const thr = { ifErrors: { min: 10 } };
+  assert.equal(portOf(summThr([row('p', { inErrors: 500 })], [row('p', { inErrors: 5 })], thr, { prevUp: 460000, curUp: 100000 }), 'p').status, 'rebooted');
+  assert.equal(portOf(summThr(null, [row('p', { inErrors: 500 })], thr), 'p').status, 'no_baseline');
+  const cleared = portOf(summThr([row('p', { inErrors: 500 })], [row('p', { inErrors: 5 })], thr), 'p');
+  assert.equal(cleared.status, 'counter_cleared');
+  assert.equal(cleared.below, false, 'un contatore azzerato non e\' «salito sotto soglia»');
+});
+
+test('soglia errori: un contatore NON letto non e\' ne\' sotto ne\' sopra soglia, e non impedisce agli altri', () => {
+  const s = summThr([row('p', { inErrors: null })], [row('p', { inErrors: null, outErrors: 20 })], { ifErrors: { min: 10 } });
+  const p = portOf(s, 'p');
+  assert.equal(p.deltas.inErrors, null);
+  assert.deepEqual(p.grew, ['outErrors']);
+});
+
+test('soglia errori: una soglia che non e\' valida non si inventa — 1 (= ogni aumento), 0, negativa, decimale, testo, enorme → nessuna', () => {
+  for (const v of [1, 0, -5, 2.5, '1', 'x', '', ' ', null, undefined, true, [], {}, 1e9 + 1, Infinity, NaN]) {
+    assert.deepEqual(H.healthSanitizeThresholds({ ifErrors: { min: v } }), {}, 'non e\' una soglia: ' + JSON.stringify(v));
+  }
+  for (const v of [null, 5, 'x', [], { ifErrors: 5 }, { ifErrors: 'x' }, { ifErrors: null }]) assert.deepEqual(H.healthSanitizeThresholds(v), {});
+});
+
+test('soglia errori: i numeri validi (anche come testo del campo) si tengono interi, e convivono con la temperatura', () => {
+  assert.deepEqual(H.healthSanitizeThresholds({ ifErrors: { min: 10 } }), { ifErrors: { min: 10 } });
+  assert.deepEqual(H.healthSanitizeThresholds({ ifErrors: { min: '25' } }), { ifErrors: { min: 25 } });
+  assert.deepEqual(H.healthSanitizeThresholds({ ifErrors: { min: 2 } }), { ifErrors: { min: 2 } });
+  assert.deepEqual(H.healthSanitizeThresholds({ ifErrors: { min: 1e9 } }), { ifErrors: { min: 1e9 } });
+  assert.deepEqual(H.healthSanitizeThresholds({ temperature: { warn: 60, crit: null }, ifErrors: { min: 10 } }), { temperature: { warn: 60, crit: null }, ifErrors: { min: 10 } });
+  // una soglia valida non trascina l'altra: la temperatura sbagliata sparisce, gli errori restano
+  assert.deepEqual(H.healthSanitizeThresholds({ temperature: { warn: 999, crit: null }, ifErrors: { min: 10 } }), { ifErrors: { min: 10 } });
+});
+
+// ── Le soglie PER APPARATO: un'eccezione a quelle del progetto, campo per campo ──────────────────
+// `nodes: { id: { temperature?: {warn,crit}, ifErrors?: {min} } }`. Un campo vuoto dell'apparato vale quello del progetto; per
+// l'apparato `min` puo' valere 1 («ogni aumento»), che per il progetto non e' una soglia. Ogni caso sta perche' una versione sbagliata
+// direbbe una cosa plausibile e falsa: un apparato che prende la soglia di un altro, un id che sfonda il prototipo, una soglia di
+// un apparato cancellato che resta li' a giudicare un altro con lo stesso id.
+test('per apparato: una soglia valida si tiene, e convive con quelle del progetto', () => {
+  const s = H.healthSanitizeThresholds({ temperature: { warn: 60, crit: null }, ifErrors: { min: 10 }, nodes: { sw1: { temperature: { warn: 70, crit: 85 }, ifErrors: { min: 1 } }, ap1: { ifErrors: { min: '25' } } } });
+  assert.deepEqual(s, { temperature: { warn: 60, crit: null }, ifErrors: { min: 10 }, nodes: { sw1: { temperature: { warn: 70, crit: 85 }, ifErrors: { min: 1 } }, ap1: { ifErrors: { min: 25 } } } });
+});
+
+test('per apparato: min = 1 vale per l\'APPARATO e non per il progetto (che lo butta: 1 e\' «nessuna soglia»)', () => {
+  assert.deepEqual(H.healthSanitizeThresholds({ ifErrors: { min: 1 } }), {});
+  assert.deepEqual(H.healthSanitizeThresholds({ nodes: { sw1: { ifErrors: { min: 1 } } } }), { nodes: { sw1: { ifErrors: { min: 1 } } } });
+  assert.deepEqual(H.healthSanitizeThresholds({ nodes: { sw1: { ifErrors: { min: 0 } } } }), {}, '0 non e\' una soglia nemmeno per l\'apparato');
+});
+
+test('per apparato: cio\' che non e\' una soglia non entra — id strani, voci vuote, forme sbagliate', () => {
+  const bad = {};
+  for (const id of ['', 'a b', 'x'.repeat(81), 'a/b', 'a<b', '__proto__']) bad[id] = { ifErrors: { min: 5 } };
+  assert.deepEqual(H.healthSanitizeThresholds({ nodes: bad }), {});
+  // __proto__ come CHIAVE vera (cosi' la crea JSON.parse): non deve passare ne' sfondare il prototipo
+  const parsed = JSON.parse('{"nodes":{"__proto__":{"ifErrors":{"min":5}},"ok":{"ifErrors":{"min":5}}}}');
+  const s = H.healthSanitizeThresholds(parsed);
+  assert.deepEqual(Object.keys(s.nodes), ['ok']);
+  assert.equal(({}).min, undefined);
+  // `out.__proto__ = {…}` NON crea una chiave: cambia il prototipo dell'oggetto, e le sue soglie diventerebbero ereditate da tutti gli apparati
+  assert.equal(Object.getPrototypeOf(s.nodes), Object.prototype, '«__proto__» non deve toccare il prototipo dell\'elenco');
+  assert.equal(s.nodes.ifErrors, undefined, 'e nessuna soglia e\' ereditata');
+  for (const v of [{ sw1: null }, { sw1: 5 }, { sw1: 'x' }, { sw1: [] }, { sw1: {} }, { sw1: { temperature: { warn: 999, crit: 'x' } } }, { sw1: { ifErrors: { min: 'x' } } }]) {
+    assert.deepEqual(H.healthSanitizeThresholds({ nodes: v }), {}, JSON.stringify(v));
+  }
+  for (const v of [null, 5, 'x', [], [{ ifErrors: { min: 5 } }], true]) assert.deepEqual(H.healthSanitizeThresholds({ nodes: v }), {}, JSON.stringify(v));
+});
+
+test('per apparato: un tetto sul numero di apparati con una soglia propria', () => {
+  const nodes = {};
+  for (let i = 0; i < 5200; i++) nodes['n' + i] = { ifErrors: { min: 5 } };
+  assert.equal(Object.keys(H.healthSanitizeThresholds({ nodes }).nodes).length, 5000);
+});
+
+test('per apparato: vale CAMPO PER CAMPO — un campo vuoto dell\'apparato e\' quello del progetto', () => {
+  const raw = { temperature: { warn: 60, crit: 75 }, ifErrors: { min: 10 }, nodes: { sw1: { temperature: { warn: 70, crit: null } }, sw2: { ifErrors: { min: 1 } } } };
+  assert.deepEqual(H.healthThresholdsFor(raw, 'sw1'), { temperature: { warn: 70, crit: 75 }, ifErrors: { min: 10 } }, 'solo l\'avviso e\' suo: la critica e gli errori restano del progetto');
+  assert.deepEqual(H.healthThresholdsFor(raw, 'sw2'), { temperature: { warn: 60, crit: 75 }, ifErrors: { min: 1 } }, 'min 1: vuole ogni aumento anche se il progetto chiede 10');
+  assert.deepEqual(H.healthThresholdsFor(raw, 'altro'), { temperature: { warn: 60, crit: 75 }, ifErrors: { min: 10 } }, 'un apparato senza eccezione: il progetto');
+  assert.deepEqual(H.healthThresholdsFor({ nodes: { sw1: { temperature: { warn: 70, crit: null } } } }, 'sw1'), { temperature: { warn: 70, crit: null } }, 'il progetto non dice niente: resta il suo, e la critica vuota');
+  assert.deepEqual(H.healthThresholdsFor(undefined, 'sw1'), {});
+  assert.deepEqual(H.healthThresholdsFor(raw, 'sw1').nodes, undefined, 'il risultato non porta le eccezioni degli altri');
+});
+
+test('per apparato: un id che e\' una proprieta\' dell\'oggetto non pesca niente dal prototipo', () => {
+  const raw = { ifErrors: { min: 10 }, nodes: { sw1: { ifErrors: { min: 3 } } } };
+  for (const id of ['constructor', 'toString', 'hasOwnProperty', 'valueOf', '__proto__']) {
+    assert.deepEqual(H.healthThresholdsFor(raw, id), { ifErrors: { min: 10 } }, id);
+  }
+});
+
+test('per apparato: cambiare un campo non tocca gli altri campi, gli altri apparati ne\' il progetto', () => {
+  const base = { temperature: { warn: 60, crit: null }, ifErrors: { min: 10 }, nodes: { sw2: { ifErrors: { min: 3 } } } };
+  const frozen = JSON.stringify(base);
+  let s = H.healthThresholdsSetNode(base, 'sw1', 'warn', '70');
+  assert.deepEqual(s, { temperature: { warn: 60, crit: null }, ifErrors: { min: 10 }, nodes: { sw2: { ifErrors: { min: 3 } }, sw1: { temperature: { warn: 70, crit: null } } } });
+  s = H.healthThresholdsSetNode(s, 'sw1', 'crit', 85);
+  assert.deepEqual(s.nodes.sw1, { temperature: { warn: 70, crit: 85 } }, 'la critica non porta via l\'avviso');
+  s = H.healthThresholdsSetNode(s, 'sw1', 'ifmin', '1');
+  assert.deepEqual(s.nodes.sw1, { temperature: { warn: 70, crit: 85 }, ifErrors: { min: 1 } }, '1 resta, per l\'apparato');
+  assert.deepEqual(s.nodes.sw2, { ifErrors: { min: 3 } });
+  assert.deepEqual(s.temperature, { warn: 60, crit: null });
+  assert.deepEqual(s.ifErrors, { min: 10 });
+  assert.equal(JSON.stringify(base), frozen, 'l\'ingresso non si muta');
+});
+
+test('per apparato: un testo che non e\' una soglia CANCELLA il campo, e l\'ultimo campo cancellato toglie l\'apparato', () => {
+  let s = H.healthThresholdsSetNode({}, 'sw1', 'warn', 70);
+  s = H.healthThresholdsSetNode(s, 'sw1', 'ifmin', 5);
+  assert.deepEqual(s.nodes.sw1, { temperature: { warn: 70, crit: null }, ifErrors: { min: 5 } });
+  for (const v of ['', ' ', 'abc', null, undefined, 999, -100, 'NaN']) {
+    const t = H.healthThresholdsSetNode(s, 'sw1', 'warn', v);
+    assert.deepEqual(t.nodes.sw1, { ifErrors: { min: 5 } }, 'warn = ' + JSON.stringify(v));
+  }
+  s = H.healthThresholdsSetNode(s, 'sw1', 'warn', '');
+  s = H.healthThresholdsSetNode(s, 'sw1', 'ifmin', 'x');
+  assert.deepEqual(s, {}, 'nessuna eccezione rimasta: nessun apparato, nessun `nodes` vuoto');
+});
+
+test('per apparato: un id o un campo sbagliati non cambiano niente', () => {
+  const base = { ifErrors: { min: 10 }, nodes: { sw1: { ifErrors: { min: 3 } } } };
+  for (const id of ['', 'a b', '__proto__', null, undefined, {}]) assert.deepEqual(H.healthThresholdsSetNode(base, id, 'warn', 70), base, String(id));
+  for (const key of ['', 'min', 'temperature', 'WARN', undefined]) assert.deepEqual(H.healthThresholdsSetNode(base, 'sw1', key, 70), base, String(key));
+});
+
+test('per apparato: gli apparati che non ci sono piu\' perdono la loro eccezione (nessuna soglia orfana)', () => {
+  const base = { nodes: { sw1: { ifErrors: { min: 3 } }, gone: { ifErrors: { min: 4 } } } };
+  const s = H.healthThresholdsSetNode(base, 'sw2', 'ifmin', 7, new Set(['sw1', 'sw2']));
+  assert.deepEqual(Object.keys(s.nodes).sort(), ['sw1', 'sw2']);
+  assert.deepEqual(Object.keys(H.healthThresholdsClearNode(base, 'sw1', new Set(['sw1'])) .nodes || {}), [], 'tolto sw1, e gone non c\'e\' piu\': nessuna eccezione');
+  assert.deepEqual(H.healthThresholdsSetNode(base, 'sw2', 'ifmin', 7).nodes.gone, { ifErrors: { min: 4 } }, 'senza l\'elenco degli apparati non si butta niente');
+});
+
+test('per apparato: «torna al progetto» toglie TUTTE le eccezioni di UN apparato e solo le sue', () => {
+  const base = { temperature: { warn: 60, crit: null }, nodes: { sw1: { temperature: { warn: 70, crit: 85 }, ifErrors: { min: 1 } }, sw2: { ifErrors: { min: 3 } } } };
+  const s = H.healthThresholdsClearNode(base, 'sw1');
+  assert.deepEqual(s, { temperature: { warn: 60, crit: null }, nodes: { sw2: { ifErrors: { min: 3 } } } });
+  assert.deepEqual(H.healthThresholdsClearNode(base, 'non-c-e'), H.healthSanitizeThresholds(base), 'un apparato senza eccezione: niente cambia');
+  assert.deepEqual(H.healthThresholdsClearNode(H.healthThresholdsClearNode(base, 'sw1'), 'sw2'), { temperature: { warn: 60, crit: null } });
+});
+
+test('per apparato: la soglia dell\'apparato decide DAVVERO — min 1 vede un aumento che il progetto (10) tace, e viceversa', () => {
+  const raw = { ifErrors: { min: 10 }, nodes: { core: { ifErrors: { min: 1 } }, noisy: { ifErrors: { min: 500 } } } };
+  const prev = H.healthReading(reading(T0, 100000, [row('p')]));
+  const cur = H.healthReading(reading(T0 + HOUR, 460000, [row('p', { inErrors: 30 })]));
+  const sum = (id) => H.healthSummarizeIf(prev, cur, H.healthThresholdsFor(raw, id));
+  assert.deepEqual(portOf(sum('core'), 'p').grew, ['inErrors'], 'dorsale: ogni aumento');
+  assert.equal(sum('core').min, 1);
+  assert.deepEqual(portOf(sum('altro'), 'p').grew, ['inErrors'], 'progetto 10: +30 segnala');
+  assert.deepEqual(portOf(sum('noisy'), 'p').grew, [], 'rumoroso 500: +30 non segnala');
+  assert.equal(portOf(sum('noisy'), 'p').below, true, 'e lo dice: e\' salito, sotto la soglia di QUELL\'apparato');
+  assert.equal(sum('noisy').min, 500);
+});
+
+test('per apparato: la soglia di temperatura dell\'apparato giudica il suo sensore, e la fonte resta «tua» (user_default)', () => {
+  const raw = { temperature: { warn: 60, crit: null }, nodes: { hot: { temperature: { warn: 75, crit: 90 } } } };
+  const sensor = { kind: 'temperature', value: 68, state: 'ok', limHi: null, limLo: null };
+  assert.deepEqual(H.healthSensorSeverity(sensor, H.healthThresholdsFor(raw, 'cold')), { severity: 'warn', source: 'user_default', why: 'threshold' });
+  assert.deepEqual(H.healthSensorSeverity(sensor, H.healthThresholdsFor(raw, 'hot')), { severity: null, source: null, why: null }, 'il firewall che sta a 68° e\' normale');
+  assert.equal(H.healthSensorSeverity(Object.assign({}, sensor, { value: 91 }), H.healthThresholdsFor(raw, 'hot')).severity, 'crit');
+  // la parola dell'apparato vale sempre di piu' della soglia: il suo limite supera quello dell'utente
+  assert.deepEqual(H.healthSensorSeverity(Object.assign({}, sensor, { limHi: 65 }), H.healthThresholdsFor(raw, 'hot')), { severity: 'crit', source: 'device', why: 'limit' });
+});
+
+// ── Applicare una modifica (anteprima = scrittura) e la scala della temperatura ───────────────────
+// `healthThresholdsApply` e' la UNICA definizione: il pannello «Tolleranza» ci calcola l'effetto prima di scrivere, e poi scrive il
+// risultato di QUELLA stessa funzione. Se ne esistessero due, l'effetto annunciato potrebbe non essere quello scritto.
+test('applica: al progetto, solo le chiavi presenti, e le eccezioni degli apparati restano', () => {
+  const base = { temperature: { warn: 60, crit: null }, ifErrors: { min: 10 }, nodes: { sw1: { ifErrors: { min: 1 } } } };
+  assert.deepEqual(H.healthThresholdsApply(base, 'project', null, { warn: '65' }), { temperature: { warn: 65, crit: null }, ifErrors: { min: 10 }, nodes: { sw1: { ifErrors: { min: 1 } } } });
+  assert.deepEqual(H.healthThresholdsApply(base, 'project', null, { crit: 80, ifmin: '25' }), { temperature: { warn: 60, crit: 80 }, ifErrors: { min: 25 }, nodes: { sw1: { ifErrors: { min: 1 } } } });
+  assert.deepEqual(H.healthThresholdsApply(base, 'project', null, { warn: '', ifmin: '1' }), { nodes: { sw1: { ifErrors: { min: 1 } } } }, 'un testo vuoto cancella, e per il progetto 1 non e\' una soglia');
+  assert.deepEqual(H.healthThresholdsApply(base, 'project', null, {}), H.healthSanitizeThresholds(base), 'nessun campo: niente cambia');
+  assert.deepEqual(H.healthThresholdsApply(base, 'project', null, { warn: 'x' }).temperature, undefined, 'un testo che non e\' una soglia cancella il campo, non si inventa');
+});
+test('applica: a un apparato, e un valore UGUALE a quello del progetto non e\' un\'eccezione (segue il progetto)', () => {
+  const base = { temperature: { warn: 60, crit: null }, ifErrors: { min: 10 } };
+  assert.deepEqual(H.healthThresholdsApply(base, 'node', 'sw1', { warn: '45', crit: '55' }).nodes, { sw1: { temperature: { warn: 45, crit: 55 } } });
+  assert.equal(H.healthThresholdsApply(base, 'node', 'sw1', { warn: '60' }).nodes, undefined, '60 e\' gia\' quello del progetto: nessuna eccezione');
+  assert.equal(H.healthThresholdsApply(base, 'node', 'sw1', { ifmin: '10' }).nodes, undefined);
+  assert.deepEqual(H.healthThresholdsApply(base, 'node', 'sw1', { ifmin: '1' }).nodes, { sw1: { ifErrors: { min: 1 } } }, '1 e\' diverso da 10: l\'apparato li vuole tutti');
+  // un'eccezione che torna uguale al progetto SPARISCE (le altre dello stesso apparato restano)
+  const own = H.healthThresholdsApply(base, 'node', 'sw1', { warn: '45', ifmin: '1' });
+  assert.deepEqual(H.healthThresholdsApply(own, 'node', 'sw1', { warn: '60' }).nodes, { sw1: { ifErrors: { min: 1 } } });
+  // senza soglia del progetto, 1 e' comunque una scelta dell'apparato (il progetto non ha niente da ereditare)
+  assert.deepEqual(H.healthThresholdsApply({}, 'node', 'sw1', { ifmin: '1' }).nodes, { sw1: { ifErrors: { min: 1 } } });
+});
+test('applica: uno scope che non esiste, o un campo che non esiste, non cambia niente; gli orfani si tolgono', () => {
+  const base = { ifErrors: { min: 10 }, nodes: { sw1: { ifErrors: { min: 3 } }, gone: { ifErrors: { min: 4 } } } };
+  assert.deepEqual(H.healthThresholdsApply(base, 'altro', 'sw1', { warn: 70 }), H.healthSanitizeThresholds(base));
+  assert.deepEqual(H.healthThresholdsApply(base, 'node', 'sw1', { min: 7, temperature: 70 }), H.healthSanitizeThresholds(base));
+  assert.deepEqual(Object.keys(H.healthThresholdsApply(base, 'project', null, { warn: 60 }, new Set(['sw1'])).nodes), ['sw1']);
+  assert.deepEqual(Object.keys(H.healthThresholdsApply(base, 'node', 'sw2', { ifmin: 7 }, new Set(['sw1', 'sw2'])).nodes).sort(), ['sw1', 'sw2']);
+});
+test('applica: a un apparato = SetNode quando il valore e\' diverso (una definizione sola, mai due che divergono)', () => {
+  const base = { temperature: { warn: 60, crit: null }, ifErrors: { min: 10 }, nodes: { sw2: { ifErrors: { min: 3 } } } };
+  assert.deepEqual(H.healthThresholdsApply(base, 'node', 'sw1', { warn: '70' }), H.healthThresholdsSetNode(base, 'sw1', 'warn', '70'));
+  assert.deepEqual(H.healthThresholdsApply(base, 'node', 'sw1', { crit: '90' }), H.healthThresholdsSetNode(base, 'sw1', 'crit', '90'));
+  assert.deepEqual(H.healthThresholdsApply(base, 'node', 'sw1', { ifmin: '1' }), H.healthThresholdsSetNode(base, 'sw1', 'ifmin', '1'));
+});
+
+const pctOk = (m) => m.zones.every(z => z.from >= 0 && z.to <= 100 && z.from <= z.to) && m.marks.every(k => k.at >= 0 && k.at <= 100);
+test('scala: avviso 45, critica 55, ora 48, progetto 60 → zone e segni nelle posizioni giuste', () => {
+  const m = H.healthScaleModel({ value: 48, warn: 45, crit: 55, projectWarn: 60 });
+  assert.equal(m.lo, 10);
+  assert.equal(m.hi, 90);
+  assert.deepEqual(m.zones.map(z => z.kind), ['ok', 'warn', 'crit']);
+  assert.equal(m.zones[0].to, 43.75);
+  assert.equal(m.zones[1].from, 43.75);
+  assert.equal(m.zones[1].to, 56.25);
+  assert.equal(m.zones[2].from, 56.25);
+  assert.equal(m.zones[2].to, 100);
+  assert.deepEqual(m.marks.map(k => [k.kind, k.at]), [['now', 47.5], ['warn', 43.75], ['crit', 56.25], ['project', 62.5]]);
+  assert.ok(pctOk(m));
+});
+test('scala: senza soglie c\'e\' una sola zona «a posto»; senza critica l\'avviso arriva in fondo; il segno del progetto solo se diverso', () => {
+  assert.deepEqual(H.healthScaleModel({ value: 40 }).zones, [{ kind: 'ok', from: 0, to: 100 }]);
+  const w = H.healthScaleModel({ value: 40, warn: 60 });
+  assert.deepEqual(w.zones.map(z => z.kind), ['ok', 'warn']);
+  assert.equal(w.zones[1].to, 100);
+  assert.equal(H.healthScaleModel({ value: 40, warn: 60, projectWarn: 60 }).marks.some(k => k.kind === 'project'), false, 'uguale al progetto: un segno solo');
+  assert.equal(H.healthScaleModel({ value: 40, warn: 50, projectWarn: 60 }).marks.some(k => k.kind === 'project'), true);
+});
+test('scala: avviso sopra la critica → la critica vince, la zona d\'avviso e\' vuota (come healthSensorSeverity)', () => {
+  const m = H.healthScaleModel({ value: 50, warn: 70, crit: 55 });
+  const w = m.zones.find(z => z.kind === 'warn');
+  assert.equal(w.from, w.to, 'larghezza zero');
+  assert.equal(m.zones.find(z => z.kind === 'ok').to, w.from);
+  assert.equal(H.healthSensorSeverity({ kind: 'temperature', value: 60, state: 'ok', limHi: null, limLo: null }, { temperature: { warn: 70, crit: 55 } }).severity, 'crit');
+  assert.ok(pctOk(m));
+});
+test('scala: un valore fuori dal campo normale allarga la scala invece di uscirne, e un valore non numerico non entra', () => {
+  const a = H.healthScaleModel({ value: 150, warn: 100 });
+  assert.ok(a.hi >= 155, 'la scala arriva oltre il valore');
+  assert.ok(pctOk(a));
+  const b = H.healthScaleModel({ value: -20 });
+  assert.ok(b.lo <= -25);
+  const c = H.healthScaleModel({ value: 'x', warn: null, crit: undefined, projectWarn: NaN });
+  assert.deepEqual(c.marks, []);
+  assert.deepEqual(c.zones, [{ kind: 'ok', from: 0, to: 100 }]);
+  assert.deepEqual(H.healthScaleModel().zones, [{ kind: 'ok', from: 0, to: 100 }]);
+});

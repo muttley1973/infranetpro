@@ -94,6 +94,27 @@ test('standard: «unavailable» → value null (MAI il numero che c\'e\' dentro)
   assert.equal(s.state, 'unavailable');
 });
 
+test('standard: ±1000000000 e\' un ERRORE di lettura (RFC 3433) — value null e stato unavailable anche se l\'apparato dice «ok»', async () => {
+  // Cosi' risponde uno switch vero per un modulo ottico senza luce: stato «ok» e valore -1000000000 (con scala milli e precisione 4
+  // sarebbe diventato «-100 W»). Il valore che non c'e' resta «non disponibile»: mai un numero, mai uno zero.
+  const t = {};
+  const add = (idx, type, scale, prec, value, status) => {
+    t[ent('type', idx)] = type; t[ent('scale', idx)] = scale; t[ent('precision', idx)] = prec; t[ent('value', idx)] = value; t[ent('status', idx)] = status;
+  };
+  add(2001, 6, 8, 4, -1000000000, 1);   // underflow
+  add(2002, 8, 9, 0, 1000000000, 1);    // overflow
+  add(2003, 8, 9, 0, 999999999, 1);     // l'ultimo valore valido
+  add(2004, 8, 9, 0, 41, 1);            // un sensore normale accanto
+  const by = Object.fromEntries((await _readSensors(fakeSession(t), 3000)).rows.map(x => [x.sid, x]));
+  assert.equal(by['ent:2001'].value, null);
+  assert.equal(by['ent:2001'].state, 'unavailable');
+  assert.equal(by['ent:2002'].value, null);
+  assert.equal(by['ent:2002'].state, 'unavailable');
+  assert.equal(by['ent:2003'].value, 999999999);
+  assert.equal(by['ent:2003'].state, 'ok');
+  assert.equal(by['ent:2004'].value, 41);
+});
+
 test('standard: scala fuori dallo standard → value null e stato unknown (non si indovina)', async () => {
   const s = (await _readSensors(fakeSession(standard()), 3000)).rows.find(x => x.sid === 'ent:1005');
   assert.equal(s.value, null);

@@ -1281,3 +1281,70 @@
            secondaria per colore, non per dimensione. */
         .org-row-kind { color:var(--text-muted); font-weight:400; }
         .org-row-kind::before { content:'·'; margin:0 8px; opacity:.6; }
+
+        /* Tolleranze di salute: la tabella di tutti gli apparati (src/app-tolerances.js). Una riga per apparato con la lettura di adesso
+           accanto ai numeri; la prima riga e' il progetto. Le celle di sola lettura si riscrivono sul posto, i campi no. */
+        #tol-overlay .tool-modal { width:min(1180px,96vw); max-height:88vh; }
+        .tol-sub { font-weight:400; color:var(--text-muted); font-size:var(--fs-sm); margin-left:10px; }
+        .tol-tools { display:flex; align-items:center; gap:8px; padding:10px 18px; flex-wrap:wrap; flex-shrink:0; }
+        .tol-search { display:flex; align-items:center; gap:6px; width:250px; background:var(--bg-color); border:1px solid var(--panel-border); border-radius:var(--radius-sm); padding:0 8px; height:33px; color:var(--text-muted); }
+        .tol-search input { flex:1; min-width:0; background:transparent; border:0; color:var(--text-main); font:inherit; font-size:var(--fs-md); outline:none; }
+        .tol-chips { display:flex; gap:8px; flex-wrap:wrap; }
+        .tol-chip { padding:4px 11px; border-radius:var(--radius-pill); border:1px solid var(--panel-border); background:var(--surface-2); color:var(--text-main); font-size:var(--fs-sm); cursor:pointer; font-family:inherit; }
+        .tol-chip.on { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); font-weight:600; }
+        .tol-chip i { font-style:normal; color:var(--text-muted); margin-left:4px; }
+        .tol-select { background:var(--bg-color); border:1px solid var(--panel-border); color:var(--text-main); border-radius:var(--radius-sm); padding:0 10px; height:30px; font-size:var(--fs-sm); font-family:inherit; }
+        .tol-body { padding:0 18px 4px; }
+        .tol-g { display:grid; grid-template-columns:minmax(0,1fr) 170px 210px 92px 92px 92px; gap:12px; align-items:center; }
+        .tol-g .tol-in { width:100%; }
+        .tol-th { position:sticky; top:0; z-index:2; background:var(--panel-bg); color:var(--text-muted); font-size:var(--fs-xs); letter-spacing:.05em; text-transform:uppercase; font-weight:700; height:30px; border-bottom:1px solid var(--panel-border); }
+        .tol-r { text-align:right; }
+        .tol-row { min-height:56px; border-bottom:1px solid var(--hairline); }
+        .tol-row.focus { outline:1px solid var(--accent); outline-offset:-1px; }
+        .tol-pj { min-height:56px; background:rgba(0,212,255,.08); border-bottom:1px solid var(--hairline); }
+        .tol-nm b { display:block; font-size:var(--fs-md); }
+        .tol-nm small { display:block; color:var(--text-muted); font-size:var(--fs-xs); }
+        .tol-pj .tol-nm b { color:var(--accent); }
+        .tol-w { color:var(--idle-color); font-weight:600; }
+        .tol-c { color:var(--fault-color); font-weight:600; }
+        .tol-ok { color:var(--active-color); font-weight:600; }
+        .tol-old { opacity:.6; }
+        /* I numeri: nessuno spinner (le frecce da tastiera restano), il segnaposto e' il numero del progetto, in grigio. */
+        #tol-body .tol-in { height:32px; padding:0 8px; font-size:var(--fs-md); -moz-appearance:textfield; appearance:textfield; }
+        #tol-body .tol-in::-webkit-inner-spin-button, #tol-body .tol-in::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+        #tol-body .tol-in::placeholder { color:var(--text-muted); opacity:1; }
+        #tol-body .tol-pj .tol-in { font-weight:600; }
+        /* Il segno dell'eccezione sta nel NUMERO: bordo azzurro e il suo ↺ dentro il campo. Un numero che segue il progetto e' grigio e tratteggiato. */
+        .tol-fl { position:relative; display:block; }
+        .tol-fl .tol-in { background:transparent; border:1px dashed var(--inactive-color); }
+        #tol-body .tol-fl.own .tol-in { border:1px solid var(--accent); background:var(--accent-soft); color:var(--text-main); font-weight:600; padding-left:26px; }
+        /* «#tol-body»: la regola del suggerimento ([data-tip]{position:relative}) e quella del padding dei campi avrebbero la meglio. */
+        #tol-body .tol-rs { position:absolute; left:5px; top:50%; transform:translateY(-50%); width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; padding:0; border:0; border-radius:4px; background:transparent; color:var(--text-muted); font-size:var(--fs-xs); cursor:pointer; }
+        #tol-body .tol-rs:hover { color:var(--accent); background:var(--accent-soft); }
+        #tol-body .tol-rs[hidden] { display:none; }
+        /* I due gruppi: il titolo dice quello che prima dicevano un'etichetta e una spunta su ogni riga. */
+        .tol-sh { display:flex; align-items:center; gap:10px; margin:0 -18px; padding:9px 18px; background:var(--bg-color); border-bottom:1px solid var(--hairline); font-size:var(--fs-sm); }
+        .tol-sh b { font-size:var(--fs-sm); }
+        .tol-sdot { width:9px; height:9px; border-radius:50%; background:var(--accent); flex:none; }
+        .tol-sdot.q { background:var(--inactive-color); }
+        .tol-sn, .tol-sf { color:var(--text-muted); }
+        .tol-sls { margin-left:auto; display:flex; align-items:center; gap:14px; }
+        .tol-sl { background:transparent; border:0; color:var(--accent); font:inherit; font-size:var(--fs-sm); cursor:pointer; padding:2px 4px; }
+        .tol-sl:hover { text-decoration:underline; }
+        .tol-sl[hidden] { display:none; }
+        .tol-sform { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 -18px; padding:8px 18px; background:var(--accent-soft); border-bottom:1px solid rgba(0,212,255,.45); font-size:var(--fs-sm); }
+        .tol-sform[hidden] { display:none; }
+        .tol-sfl { display:flex; align-items:center; gap:6px; }
+        .tol-sform .tol-in { width:72px; }
+        .tol-sempty { padding:10px 0; color:var(--text-muted); font-size:var(--fs-sm); }
+        .tol-sempty[hidden] { display:none; }
+        /* «Come il progetto»: righe compatte, i numeri sono testo grigio; un clic li rende un campo. */
+        .tol-sec[data-grp="proj"] .tol-row { min-height:44px; }
+        .tol-sec[data-grp="proj"] .tol-nm b, .tol-sec[data-grp="proj"] .tol-nm small { display:inline; }
+        .tol-sec[data-grp="proj"] .tol-nm small { margin-left:8px; }
+        .tol-sec[data-grp="proj"] .tol-fl:not(.own) .tol-in { border-color:transparent; background:transparent; }
+        .tol-sec[data-grp="proj"] .tol-fl:not(.own) .tol-in:hover { border-bottom:1px dotted var(--text-muted); }
+        .tol-sec[data-grp="proj"] .tol-fl:not(.own) .tol-in:focus { border:1px solid var(--accent); background:var(--bg-color); }
+        .tol-empty { padding:30px 0; text-align:center; color:var(--text-muted); }
+        .tol-foot { justify-content:space-between; align-items:center; }
+        .tol-hint { color:var(--text-muted); font-size:var(--fs-sm); }

@@ -15,7 +15,7 @@
 // La parte pura (OID, differenze, velocita') sta in lib/port-live.js e ha i suoi test; qui c'e' solo il
 // disegno e la chiamata. Solo amministratori, come ogni rotta SNMP (`/api/poll-port`).
 //
-// Modulo FOGLIA: non importa app.js, cosi' non allarga il ciclo dei moduli. Il nodo della porta lo ricorda
+// Non importa app.js (la tile di salute viene da app-health, che nel ciclo dei moduli c'e' gia' per il pannello della porta). Il nodo della porta lo ricorda
 // al momento del disegno (`portLiveHtml`), perche' l'azione del pulsante riceve solo il `pid`.
 
 import { t, getLang } from './_bridge.js';
@@ -24,6 +24,7 @@ import { escapeHTML, postJsonWithDeadline } from './app-util.js';
 import { hasSnmpTarget, snmpTargetHost } from '../lib/snmp-target.js';
 import { summarizePortLive, scaleBytes, scaleBits, scaleCount, scaleDuration } from '../lib/port-live.js';
 import { registerClickActions } from './app-delegation.js';
+import { ifHealthPortHtml } from './app-health.js';   // la tile di salute, in cima al corpo della card
 
 const READ_URL = '/api/poll-port';
 const GAP_MS = 3000;          // distanza fra le due letture: da qui la velocita' attuale
@@ -173,6 +174,9 @@ function _previewHtml(pid, pi) {
 
 // La card per la porta `pid` del nodo `node` (null se l'apparato non si interroga con SNMP). `open` = lo stato
 // della fisarmonica (lo decide il pannello, che lo ricorda come per le altre sezioni).
+// In cima al corpo, SOPRA la lettura e fuori da `[data-pl-body]`, sta la tile con i dati di SALUTE della porta (errori dedotti,
+// totali misurati: `ifHealthPortHtml`, dalla lettura del Sync): `_paint` riscrive solo `[data-pl-body]`, e la tile non deve sparire
+// a ogni «Aggiorna» — non e' una lettura dal vivo.
 export function portLiveHtml(pid, node, pi, open) {
     if (!node || !hasSnmpTarget(node)) return '';
     // L'identita' di una lettura e' CHI e' stato interrogato (apparato, indirizzo, nome dell'interfaccia), non il
@@ -182,7 +186,7 @@ export function portLiveHtml(pid, node, pi, open) {
     const fp = `${node.id}|${snmpTargetHost(node)}|${String((pi && pi.ifName) || '').trim()}`;
     if (e.fp !== fp) { e.fp = fp; e.status = 'idle'; e.summary = null; e.at = 0; e.reason = ''; e.error = ''; e.name = ''; e.seq++; }
     e.nodeId = node.id;
-    return `<details class="props-collapsible props-secondary pl-section" ${open ? 'open' : ''} data-toggle="props-section" data-section="port-live" data-pl-pid="${escapeHTML(pid)}"><summary class="props-collapsible-head"><span><i class="fas fa-gauge-high"></i> ${escapeHTML(t('portLive.title'))}</span>${_previewHtml(pid, pi)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body"><div class="pl-body" data-pl-body>${_bodyHtml(pid, pi)}</div></div></details>`;
+    return `<details class="props-collapsible props-secondary pl-section" ${open ? 'open' : ''} data-toggle="props-section" data-section="port-live" data-pl-pid="${escapeHTML(pid)}"><summary class="props-collapsible-head"><span><i class="fas fa-gauge-high"></i> ${escapeHTML(t('portLive.title'))}</span>${_previewHtml(pid, pi)}<i class="fas fa-chevron-down props-collapsible-chevron"></i></summary><div class="props-collapsible-body">${ifHealthPortHtml(node, pi && pi.ifName)}<div class="pl-body" data-pl-body>${_bodyHtml(pid, pi)}</div></div></details>`;
 }
 
 // ── Lettura ─────────────────────────────────────────────────────────────────────

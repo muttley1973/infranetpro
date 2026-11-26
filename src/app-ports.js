@@ -44,6 +44,8 @@ registerClickActions({
     'port-hidden-toggle': (el) => togglePortHidden(el.dataset.pid),
     'lag-confirm':        () => confirmLag(),
     'lag-cancel':         () => cancelLag(),
+    // dalla scheda «Salute interfacce» di un apparato: un clic su una riga apre la PORTA (stessa selezione di un clic sul LED)
+    'ifh-open-port':      (el) => { if (el.dataset.pid) { store.selType = 'port'; store.selId = el.dataset.pid; renderAll(); } },
 });
 
 // Init dello stato condiviso su window (il bundle gira ULTIMO; i classic li
